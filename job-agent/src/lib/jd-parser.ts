@@ -112,6 +112,52 @@ function isNoiseLine(line: string): boolean {
   return false;
 }
 
+/** 职位描述区的技能标签，勿当作岗位名 */
+function looksLikeSkillTag(line: string): boolean {
+  return (
+    line.includes("/") &&
+    line.length <= 30 &&
+    !/(师|经理|专员|主管|总监|工程师|顾问|负责人|研究员)/.test(line)
+  );
+}
+
+function parseExperienceText(text: string): number | undefined {
+  if (/应届|不限|无经验/.test(text)) return 0;
+  const range = text.match(/(\d+)\s*[-~至]\s*(\d+)/);
+  if (range) return Math.round((Number(range[1]) + Number(range[2])) / 2);
+  const single = text.match(/(\d+)/);
+  if (single) return Number(single[1]);
+  return undefined;
+}
+
+/** 书签 API 输出的结构化字段：岗位：/薪资：/地点： 等 */
+function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
+  const result: Partial<ParsedJobDraft> = {};
+  for (const line of text.split("\n").map((l) => l.trim())) {
+    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司)[：:]\s*(.+)$/);
+    if (!m) continue;
+    const val = m[2].trim();
+    switch (m[1]) {
+      case "岗位":
+        result.title = val;
+        break;
+      case "薪资":
+        result.salary = normalizeSalary(val);
+        break;
+      case "地点":
+        result.location = val;
+        break;
+      case "经验":
+        result.experienceYears = parseExperienceText(val);
+        break;
+      case "公司":
+        result.company = val;
+        break;
+    }
+  }
+  return result;
+}
+
 /** 从 BOSS 页脚面包屑提取：数说故事商业数据分析招聘 */
 function extractBossTitleFromBreadcrumb(fullText: string, company: string): string | undefined {
   if (company) {
@@ -172,29 +218,34 @@ function parseBossHeader(mainPart: string): Partial<ParsedJobDraft> {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (/^(岗位|薪资|地点|经验|学历|公司|来源)[：:]/.test(line)) continue;
 
     const salaryOnly = line.match(/^(\d+\s*[-~至到]\s*\d+\s*[Kk])(?:\s*·\s*(\d+\s*薪))?$/i);
     if (salaryOnly) {
-      result.salary = normalizeSalary(
-        salaryOnly[2] ? `${salaryOnly[1]}·${salaryOnly[2]}` : salaryOnly[1]
-      );
+      if (!result.salary) {
+        result.salary = normalizeSalary(
+          salaryOnly[2] ? `${salaryOnly[1]}·${salaryOnly[2]}` : salaryOnly[1]
+        );
+      }
       continue;
     }
 
     const salaryMatch = line.match(BOSS_SALARY_RE);
     if (salaryMatch?.[1] && line.length <= 20) {
-      result.salary = normalizeSalary(salaryMatch[1]);
+      if (!result.salary) result.salary = normalizeSalary(salaryMatch[1]);
       continue;
     }
 
     const expRange = line.match(/^(\d+)\s*[-~至]\s*(\d+)\s*年$/);
     if (expRange) {
-      result.experienceYears = Math.round((Number(expRange[1]) + Number(expRange[2])) / 2);
+      if (result.experienceYears === undefined) {
+        result.experienceYears = Math.round((Number(expRange[1]) + Number(expRange[2])) / 2);
+      }
       continue;
     }
 
     if (CITIES.includes(line)) {
-      result.location = line;
+      if (!result.location) result.location = line;
       continue;
     }
 
@@ -203,7 +254,8 @@ function parseBossHeader(mainPart: string): Partial<ParsedJobDraft> {
       !/^\d+[、.]/.test(line) &&
       TITLE_KEYWORDS.some((k) => line.includes(k)) &&
       line.length <= 35 &&
-      !isNoiseLine(line)
+      !isNoiseLine(line) &&
+      !looksLikeSkillTag(line)
     ) {
       result.title = line;
     }
@@ -279,15 +331,25 @@ function parseBossFormat(fullText: string): Partial<ParsedJobDraft> | null {
   const url = fullText.match(/https?:\/\/[^\s]*zhipin\.com[^\s]*/)?.[0];
   if (url) result.url = url.split("?")[0] + (url.includes("?") ? "?" + url.split("?")[1].split("&").slice(0, 1).join("&") : "");
 
-  result.company = extractBossCompany(cleanText);
+  Object.assign(result, parseStructuredBossFields(fullText));
+
+  result.company = result.company || extractBossCompany(cleanText);
 
   const mainPart = cleanText.split("职位描述")[0] || "";
   const header = parseBossHeader(mainPart);
-  Object.assign(result, header);
+  if (!result.title && header.title) result.title = header.title;
+  if (!result.salary && header.salary) result.salary = header.salary;
+  if (!result.location && header.location) result.location = header.location;
+  if (result.experienceYears === undefined && header.experienceYears !== undefined) {
+    result.experienceYears = header.experienceYears;
+  }
 
   // 合并 meta 行：15-25K·北京·3-5年·本科 或 11-20K·14薪
   const metaLine = mainPart.split("\n").find((l) => /\d+-\d+K|K以上|面议/.test(l) && l.includes("·"));
-  if (metaLine) applyBossMetaLine(metaLine, result);
+  if (metaLine && !result.salary) applyBossMetaLine(metaLine, result);
+  else if (metaLine && result.salary && !result.salary.includes("薪")) {
+    applyBossMetaLine(metaLine, result);
+  }
 
   result.title = result.title || extractBossTitleFromBreadcrumb(fullText, result.company || "");
 
@@ -301,7 +363,8 @@ function parseBossFormat(fullText: string): Partial<ParsedJobDraft> | null {
         !/^\d+[、.]/.test(l) &&
         TITLE_KEYWORDS.some((k) => l.includes(k)) &&
         l.length <= 35 &&
-        !isNoiseLine(l)
+        !isNoiseLine(l) &&
+        !looksLikeSkillTag(l)
     );
     if (titleLine) result.title = titleLine;
   }
@@ -330,7 +393,20 @@ function extractTitle(text: string): string {
     }
   }
   for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
-    if (isNoiseLine(line) || /^\d+[、.]/.test(line)) continue;
+    if (isNoiseLine(line) || /^\d+[、.]/.test(line) || looksLikeSkillTag(line)) continue;
+    if (TITLE_KEYWORDS.some((k) => line.includes(k)) && line.length <= 35) {
+      return line.replace(/^[【\[]|[】\]]$/g, "");
+    }
+  }
+  return "未知岗位";
+}
+
+/** BOSS 岗位名只在「职位描述」之前查找，避免误取技能标签 */
+function extractBossTitle(text: string): string {
+  const beforeDesc = text.split("职位描述")[0] || text;
+  for (const line of beforeDesc.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    if (isNoiseLine(line) || /^\d+[、.]/.test(line) || looksLikeSkillTag(line)) continue;
+    if (/^(岗位|薪资|地点|经验|学历|公司)[：:]/.test(line)) continue;
     if (TITLE_KEYWORDS.some((k) => line.includes(k)) && line.length <= 35) {
       return line.replace(/^[【\[]|[】\]]$/g, "");
     }
@@ -401,7 +477,9 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
   const bossPartial = isBoss ? parseBossFormat(text) : null;
   const cleanText = isBoss ? sanitizeBossContent(text) : text;
 
-  const title = bossPartial?.title || extractTitle(cleanText);
+  const title =
+    bossPartial?.title ||
+    (isBoss ? extractBossTitle(cleanText) : extractTitle(cleanText));
   const company = bossPartial?.company || extractCompany(cleanText, title);
   const location = bossPartial?.location || extractLocation(cleanText);
   const salary = bossPartial?.salary || extractSalary(cleanText);

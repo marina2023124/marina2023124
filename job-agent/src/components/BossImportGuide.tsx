@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Copy, Check, GripVertical, ArrowRight } from "lucide-react";
 import { Button } from "./ui";
-
-/** 用户在 BOSS 直聘页面手动点击运行，提取当前岗位文字到剪贴板 */
-export const BOSS_BOOKMARKLET = `javascript:(function(){try{var u=location.href;var sel='.job-detail-section,.job-detail-wrapper,.job-detail,.job-box,.job-detail-body,.position-content';var s=document.querySelector(sel);var t=s?s.innerText:'';if(t){var cut=['更多职位','看过该职位的人还看了','精选职位'];for(var i=0;i<cut.length;i++){var x=t.indexOf(cut[i]);if(x>0)t=t.slice(0,x)}}if(!t||t.length<50){var p=document.querySelector('[class*="job-detail"],[class*="JobDetail"]');t=p?p.innerText:''}if(!t||t.length<30)t=window.getSelection()?.toString()||'';if(!t||t.length<20){alert('请先打开岗位详情页，或选中岗位描述文字后再点击书签');return}var out='来源：'+u+'\\n\\n'+t.trim();navigator.clipboard.writeText(out).then(function(){alert('✅ 已复制！\\n请回到 JobAgent 粘贴，然后点「智能识别」')}).catch(function(){prompt('请手动复制：',out)})}catch(e){alert('提取失败，请手动复制岗位描述')}})();`;
+import { BOSS_BOOKMARKLET } from "@/lib/boss-bookmarklet";
 
 function StepCard({
   step,
@@ -86,7 +84,10 @@ export function BossImportGuide({ onPasteDemo }: { onPasteDemo?: () => void }) {
         <StepCard step={2} title="在 BOSS 打开岗位，点一下书签">
           <p className="mb-3 text-sm text-slate-600">
             登录 BOSS直聘 → 打开<strong>某个岗位的详情页</strong>（不是列表页）
-            → 点击书签栏里的「📥 导入 BOSS 岗位」→ 弹出「✅ 已复制」
+            → 点击书签栏里的「📥 导入 BOSS 岗位」→ 弹出「✅ 已复制（含薪资）」
+          </p>
+          <p className="mb-3 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+            BOSS 页面上的薪资用了字体反爬，<strong>手动复制无法得到真实薪资</strong>。必须用书签从 BOSS 内部 API 获取明文薪资。
           </p>
           <a
             href="https://www.zhipin.com/web/geek/recommend"
@@ -134,11 +135,11 @@ export function BossImportGuide({ onPasteDemo }: { onPasteDemo?: () => void }) {
             </div>
 
             <div className="border-t border-slate-100 pt-3">
-              <p className="mb-2 text-sm font-medium text-slate-800">备用 B：直接复制粘贴（最简单）</p>
+              <p className="mb-2 text-sm font-medium text-slate-800">备用 B：直接复制粘贴（无薪资）</p>
               <ol className="list-decimal space-y-1 pl-4 text-sm text-slate-600">
-                <li>BOSS 岗位详情页，从<strong>「职位描述」</strong>拖到<strong>「工作地址」</strong>选中复制（不要 Ctrl+A 全页）</li>
-                <li><kbd className="rounded border px-1 text-xs">Ctrl+C</kbd> 复制，粘贴到下方输入框</li>
-                <li>点「智能识别」— 已自动过滤「更多职位」等推荐内容</li>
+                <li>仅当书签不可用时使用；手动复制<strong>无法获取薪资</strong>（BOSS 字体反爬）</li>
+                <li>从<strong>「职位描述」</strong>拖到<strong>「工作地址」</strong>选中复制（不要 Ctrl+A 全页）</li>
+                <li><kbd className="rounded border px-1 text-xs">Ctrl+C</kbd> 复制后粘贴，薪资需手动补充</li>
               </ol>
               {onPasteDemo && (
                 <button
@@ -159,15 +160,21 @@ export function BossImportGuide({ onPasteDemo }: { onPasteDemo?: () => void }) {
 
 export const BOSS_DEMO_TEXT = `来源：https://www.zhipin.com/job_detail/xxx.html
 
-高级前端工程师
-20-35K·北京·3-5年·本科
-字节跳动
-职位描述
-1. 负责核心业务前端开发与架构设计
-2. 参与技术选型和代码评审
+岗位：商业分析师（双休）
+薪资：11-20K·14薪
+地点：北京
+经验：1-3年
+学历：本科
+公司：数说故事
 
-任职要求
-1. 精通 React、TypeScript
-2. 3年以上前端开发经验
-3. 熟悉 Node.js 和工程化工具
-4. 有大型项目经验者优先`;
+商业分析师（双休）
+11-20K·14薪·北京·1-3年·本科
+职位描述
+1. 负责用户深度研究与竞品分析
+2. 搭建研究框架，输出数据洞察
+
+任职条件
+1. 本科及以上学历，有市场研究或用户研究背景
+2. 熟悉 Excel 等统计软件
+工作地址
+北京朝阳区望京`;
