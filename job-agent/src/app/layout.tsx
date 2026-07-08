@@ -1,15 +1,6 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import "./globals.css";
-import { AppProvider } from "@/context/AppContext";
-import { AppLayout } from "@/components/Sidebar";
-import { AuthGuard } from "@/components/AuthGuard";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
+import { ClientProviders } from "@/components/ClientProviders";
 
 export const metadata: Metadata = {
   title: "JobAgent - 智能求职助手",
@@ -23,12 +14,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${geistSans.variable} font-sans antialiased`}>
-        <AppProvider>
-          <AuthGuard>
-            <AppLayout>{children}</AppLayout>
-          </AuthGuard>
-        </AppProvider>
+      <body className="font-sans antialiased">
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );

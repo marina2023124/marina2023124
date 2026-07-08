@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup": "node scripts/setup-supabase.mjs"
+    "setup": "node scripts/setup-supabase.mjs",
+    "clean": "rm -rf .next",
+    "dev:clean": "rm -rf .next && next dev"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

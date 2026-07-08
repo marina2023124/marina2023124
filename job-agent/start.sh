@@ -16,6 +16,12 @@ echo "✓ npm $(npm -v)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# 清理损坏的构建缓存（修复 ChunkLoadError）
+if [ -d ".next" ]; then
+  echo "🧹 清理旧缓存..."
+  rm -rf .next
+fi
+
 # 安装依赖
 if [ ! -d "node_modules" ]; then
   echo ""
