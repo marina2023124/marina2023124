@@ -1,24 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { Cloud, Loader2 } from "lucide-react";
+import { Cloud, Loader2, WifiOff } from "lucide-react";
 import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loaded, authReady, isConfigured, forceReady } = useApp();
+  const { user, loaded, authReady, isConfigured, localMode, forceReady, enterLocalMode } =
+    useApp();
   const router = useRouter();
   const pathname = usePathname();
-  const [showSkip, setShowSkip] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShowSkip(true), 2000);
-    return () => clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     if (!loaded || !authReady) return;
+    if (localMode) {
+      if (pathname === "/login") router.replace("/");
+      return;
+    }
     if (!isConfigured && pathname !== "/login") {
       router.replace("/login");
       return;
@@ -30,36 +29,51 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (user && pathname === "/login") {
       router.replace("/");
     }
-  }, [user, loaded, authReady, isConfigured, pathname, router]);
+  }, [user, loaded, authReady, isConfigured, localMode, pathname, router]);
 
   const loadingScreen = (message: string) => (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-4 text-center px-6 max-w-md">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
         <p className="text-sm text-slate-600">{message}</p>
-        <p className="text-xs text-slate-400">
-          国内网络通常需要 VPN 才能访问 supabase.co
-        </p>
-        {showSkip && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full">
-            <p className="mb-3 text-sm text-amber-900">
-              一直转圈说明连不上 Supabase 云端。请先<strong>开启 VPN</strong>，再刷新页面；或暂时跳过进入登录页重试。
-            </p>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                forceReady();
-                router.replace("/login");
-              }}
-            >
-              跳过等待，进入登录页
-            </Button>
-          </div>
-        )}
+        <p className="text-xs text-slate-400">国内网络通常需要 VPN 才能访问 supabase.co</p>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
+          <p className="text-sm text-amber-900">
+            一直转圈说明连不上 Supabase。你可以：
+          </p>
+          <Button
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              enterLocalMode();
+              router.replace("/");
+            }}
+          >
+            <WifiOff className="mr-2 h-4 w-4" />
+            离线使用（推荐，立即可用）
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              forceReady();
+              router.replace("/login");
+            }}
+          >
+            跳过等待，尝试登录云端
+          </Button>
+          <p className="text-xs text-amber-700">
+            离线模式：数据仅保存在本次浏览器会话，关闭浏览器后自动清除，不会写入硬盘。
+          </p>
+        </div>
       </div>
     </div>
   );
+
+  if (localMode) {
+    return <>{children}</>;
+  }
 
   if (!authReady) {
     return loadingScreen("正在连接云端...");
@@ -84,7 +98,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export function CloudSyncStatus() {
-  const { syncing, syncError, lastSyncedAt } = useApp();
+  const { syncing, syncError, lastSyncedAt, localMode } = useApp();
+
+  if (localMode) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <WifiOff className="h-3 w-3" />
+        离线模式 · 关闭浏览器后数据自动清除
+      </div>
+    );
+  }
 
   if (syncError) {
     return (

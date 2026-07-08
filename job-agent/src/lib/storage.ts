@@ -6,6 +6,12 @@ import type { AppData, ChatMessage, JobPosting, Profile } from "./types";
 import { defaultAppData } from "./types";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
+import {
+  enableLocalMode,
+  isLocalModeEnabled,
+  loadLocalData,
+  saveLocalData,
+} from "./local-storage";
 
 const AUTH_TIMEOUT_MS = 4000;
 const LOAD_TIMEOUT_MS = 6000;
@@ -27,10 +33,19 @@ export function useAppData() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [localMode, setLocalMode] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSaveRef = useRef(true);
 
   useEffect(() => {
+    if (isLocalModeEnabled()) {
+      setLocalMode(true);
+      setData(loadLocalData());
+      setAuthReady(true);
+      setLoaded(true);
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       setAuthReady(true);
       setLoaded(true);
@@ -84,6 +99,13 @@ export function useAppData() {
   useEffect(() => {
     if (!authReady) return;
 
+    if (localMode) {
+      setData(loadLocalData());
+      setLoaded(true);
+      skipSaveRef.current = true;
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       setLoaded(true);
       return;
@@ -124,10 +146,17 @@ export function useAppData() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, user]);
+  }, [authReady, user, localMode]);
 
   useEffect(() => {
-    if (!loaded || !user || !isSupabaseConfigured()) return;
+    if (!loaded || localMode) {
+      if (localMode && loaded) {
+        saveLocalData(data);
+      }
+      return;
+    }
+
+    if (!user || !isSupabaseConfigured()) return;
 
     if (skipSaveRef.current) {
       skipSaveRef.current = false;
@@ -153,7 +182,7 @@ export function useAppData() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [data, loaded, user]);
+  }, [data, loaded, user, localMode]);
 
   const updateProfile = useCallback((profile: Partial<Profile>) => {
     setData((prev) => ({
@@ -247,6 +276,17 @@ export function useAppData() {
     setLoaded(true);
   }, []);
 
+  const enterLocalMode = useCallback(() => {
+    enableLocalMode();
+    setLocalMode(true);
+    setUser(null);
+    setData(loadLocalData());
+    setAuthReady(true);
+    setLoaded(true);
+    skipSaveRef.current = true;
+    setSyncError(null);
+  }, []);
+
   return {
     data,
     loaded,
@@ -256,6 +296,7 @@ export function useAppData() {
     syncError,
     lastSyncedAt,
     isConfigured: isSupabaseConfigured(),
+    localMode,
     updateProfile,
     setProfile,
     addJob,
@@ -267,5 +308,6 @@ export function useAppData() {
     importData,
     signOut,
     forceReady,
+    enterLocalMode,
   };
 }

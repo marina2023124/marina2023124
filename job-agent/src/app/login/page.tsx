@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Briefcase, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Briefcase, Loader2, WifiOff } from "lucide-react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { SetupWizard } from "@/components/SetupWizard";
 import { Button, Input } from "@/components/ui";
+import { useApp } from "@/context/AppContext";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { enterLocalMode } = useApp();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -127,6 +131,21 @@ export default function LoginPage() {
           <p className="mt-6 text-center text-xs text-slate-400">
             所有求职资料加密存储在 Supabase 云端，不会写入浏览器 localStorage
           </p>
+
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => {
+                enterLocalMode();
+                router.replace("/");
+              }}
+            >
+              <WifiOff className="h-4 w-4" />
+              云端连不上？离线使用（关闭浏览器后清除）
+            </Button>
+          </div>
         </div>
       </div>
     </div>
