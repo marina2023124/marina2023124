@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { Cloud, Loader2, WifiOff } from "lucide-react";
+import { enableCloudMode } from "@/lib/local-storage";
 import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -57,6 +58,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             variant="secondary"
             className="w-full"
             onClick={() => {
+              enableCloudMode();
               forceReady();
               router.replace("/login");
             }}

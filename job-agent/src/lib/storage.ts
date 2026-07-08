@@ -11,6 +11,7 @@ import {
   isLocalModeEnabled,
   loadLocalData,
   saveLocalData,
+  wantsCloudMode,
 } from "./local-storage";
 
 const AUTH_TIMEOUT_MS = 2500;
@@ -39,6 +40,16 @@ export function useAppData() {
 
   useEffect(() => {
     if (isLocalModeEnabled()) {
+      setLocalMode(true);
+      setData(loadLocalData());
+      setAuthReady(true);
+      setLoaded(true);
+      return;
+    }
+
+    // 国内默认离线，避免一直等待 Supabase
+    if (!wantsCloudMode()) {
+      enableLocalMode();
       setLocalMode(true);
       setData(loadLocalData());
       setAuthReady(true);

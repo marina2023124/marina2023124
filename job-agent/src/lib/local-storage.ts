@@ -2,7 +2,22 @@ import type { AppData } from "./types";
 import { defaultAppData } from "./types";
 
 export const LOCAL_MODE_KEY = "job-agent-offline";
+export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
 const DATA_KEY = "job-agent-session-data";
+
+export function wantsCloudMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(CLOUD_MODE_KEY) === "1";
+}
+
+export function enableCloudMode(): void {
+  sessionStorage.setItem(CLOUD_MODE_KEY, "1");
+  sessionStorage.removeItem(LOCAL_MODE_KEY);
+}
+
+export function disableCloudMode(): void {
+  sessionStorage.removeItem(CLOUD_MODE_KEY);
+}
 
 export function isLocalModeEnabled(): boolean {
   if (typeof window === "undefined") return false;
