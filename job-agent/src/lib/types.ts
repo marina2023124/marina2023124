@@ -59,6 +59,7 @@ export interface JobPosting {
   title: string;
   company: string;
   location?: string;
+  workAddress?: string;
   salary?: string;
   description: string;
   requirements: string[];

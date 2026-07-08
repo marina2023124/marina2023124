@@ -23,6 +23,7 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     if(meta.location)h.push('地点：'+meta.location);
     if(meta.experience)h.push('经验：'+meta.experience);
     if(meta.degree)h.push('学历：'+meta.degree);
+    if(meta.workAddress)h.push('工作地址：'+meta.workAddress);
     if(meta.company)h.push('公司：'+meta.company);
     if(meta.title&&meta.salary){
       h.push('');
@@ -59,7 +60,8 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
         if(d&&d.code===0&&d.zpData&&d.zpData.jobInfo){
           var job=d.zpData.jobInfo,brand=d.zpData.brandComInfo||{};
           var meta={title:job.jobName,salary:job.salaryDesc,location:job.locationName,
-            experience:job.experienceName,degree:job.degreeName,company:brand.brandName};
+            experience:job.experienceName,degree:job.degreeName,company:brand.brandName,
+            workAddress:job.address||''};
           var body=bodyFromApi(job,brand)||domBody();
           copyOut(header(meta)+'\\n\\n'+body,!!meta.salary);
         }else{fallback();}

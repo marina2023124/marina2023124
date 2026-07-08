@@ -4,6 +4,7 @@ export interface ParsedJobDraft {
   title: string;
   company: string;
   location?: string;
+  workAddress?: string;
   salary?: string;
   experienceYears?: number;
   url?: string;
@@ -134,7 +135,7 @@ function parseExperienceText(text: string): number | undefined {
 function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
   const result: Partial<ParsedJobDraft> = {};
   for (const line of text.split("\n").map((l) => l.trim())) {
-    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司)[：:]\s*(.+)$/);
+    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司|工作地址)[：:]\s*(.+)$/);
     if (!m) continue;
     const val = m[2].trim();
     switch (m[1]) {
@@ -146,6 +147,9 @@ function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
         break;
       case "地点":
         result.location = val;
+        break;
+      case "工作地址":
+        result.workAddress = val;
         break;
       case "经验":
         result.experienceYears = parseExperienceText(val);
@@ -180,14 +184,30 @@ function extractBossCompany(cleanText: string): string | undefined {
   return undefined;
 }
 
-function extractBossLocation(cleanText: string): string | undefined {
+function extractBossWorkAddress(cleanText: string): string | undefined {
   const m = cleanText.match(/工作地址\s*\n\s*([^\n]+)/);
-  if (m?.[1]) return m[1].trim();
+  if (!m?.[1]) return undefined;
+  return m[1].trim().replace(/点击查看地图.*$/, "").trim();
+}
+
+function extractCityFromAddress(address: string): string | undefined {
+  const m = address.match(
+    /(北京|上海|广州|深圳|杭州|成都|南京|武汉|西安|苏州|天津|重庆)(?:市)?([\u4e00-\u9fff]{1,6}区)?/
+  );
+  if (!m) return undefined;
+  return `${m[1]}${m[2] || ""}`;
+}
+
+function extractBossLocation(cleanText: string, workAddress?: string): string | undefined {
+  if (workAddress) {
+    const city = extractCityFromAddress(workAddress);
+    if (city) return city;
+  }
 
   for (const city of CITIES) {
     if (cleanText.includes(city)) {
       const line = cleanText.split("\n").find((l) => l.includes(city) && l.length <= 30);
-      if (line && !line.includes("招聘")) return line.trim();
+      if (line && !line.includes("招聘") && !line.includes("地址")) return line.trim();
     }
   }
   return undefined;
@@ -353,7 +373,11 @@ function parseBossFormat(fullText: string): Partial<ParsedJobDraft> | null {
 
   result.title = result.title || extractBossTitleFromBreadcrumb(fullText, result.company || "");
 
-  if (!result.location) result.location = extractBossLocation(cleanText);
+  if (!result.location) result.location = extractBossLocation(cleanText, result.workAddress);
+  if (!result.workAddress) result.workAddress = extractBossWorkAddress(cleanText);
+  if (!result.location && result.workAddress) {
+    result.location = extractCityFromAddress(result.workAddress);
+  }
   if (!result.salary) result.salary = extractBossSalary(cleanText);
 
   // 标题：面包屑优先，其次「职位描述」前含关键词的行（排除职责条目）
@@ -420,6 +444,12 @@ function extractCompany(text: string, title: string): string {
   return "未知公司";
 }
 
+function extractWorkAddress(text: string): string | undefined {
+  const m = text.match(/工作地址[：:\s]*\n?\s*([^\n]+)/);
+  if (m?.[1]) return m[1].trim().replace(/点击查看地图.*$/, "").trim();
+  return undefined;
+}
+
 function extractLocation(text: string): string | undefined {
   for (const city of CITIES) {
     const line = text.split("\n").find((l) => l.includes(city) && l.length <= 30);
@@ -482,6 +512,10 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     (isBoss ? extractBossTitle(cleanText) : extractTitle(cleanText));
   const company = bossPartial?.company || extractCompany(cleanText, title);
   const location = bossPartial?.location || extractLocation(cleanText);
+  const workAddress =
+    bossPartial?.workAddress ||
+    extractWorkAddress(cleanText) ||
+    (bossPartial?.location && bossPartial.location.length > 20 ? bossPartial.location : undefined);
   const salary = bossPartial?.salary || extractSalary(cleanText);
   const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(cleanText);
   const url = bossPartial?.url || extractUrl(text);
@@ -494,7 +528,8 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
   return {
     title,
     company,
-    location,
+    location: workAddress ? extractCityFromAddress(workAddress) || location : location,
+    workAddress,
     salary,
     experienceYears,
     url,

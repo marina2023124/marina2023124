@@ -18,6 +18,7 @@ import { generateId } from "@/lib/utils";
 import { parseJobDescription } from "@/lib/jd-parser";
 import { extractTextFromImage, isImageFile } from "@/lib/ocr";
 import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
+import { CommuteInfo } from "@/components/CommuteInfo";
 import { Button, Card, Input, Textarea, Select, Badge, EmptyState } from "./ui";
 
 const statusOptions: { value: JobStatus; label: string }[] = [
@@ -60,6 +61,7 @@ function SmartJobInput({
       title: parsed.title || prev?.title || "",
       company: parsed.company || prev?.company || "",
       location: parsed.location ?? prev?.location,
+      workAddress: parsed.workAddress ?? prev?.workAddress,
       salary: parsed.salary ?? prev?.salary,
       experienceYears: parsed.experienceYears ?? prev?.experienceYears,
       url: parsed.url ?? prev?.url,
@@ -223,10 +225,13 @@ function SmartJobInput({
             <div><span className="text-slate-500">岗位：</span><span className="font-medium text-slate-900">{preview.title || "—"}</span></div>
             <div><span className="text-slate-500">公司：</span><span className="font-medium text-slate-900">{preview.company || "—"}</span></div>
             <div><span className="text-slate-500">地点：</span><span className="text-slate-800">{preview.location || "—"}</span></div>
+            <div className="col-span-2"><span className="text-slate-500">工作地址：</span><span className="text-slate-800">{preview.workAddress || "—"}</span></div>
             <div><span className="text-slate-500">薪资：</span><span className="text-slate-800">{preview.salary || "—"}</span></div>
             <div><span className="text-slate-500">经验：</span><span className="text-slate-800">{preview.experienceYears != null ? `${preview.experienceYears}年` : "—"}</span></div>
             <div><span className="text-slate-500">技能：</span><span className="text-slate-800">{preview.preferredSkills.length} 项</span></div>
           </div>
+
+          <CommuteInfo workAddress={preview.workAddress} />
 
           {preview.preferredSkills.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-1.5">
@@ -252,7 +257,8 @@ function SmartJobInput({
               <div className="grid grid-cols-2 gap-3">
                 <Input label="岗位名称" value={preview.title} onChange={(e) => updatePreview({ title: e.target.value })} />
                 <Input label="公司名称" value={preview.company} onChange={(e) => updatePreview({ company: e.target.value })} />
-                <Input label="工作地点" value={preview.location || ""} onChange={(e) => updatePreview({ location: e.target.value })} />
+                <Input label="城市/区域" value={preview.location || ""} onChange={(e) => updatePreview({ location: e.target.value })} />
+                <Input label="工作地址" value={preview.workAddress || ""} onChange={(e) => updatePreview({ workAddress: e.target.value })} className="col-span-2" />
                 <Input label="薪资" value={preview.salary || ""} onChange={(e) => updatePreview({ salary: e.target.value })} />
                 <Input label="经验（年）" type="number" value={preview.experienceYears ?? ""} onChange={(e) => updatePreview({ experienceYears: e.target.value ? Number(e.target.value) : undefined })} />
                 <Input label="链接" value={preview.url || ""} onChange={(e) => updatePreview({ url: e.target.value })} />
@@ -340,13 +346,14 @@ export function JobManager() {
                     <Badge color={statusColor[job.status]}>{statusLabel}</Badge>
                   </div>
                   <p className="text-sm text-indigo-600">{job.company}</p>
-                  <div className="mt-1 flex gap-4 text-xs text-slate-500">
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     {job.location && <span>{job.location}</span>}
                     {job.salary && <span>{job.salary}</span>}
                     {job.experienceYears != null && job.experienceYears > 0 && (
                       <span>{job.experienceYears}年经验</span>
                     )}
                   </div>
+                  <CommuteInfo workAddress={job.workAddress} />
                   {job.description && (
                     <p className="mt-3 line-clamp-3 text-sm text-slate-600">{job.description}</p>
                   )}

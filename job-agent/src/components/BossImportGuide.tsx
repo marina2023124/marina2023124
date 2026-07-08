@@ -177,4 +177,4 @@ export const BOSS_DEMO_TEXT = `来源：https://www.zhipin.com/job_detail/xxx.ht
 1. 本科及以上学历，有市场研究或用户研究背景
 2. 熟悉 Excel 等统计软件
 工作地址
-北京朝阳区望京`;
+北京朝阳区望京SOHO T3`;
