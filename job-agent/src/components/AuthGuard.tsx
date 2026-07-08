@@ -42,6 +42,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-3 text-slate-500">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
           <p className="text-sm">正在从云端加载数据...</p>
+          <p className="text-xs text-slate-400">超过 12 秒仍未打开？请检查 VPN 或刷新页面</p>
         </div>
       </div>
     );

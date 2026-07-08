@@ -7,6 +7,17 @@ import { defaultAppData } from "./types";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
 
+const LOAD_TIMEOUT_MS = 12000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
 export function useAppData() {
   const [data, setData] = useState<AppData>(defaultAppData);
   const [loaded, setLoaded] = useState(false);
@@ -25,11 +36,14 @@ export function useAppData() {
 
     const supabase = createClient();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    }).catch(() => {
-      setUser(null);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      })
+      .catch(() => {
+        setUser(null);
+      });
 
     const {
       data: { subscription },
@@ -58,7 +72,11 @@ export function useAppData() {
     setSyncError(null);
 
     const supabase = createClient();
-    loadCloudData(supabase, user.id)
+    withTimeout(
+      loadCloudData(supabase, user.id),
+      LOAD_TIMEOUT_MS,
+      "云端加载超时，请检查网络或 VPN 后刷新页面"
+    )
       .then((cloudData) => {
         if (!cancelled) {
           setData(cloudData);
