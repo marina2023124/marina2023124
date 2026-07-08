@@ -7,7 +7,7 @@ import { defaultAppData } from "./types";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
 
-const LOAD_TIMEOUT_MS = 12000;
+const LOAD_TIMEOUT_MS = 8000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -21,6 +21,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 export function useAppData() {
   const [data, setData] = useState<AppData>(defaultAppData);
   const [loaded, setLoaded] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -30,11 +31,20 @@ export function useAppData() {
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
+      setAuthReady(true);
       setLoaded(true);
       return;
     }
 
     const supabase = createClient();
+    let done = false;
+
+    const finishAuth = () => {
+      if (!done) {
+        done = true;
+        setAuthReady(true);
+      }
+    };
 
     supabase.auth
       .getSession()
@@ -43,18 +53,28 @@ export function useAppData() {
       })
       .catch(() => {
         setUser(null);
-      });
+      })
+      .finally(finishAuth);
+
+    // 防止 getSession 挂起导致永远 loading
+    const authTimer = setTimeout(finishAuth, LOAD_TIMEOUT_MS);
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      finishAuth();
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(authTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
+    if (!authReady) return;
+
     if (!isSupabaseConfigured()) {
       setLoaded(true);
       return;
@@ -75,7 +95,7 @@ export function useAppData() {
     withTimeout(
       loadCloudData(supabase, user.id),
       LOAD_TIMEOUT_MS,
-      "云端加载超时，请检查网络或 VPN 后刷新页面"
+      "云端加载超时，请检查网络能否访问 supabase.co"
     )
       .then((cloudData) => {
         if (!cancelled) {
@@ -88,13 +108,14 @@ export function useAppData() {
         if (!cancelled) setSyncError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setLoaded(true);
+        // 即使组件重渲染也必须结束 loading，避免永远转圈
+        setLoaded(true);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [authReady, user]);
 
   useEffect(() => {
     if (!loaded || !user || !isSupabaseConfigured()) return;
@@ -212,9 +233,15 @@ export function useAppData() {
     setData(defaultAppData());
   }, []);
 
+  const forceReady = useCallback(() => {
+    setAuthReady(true);
+    setLoaded(true);
+  }, []);
+
   return {
     data,
     loaded,
+    authReady,
     user,
     syncing,
     syncError,
@@ -230,5 +257,6 @@ export function useAppData() {
     exportData,
     importData,
     signOut,
+    forceReady,
   };
 }

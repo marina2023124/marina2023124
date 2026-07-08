@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { Cloud, Loader2 } from "lucide-react";
+import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loaded, isConfigured } = useApp();
+  const { user, loaded, authReady, isConfigured, forceReady } = useApp();
   const router = useRouter();
   const pathname = usePathname();
+  const [showSkip, setShowSkip] = useState(false);
 
   useEffect(() => {
-    if (!loaded) return;
+    const t = setTimeout(() => setShowSkip(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded || !authReady) return;
     if (!isConfigured && pathname !== "/login") {
       router.replace("/login");
       return;
@@ -23,37 +30,47 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (user && pathname === "/login") {
       router.replace("/");
     }
-  }, [user, loaded, isConfigured, pathname, router]);
+  }, [user, loaded, authReady, isConfigured, pathname, router]);
+
+  const loadingScreen = (message: string) => (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-4 text-center px-6">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+        <p className="text-sm text-slate-600">{message}</p>
+        {showSkip && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 max-w-sm">
+            <p className="mb-3 text-sm text-amber-900">
+              加载时间过长？可能是 Supabase 云端连接失败（需 VPN 访问 supabase.co）
+            </p>
+            <Button size="sm" variant="secondary" onClick={() => {
+              forceReady();
+              router.replace("/login");
+            }}>
+              跳过等待，进入登录页
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (!authReady) {
+    return loadingScreen("正在连接云端...");
+  }
 
   if (!isConfigured) {
     if (pathname === "/login") {
       return <>{children}</>;
     }
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return loadingScreen("正在跳转...");
   }
 
   if (!loaded) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-          <p className="text-sm">正在从云端加载数据...</p>
-          <p className="text-xs text-slate-400">超过 12 秒仍未打开？请检查 VPN 或刷新页面</p>
-        </div>
-      </div>
-    );
+    return loadingScreen("正在从云端加载数据...");
   }
 
   if (!user && pathname !== "/login") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return loadingScreen("正在跳转登录...");
   }
 
   return <>{children}</>;
