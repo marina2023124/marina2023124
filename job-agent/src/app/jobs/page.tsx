@@ -8,7 +8,7 @@ export default function JobsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">岗位管理</h1>
         <p className="mt-1 text-slate-500">
-          添加感兴趣的 JD，系统会自动提取技能要求
+          粘贴 JD 文字或上传截图，自动识别岗位、公司、薪资和技能要求
         </p>
       </div>
       <JobManager />
