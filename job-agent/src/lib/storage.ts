@@ -27,6 +27,8 @@ export function useAppData() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+    }).catch(() => {
+      setUser(null);
     });
 
     const {
