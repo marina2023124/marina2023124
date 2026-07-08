@@ -5,7 +5,7 @@ import { ExternalLink, Copy, Check, GripVertical, ArrowRight } from "lucide-reac
 import { Button } from "./ui";
 
 /** 用户在 BOSS 直聘页面手动点击运行，提取当前岗位文字到剪贴板 */
-export const BOSS_BOOKMARKLET = `javascript:(function(){try{var u=location.href;var s=document.querySelector('.job-detail-section,.job-detail,.job-box,.position-content,.job-sec-text');var t=s?s.innerText:'';if(!t||t.length<50){var p=document.querySelector('[class*="job-detail"],[class*="JobDetail"],.detail-content');t=p?p.innerText:''}if(!t||t.length<30)t=window.getSelection()?.toString()||'';if(!t||t.length<20){alert('请先打开岗位详情页，或选中岗位描述文字后再点击书签');return}var out='来源：'+u+'\\n\\n'+t.trim();navigator.clipboard.writeText(out).then(function(){alert('✅ 已复制！\\n请回到 JobAgent 粘贴，然后点「智能识别」')}).catch(function(){prompt('请手动复制以下内容到 JobAgent：',out)})}catch(e){alert('提取失败，请手动复制岗位描述')}})();`;
+export const BOSS_BOOKMARKLET = `javascript:(function(){try{var u=location.href;var sel='.job-detail-section,.job-detail-wrapper,.job-detail,.job-box,.job-detail-body,.position-content';var s=document.querySelector(sel);var t=s?s.innerText:'';if(t){var cut=['更多职位','看过该职位的人还看了','精选职位'];for(var i=0;i<cut.length;i++){var x=t.indexOf(cut[i]);if(x>0)t=t.slice(0,x)}}if(!t||t.length<50){var p=document.querySelector('[class*="job-detail"],[class*="JobDetail"]');t=p?p.innerText:''}if(!t||t.length<30)t=window.getSelection()?.toString()||'';if(!t||t.length<20){alert('请先打开岗位详情页，或选中岗位描述文字后再点击书签');return}var out='来源：'+u+'\\n\\n'+t.trim();navigator.clipboard.writeText(out).then(function(){alert('✅ 已复制！\\n请回到 JobAgent 粘贴，然后点「智能识别」')}).catch(function(){prompt('请手动复制：',out)})}catch(e){alert('提取失败，请手动复制岗位描述')}})();`;
 
 function StepCard({
   step,
@@ -136,9 +136,9 @@ export function BossImportGuide({ onPasteDemo }: { onPasteDemo?: () => void }) {
             <div className="border-t border-slate-100 pt-3">
               <p className="mb-2 text-sm font-medium text-slate-800">备用 B：直接复制粘贴（最简单）</p>
               <ol className="list-decimal space-y-1 pl-4 text-sm text-slate-600">
-                <li>BOSS 岗位详情页按 <kbd className="rounded border px-1 text-xs">Ctrl+A</kbd> 全选</li>
+                <li>BOSS 岗位详情页，从<strong>「职位描述」</strong>拖到<strong>「工作地址」</strong>选中复制（不要 Ctrl+A 全页）</li>
                 <li><kbd className="rounded border px-1 text-xs">Ctrl+C</kbd> 复制，粘贴到下方输入框</li>
-                <li>点「智能识别」</li>
+                <li>点「智能识别」— 已自动过滤「更多职位」等推荐内容</li>
               </ol>
               {onPasteDemo && (
                 <button

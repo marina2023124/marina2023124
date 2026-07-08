@@ -25,23 +25,41 @@ const TITLE_KEYWORDS = [
   "Engineer", "Manager", "Developer", "Designer", "Analyst", "Lead", "Intern",
 ];
 
+/** BOSS 页面底部/侧边推荐区，识别前需截断 */
+const BOSS_CUT_MARKERS = [
+  "更多职位",
+  "看过该职位的人还看了",
+  "精选职位",
+  "竞争力分析",
+  "BOSS 安全提示",
+  "BOSS直聘严禁",
+  "城市招聘",
+  "热门职位",
+  "推荐公司",
+  "热门企业",
+  "页面更新时间",
+  "查看完整个人竞争力",
+  "个人综合排名",
+];
+
+/** 不能作为岗位名的行 */
+const BOSS_NOISE_LINES = new Set([
+  "更多职位", "公司基本信息", "职位描述", "查看全部职位", "微信扫码分享",
+  "举报", "公司介绍", "工作地址", "工商信息", "查看全部", "查看地图",
+  "首页", "搜索", "来源",
+]);
+
 const TITLE_PATTERNS = [
   /(?:招聘|诚聘|急聘|岗位[：:]\s*|职位[：:]\s*|Job[：:]\s*)([^\n，,。]{2,30})/i,
   /([^\n]{2,25}(?:工程师|经理|总监|专员|主管|架构师|设计师|Developer|Engineer|Manager))/i,
 ];
 
-const COMPANY_PATTERNS = [
-  /(?:公司[：:]\s*|企业[：:]\s*|雇主[：:]\s*)([^\n，,。]{2,30})/,
-  /^([^\n·\-—|]{2,20}(?:公司|集团|科技|网络|信息|有限|Inc|Ltd|Corp))/m,
-  /([^\n]{2,20})\s*[·\-—|]\s*[^\n]{2,20}(?:工程师|经理|开发)/,
-];
-
 const SALARY_PATTERNS = [
   /(?:薪资|薪酬|月薪|工资|salary)[：:\s]*([^\n，,。]{3,25})/i,
-  /(\d+\s*[-~至到]\s*\d+\s*[Kk万wW])/,
+  /(\d+\s*[-~至到]\s*\d+\s*[Kk万wW·薪])/,
   /(\d+[Kk]\s*[-~至到]\s*\d+[Kk])/,
   /(\d+[-~至]\d+万(?:\/月)?)/,
-  /(\d+-\d+K(?:\/月)?)/i,
+  /(\d+-\d+K(?:·\d+薪)?)/i,
 ];
 
 const EXP_PATTERNS = [
@@ -50,74 +68,167 @@ const EXP_PATTERNS = [
   /(?:经验要求|年限)[：:\s]*(\d+)/,
 ];
 
-const LOCATION_PATTERNS = [
-  /(?:工作地点|地点|城市|location)[：:\s]*([^\n，,。]{2,20})/i,
-  /(远程|居家办公|Hybrid|hybrid)/i,
-  ...CITIES.map((c) => new RegExp(`(${c}(?:市|区)?)`)),
-];
-
 const URL_PATTERN = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
-
-const REQ_SECTION_HEADERS = [
-  "任职要求", "岗位要求", "职位要求", "任职资格", "基本要求",
-  "必备条件", "Qualifications", "Requirements", "我们需要你",
-  "职位描述", "岗位职责", "工作内容",
-];
 
 /** BOSS直聘常见格式检测 */
 export function isBossZhipinContent(text: string): boolean {
   return (
     text.includes("zhipin.com") ||
     text.includes("BOSS直聘") ||
-    /(\d+-\d+K|·[\u4e00-\u9fff]{2,4}·\d)/.test(text)
+    text.includes("公司基本信息") ||
+    text.includes("职位描述")
   );
 }
 
+/** 截断 BOSS 页面中「更多职位」等推荐区域 */
+export function sanitizeBossContent(text: string): string {
+  let cutIndex = text.length;
+
+  for (const marker of BOSS_CUT_MARKERS) {
+    const idx = text.indexOf(marker);
+    if (idx >= 0 && idx < cutIndex) cutIndex = idx;
+  }
+
+  let result = text.slice(0, cutIndex).trim();
+
+  // 截断页脚面包屑：首页北京招聘·...
+  const footerIdx = result.search(/\n首页[\u4e00-\u9fff·]+招聘/);
+  if (footerIdx >= 0) result = result.slice(0, footerIdx).trim();
+
+  return result;
+}
+
+function isNoiseLine(line: string): boolean {
+  if (!line || line.length < 2) return true;
+  if (BOSS_NOISE_LINES.has(line)) return true;
+  if (/^\d+-\d+K/.test(line)) return true;
+  if (/^(A|B|C|D|E|Pre-)?轮$/.test(line)) return true;
+  if (/^\d+-\d+人$/.test(line)) return true;
+  if (/^(互联网|查看|点击|刚刚活跃|HR|HRBP)$/.test(line)) return true;
+  if (/^[\u4e00-\u9fff]{1,4}招聘$/.test(line)) return true;
+  return false;
+}
+
+/** 从 BOSS 页脚面包屑提取：数说故事商业数据分析招聘 */
+function extractBossTitleFromBreadcrumb(fullText: string, company: string): string | undefined {
+  if (company) {
+    const re = new RegExp(`${company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([\\u4e00-\\u9fffA-Za-z\\/]+?)招聘`);
+    const m = fullText.match(re);
+    if (m?.[1] && m[1].length >= 2 && m[1].length <= 20) return m[1];
+  }
+  const m = fullText.match(/[·\s]([\u4e00-\u9fffA-Za-z\/]{2,20}?)招聘(?:\s|$|·)/);
+  if (m?.[1] && !["北京", "上海", "广州", "深圳", "首页"].includes(m[1])) return m[1];
+  return undefined;
+}
+
+function extractBossCompany(cleanText: string): string | undefined {
+  const m = cleanText.match(/公司基本信息\s*\n\s*([^\n]+)/);
+  if (m?.[1] && !isNoiseLine(m[1])) return m[1].trim();
+
+  const m2 = cleanText.match(/公司名称\s*\n\s*([^\n]+)/);
+  if (m2?.[1]) return m2[1].trim();
+
+  return undefined;
+}
+
+function extractBossLocation(cleanText: string): string | undefined {
+  const m = cleanText.match(/工作地址\s*\n\s*([^\n]+)/);
+  if (m?.[1]) return m[1].trim();
+
+  for (const city of CITIES) {
+    if (cleanText.includes(city)) {
+      const line = cleanText.split("\n").find((l) => l.includes(city) && l.length <= 30);
+      if (line && !line.includes("招聘")) return line.trim();
+    }
+  }
+  return undefined;
+}
+
+function extractBossSalary(cleanText: string): string | undefined {
+  // 薪资应在「职位描述」之前的主岗位区域，不在推荐区
+  const mainPart = cleanText.split("职位描述")[0] || cleanText;
+  for (const p of SALARY_PATTERNS) {
+    const m = mainPart.match(p);
+    if (m?.[1]) return m[1].trim();
+    if (m?.[0] && /K|万/.test(m[0])) return m[0].trim();
+  }
+  return undefined;
+}
+
+function extractBossSections(cleanText: string): { description: string; requirements: string[] } {
+  const parts: string[] = [];
+  const requirements: string[] = [];
+
+  const descMatch = cleanText.match(/职位描述\s*\n([\s\S]*?)(?=任职条件|岗位职责|工作地址|公司介绍|$)/);
+  if (descMatch?.[1]) parts.push(descMatch[1].trim());
+
+  const dutyMatch = cleanText.match(/岗位职责[：:]?\s*\n([\s\S]*?)(?=任职条件|工作地址|公司介绍|$)/);
+  if (dutyMatch?.[1]) parts.push("【岗位职责】\n" + dutyMatch[1].trim());
+
+  const reqMatch = cleanText.match(/任职条件[：:]?\s*\n([\s\S]*?)(?=工作地址|公司介绍|陈女士|竞争力|$)/);
+  if (reqMatch?.[1]) {
+    const block = reqMatch[1].trim();
+    parts.push("【任职条件】\n" + block);
+    for (const line of block.split("\n")) {
+      const cleaned = line.trim().replace(/^\d+[、.．)]\s*/, "").replace(/^[：:]\s*/, "");
+      if (cleaned.length >= 6 && cleaned.length <= 150 && !isNoiseLine(cleaned)) {
+        requirements.push(cleaned);
+      }
+    }
+  }
+
+  return {
+    description: parts.join("\n\n").trim() || cleanText,
+    requirements: requirements.slice(0, 12),
+  };
+}
+
 /** 解析 BOSS直聘复制/书签提取的文本 */
-function parseBossFormat(text: string): Partial<ParsedJobDraft> | null {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+function parseBossFormat(fullText: string): Partial<ParsedJobDraft> | null {
+  const cleanText = sanitizeBossContent(fullText);
+  const lines = cleanText.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.length < 2) return null;
 
   const result: Partial<ParsedJobDraft> = {};
-  const url = text.match(/https?:\/\/[^\s]*zhipin\.com[^\s]*/)?.[0];
-  if (url) result.url = url;
+  const url = fullText.match(/https?:\/\/[^\s]*zhipin\.com[^\s]*/)?.[0];
+  if (url) result.url = url.split("?")[0] + (url.includes("?") ? "?" + url.split("?")[1].split("&").slice(0, 1).join("&") : "");
 
-  // 第一行通常是岗位名
-  const titleLine = lines.find((l) =>
-    TITLE_KEYWORDS.some((k) => l.includes(k)) && l.length <= 40 && !/^\d+-\d+K/.test(l)
-  ) || lines[0];
-  if (titleLine && !titleLine.startsWith("来源")) result.title = titleLine;
+  result.company = extractBossCompany(cleanText);
+  result.title = extractBossTitleFromBreadcrumb(fullText, result.company || "");
 
-  // BOSS 特征行：15-25K·北京·3-5年·本科
-  const metaLine = lines.find((l) => /\d+-\d+K|K以上|面议/.test(l) && l.includes("·"));
+  // 主岗位 meta 行：15-25K·北京·3-5年·本科（须在「职位描述」之前）
+  const mainPart = cleanText.split("职位描述")[0] || "";
+  const metaLine = mainPart.split("\n").find((l) => /\d+-\d+K|K以上|面议/.test(l) && l.includes("·"));
   if (metaLine) {
-    const parts = metaLine.split("·").map((p) => p.trim());
-    for (const part of parts) {
+    for (const part of metaLine.split("·").map((p) => p.trim())) {
       if (/^\d+-\d+K|\d+K以上|面议|\d+-\d+万/.test(part)) result.salary = part;
-      else if (CITIES.some((c) => part.includes(c)) || part.includes("远程")) result.location = part;
+      else if (CITIES.some((c) => part.includes(c))) result.location = part;
       else if (/(\d+)-(\d+)年/.test(part)) {
         const m = part.match(/(\d+)-(\d+)年/);
         if (m) result.experienceYears = Math.round((Number(m[1]) + Number(m[2])) / 2);
-      } else if (/(\d+)年/.test(part)) {
-        const m = part.match(/(\d+)年/);
-        if (m) result.experienceYears = Number(m[1]);
-      } else if (/经验不限|应届/.test(part)) result.experienceYears = 0;
+      }
     }
   }
 
-  // 公司名通常在 meta 行下一行
-  const metaIdx = metaLine ? lines.indexOf(metaLine) : -1;
-  if (metaIdx >= 0 && lines[metaIdx + 1]) {
-    const companyCandidate = lines[metaIdx + 1];
-    if (
-      companyCandidate !== titleLine &&
-      companyCandidate.length <= 30 &&
-      !companyCandidate.startsWith("职位") &&
-      !companyCandidate.startsWith("来源")
-    ) {
-      result.company = companyCandidate;
-    }
+  if (!result.location) result.location = extractBossLocation(cleanText);
+  if (!result.salary) result.salary = extractBossSalary(cleanText);
+
+  // 标题：面包屑优先，其次「职位描述」前含关键词的行（排除职责条目）
+  if (!result.title) {
+    const beforeDesc = cleanText.split("职位描述")[0] || cleanText;
+    const titleLine = beforeDesc.split("\n").find(
+      (l) =>
+        !/^\d+[、.]/.test(l) &&
+        TITLE_KEYWORDS.some((k) => l.includes(k)) &&
+        l.length <= 35 &&
+        !isNoiseLine(l)
+    );
+    if (titleLine) result.title = titleLine;
   }
+
+  const sections = extractBossSections(cleanText);
+  result.description = sections.description;
+  result.requirements = sections.requirements;
 
   return Object.keys(result).length > 0 ? result : null;
 }
@@ -139,41 +250,24 @@ function extractTitle(text: string): string {
     }
   }
   for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    if (isNoiseLine(line) || /^\d+[、.]/.test(line)) continue;
     if (TITLE_KEYWORDS.some((k) => line.includes(k)) && line.length <= 35) {
       return line.replace(/^[【\[]|[】\]]$/g, "");
     }
   }
-  const firstLine = text.split("\n").find((l) => l.trim().length > 2)?.trim();
-  return firstLine?.slice(0, 30) || "未知岗位";
+  return "未知岗位";
 }
 
 function extractCompany(text: string, title: string): string {
-  for (const p of COMPANY_PATTERNS) {
-    const m = text.match(p);
-    if (m?.[1]?.trim()) {
-      const c = m[1].trim();
-      if (c !== title && c.length >= 2) return c;
-    }
-  }
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  for (const line of lines.slice(0, 5)) {
-    if (
-      (line.includes("公司") || line.includes("集团") || line.includes("科技")) &&
-      line.length <= 25 &&
-      !line.includes("招聘")
-    ) {
-      return line.replace(/(?:公司|企业)[：:]\s*/, "");
-    }
-  }
-  const pipeMatch = text.match(/^(.+?)\s*[·|｜]\s*.+/m);
-  if (pipeMatch?.[1] && pipeMatch[1].length <= 20) return pipeMatch[1].trim();
+  const m = text.match(/(?:公司[：:]\s*|企业[：:]\s*)([^\n，,。]{2,30})/);
+  if (m?.[1]?.trim() && m[1] !== title) return m[1].trim();
   return "未知公司";
 }
 
 function extractLocation(text: string): string | undefined {
-  for (const p of LOCATION_PATTERNS) {
-    const m = text.match(p);
-    if (m?.[1]?.trim()) return m[1].trim();
+  for (const city of CITIES) {
+    const line = text.split("\n").find((l) => l.includes(city) && l.length <= 30);
+    if (line) return line.trim();
   }
   return undefined;
 }
@@ -197,42 +291,18 @@ function extractUrl(text: string): string | undefined {
 }
 
 function extractRequirements(text: string): string[] {
-  const reqs: string[] = [];
-
-  for (const header of REQ_SECTION_HEADERS) {
-    const idx = text.indexOf(header);
-    if (idx >= 0) {
-      const section = text.slice(idx + header.length, idx + header.length + 800);
-      const lines = section.split("\n").map((l) => l.trim()).filter(Boolean);
-      for (const line of lines) {
-        const cleaned = line
-          .replace(/^[\d+.\)、•\-*·]\s*/, "")
-          .replace(/^[：:]\s*/, "")
-          .trim();
-        if (
-          cleaned.length >= 4 &&
-          cleaned.length <= 120 &&
-          !REQ_SECTION_HEADERS.some((h) => cleaned.startsWith(h))
-        ) {
-          reqs.push(cleaned);
-        }
-        if (reqs.length >= 12) break;
-      }
-      if (reqs.length > 0) break;
-    }
-  }
-
-  if (reqs.length === 0) {
-    for (const line of text.split("\n")) {
-      const trimmed = line.trim();
-      if (/^[\d+.\)、•\-*·]/.test(trimmed)) {
-        const cleaned = trimmed.replace(/^[\d+.\)、•\-*·]\s*/, "").trim();
-        if (cleaned.length >= 4 && cleaned.length <= 120) reqs.push(cleaned);
+  const reqMatch = text.match(/任职条件[：:]?\s*\n([\s\S]*?)(?=工作地址|公司介绍|$)/);
+  if (reqMatch?.[1]) {
+    const reqs: string[] = [];
+    for (const line of reqMatch[1].split("\n")) {
+      const cleaned = line.trim().replace(/^\d+[、.．)]\s*/, "").replace(/^[：:]\s*/, "");
+      if (cleaned.length >= 6 && cleaned.length <= 150 && !isNoiseLine(cleaned)) {
+        reqs.push(cleaned);
       }
     }
+    if (reqs.length > 0) return reqs.slice(0, 12);
   }
-
-  return reqs.slice(0, 15);
+  return [];
 }
 
 export function parseJobDescription(rawText: string): ParsedJobDraft {
@@ -247,16 +317,21 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     };
   }
 
-  const bossPartial = isBossZhipinContent(text) ? parseBossFormat(text) : null;
+  const isBoss = isBossZhipinContent(text);
+  const bossPartial = isBoss ? parseBossFormat(text) : null;
+  const cleanText = isBoss ? sanitizeBossContent(text) : text;
 
-  const title = bossPartial?.title || extractTitle(text);
-  const company = bossPartial?.company || extractCompany(text, title);
-  const location = bossPartial?.location || extractLocation(text);
-  const salary = bossPartial?.salary || extractSalary(text);
-  const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(text);
+  const title = bossPartial?.title || extractTitle(cleanText);
+  const company = bossPartial?.company || extractCompany(cleanText, title);
+  const location = bossPartial?.location || extractLocation(cleanText);
+  const salary = bossPartial?.salary || extractSalary(cleanText);
+  const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(cleanText);
   const url = bossPartial?.url || extractUrl(text);
-  const requirements = extractRequirements(text);
-  const preferredSkills = extractSkillsFromJobDescription(text);
+  const requirements = bossPartial?.requirements?.length
+    ? bossPartial.requirements
+    : extractRequirements(cleanText);
+  const description = bossPartial?.description || cleanText;
+  const preferredSkills = extractSkillsFromJobDescription(description);
 
   return {
     title,
@@ -265,7 +340,7 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     salary,
     experienceYears,
     url,
-    description: text,
+    description,
     requirements,
     preferredSkills,
   };
