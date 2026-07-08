@@ -39,6 +39,7 @@ download() {
 }
 
 FILES=(
+  "VERSION"
   "src/lib/types.ts"
   "src/lib/commute.ts"
   "src/lib/jd-sections.ts"

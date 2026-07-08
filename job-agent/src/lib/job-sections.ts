@@ -32,11 +32,27 @@ export function getJobSections(job: JobPosting): {
   responsibilities: string[];
   requirements: string[];
 } {
-  if (job.jobIntro || job.responsibilities?.length || job.requirements?.length) {
+  const hasStructured =
+    !!job.jobIntro?.trim() ||
+    (job.responsibilities?.length ?? 0) > 0 ||
+    (job.requirements?.length ?? 0) > 0;
+
+  if (hasStructured) {
+    const fromDescription =
+      job.description && (!job.jobIntro || !(job.responsibilities?.length))
+        ? extractJobSections(job.description)
+        : null;
+
     return {
-      jobIntro: job.jobIntro,
-      responsibilities: job.responsibilities || [],
-      requirements: job.requirements || [],
+      jobIntro: job.jobIntro?.trim() || fromDescription?.jobIntro || undefined,
+      responsibilities:
+        job.responsibilities?.length
+          ? job.responsibilities
+          : fromDescription?.responsibilities || [],
+      requirements:
+        job.requirements?.length
+          ? job.requirements
+          : fromDescription?.requirements || [],
     };
   }
 

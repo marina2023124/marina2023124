@@ -14,12 +14,16 @@ const STOP_LINE =
 /** 非三大版块的分界标题（截断当前版块内容） */
 const BOUNDARY_LINE = STOP_LINE;
 
+/** BOSS 常见：「职位描述」大标题下嵌套「岗位职责」「任职条件」 */
+const NESTED_RESP_RE = /(?:岗位职责|工作内容|工作职责)[：:\s]*/i;
+const NESTED_REQ_RE = /(?:任职要求|任职条件|岗位要求|任职资格)[：:\s]*/i;
+
 /** 同义词 → 标准版块（intro / responsibilities / requirements） */
 const HEADER_SYNONYMS: { kind: SectionKind; labels: string[] }[] = [
   {
     kind: "intro",
     labels: [
-      "职位描述", // BOSS：工时/福利区（若另有「岗位职责」则归 intro）
+      "职位描述",
       "工作信息",
       "工作时间",
       "上班考勤",
@@ -73,6 +77,11 @@ function buildHeaderRegex(label: string): RegExp {
   );
 }
 
+function buildInlineHeaderRegex(label: string): RegExp {
+  const e = escapeRegExp(label);
+  return new RegExp(`^(?:【\\s*)?${e}(?:\\s*】)?[：:]\\s*(.+)$`, "i");
+}
+
 interface HeaderMatch {
   kind: SectionKind;
   label: string;
@@ -82,15 +91,23 @@ interface HeaderMatch {
 
 function matchHeaderLine(line: string): Omit<HeaderMatch, "lineIndex"> | null {
   const trimmed = line.trim();
-  if (!trimmed || trimmed.length > 40) return null;
+  if (!trimmed) return null;
 
   for (const { kind, labels } of HEADER_SYNONYMS) {
     for (const label of labels) {
-      const re = buildHeaderRegex(label);
-      const m = trimmed.match(re);
-      if (m) {
-        const inline = m[1]?.trim();
-        return { kind, label, inlineContent: inline || undefined };
+      const inlineRe = buildInlineHeaderRegex(label);
+      const inlineMatch = trimmed.match(inlineRe);
+      if (inlineMatch?.[1]?.trim()) {
+        return { kind, label, inlineContent: inlineMatch[1].trim() };
+      }
+
+      if (trimmed.length <= 48) {
+        const re = buildHeaderRegex(label);
+        const m = trimmed.match(re);
+        if (m) {
+          const inline = m[1]?.trim();
+          return { kind, label, inlineContent: inline || undefined };
+        }
       }
     }
   }
@@ -112,6 +129,8 @@ function parseListItems(block: string): string[] {
   for (const line of block.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || STOP_LINE.test(trimmed)) continue;
+    if (NESTED_RESP_RE.test(trimmed) && trimmed.length < 20) continue;
+    if (NESTED_REQ_RE.test(trimmed) && trimmed.length < 20) continue;
     const cleaned = trimmed
       .replace(/^[-*•●]\s*/, "")
       .replace(/^\d+[、.．)\]]\s*/, "")
@@ -123,47 +142,81 @@ function parseListItems(block: string): string[] {
 }
 
 function contentLooksLikeIntro(text: string): boolean {
-  return /上班|考勤|双休|福利|待遇|弹性|午休|假期|五险|公积金|加班|工作时间|打卡/.test(text);
+  return /上班|考勤|双休|福利|待遇|弹性|午休|假期|五险|公积金|加班|工作时间|打卡|13:30|18:30/.test(
+    text
+  );
 }
 
 function contentLooksLikeDuties(text: string): boolean {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const hasNumbered = lines.some((l) => /^\d+[、.．)]/.test(l));
-  const hasDutyWords = /负责|完成|参与|协助|推动|搭建|开发|设计|撰写|管理|承担|主导/.test(text);
+  const hasDutyWords = /负责|完成|参与|协助|推动|搭建|开发|设计|撰写|管理|承担|主导|运用|沟通/.test(
+    text
+  );
   return hasNumbered && hasDutyWords;
 }
 
-function splitIntroAndDuties(block: string): { intro: string; duties: string[] } {
-  const lines = block.split("\n");
+/** BOSS 嵌套：职位描述块内含 岗位职责 / 任职条件 子标题 */
+function splitNestedSubsections(block: string): ParsedSections {
+  const result: ParsedSections = { jobIntro: "", responsibilities: [], requirements: [] };
+  let mode: "intro" | "resp" | "req" = "intro";
   const introLines: string[] = [];
-  const dutyLines: string[] = [];
-  let inDuty = false;
+  const respLines: string[] = [];
+  const reqLines: string[] = [];
 
-  for (const line of lines) {
+  for (const line of block.split("\n")) {
     const t = line.trim();
-    if (!t) continue;
-    if (/^岗位职责[：:]\s*/.test(t)) {
-      inDuty = true;
-      const rest = t.replace(/^岗位职责[：:]\s*/, "").trim();
-      if (rest) dutyLines.push(rest);
+    if (!t || STOP_LINE.test(t)) continue;
+
+    const respInline = t.match(/^(?:岗位职责|工作内容|工作职责)[：:]\s*(.*)$/i);
+    if (respInline) {
+      mode = "resp";
+      if (respInline[1]?.trim()) respLines.push(respInline[1].trim());
       continue;
     }
-    if (!inDuty && /^\d+[、.．)]/.test(t) && /负责|完成|参与|协助|搭建|推动/.test(t)) {
-      inDuty = true;
+    if (/^(?:岗位职责|工作内容|工作职责)[：:]?\s*$/i.test(t)) {
+      mode = "resp";
+      continue;
     }
-    if (inDuty) dutyLines.push(t);
-    else introLines.push(t);
+
+    const reqInline = t.match(/^(?:任职要求|任职条件|岗位要求|任职资格)[：:]\s*(.*)$/i);
+    if (reqInline) {
+      mode = "req";
+      if (reqInline[1]?.trim()) reqLines.push(reqInline[1].trim());
+      continue;
+    }
+    if (/^(?:任职要求|任职条件|岗位要求|任职资格)[：:]?\s*$/i.test(t)) {
+      mode = "req";
+      continue;
+    }
+
+    if (mode === "intro") introLines.push(t);
+    else if (mode === "resp") respLines.push(t);
+    else reqLines.push(t);
   }
 
-  return {
-    intro: introLines.join("\n").trim(),
-    duties: parseListItems(dutyLines.join("\n")),
-  };
+  result.jobIntro = introLines.join("\n").trim();
+  result.responsibilities = parseListItems(respLines.join("\n"));
+  result.requirements = parseListItems(reqLines.join("\n"));
+  return result;
+}
+
+function hasNestedSubsections(block: string): boolean {
+  return NESTED_RESP_RE.test(block) || NESTED_REQ_RE.test(block);
+}
+
+function mergeSections(a: ParsedSections, b: ParsedSections): ParsedSections {
+  return dedupeSections({
+    jobIntro: [a.jobIntro, b.jobIntro].filter(Boolean).join("\n\n"),
+    responsibilities: [...a.responsibilities, ...b.responsibilities],
+    requirements: [...a.requirements, ...b.requirements],
+  });
 }
 
 /** 从全文识别三大版块（支持同义标题） */
 export function extractJobSections(text: string): ParsedSections {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const normalized = text.replace(/\r\n/g, "\n");
+  const lines = normalized.split("\n");
   const headers: HeaderMatch[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -178,26 +231,25 @@ export function extractJobSections(text: string): ParsedSections {
   };
 
   if (headers.length === 0) {
-    return inferSectionsFromPlainText(text);
+    return inferSectionsFromPlainText(normalized);
   }
 
   const hasRespHeader = headers.some((h) => h.kind === "responsibilities");
-  const hasIntroHeader = headers.some((h) => h.kind === "intro");
+  const hasReqHeader = headers.some((h) => h.kind === "requirements");
 
   for (let h = 0; h < headers.length; h++) {
     const header = headers[h];
     let kind = header.kind;
 
-    // 「职位描述」在 BOSS 上通常是工时/福利；若无「岗位职责」且内容像职责，则归 responsibilities
     if (header.label === "职位描述" || header.label === "岗位说明") {
-      if (hasRespHeader) {
+      if (hasRespHeader || hasReqHeader) {
         kind = "intro";
       } else {
         const nextIdx = headers[h + 1]?.lineIndex ?? lines.length;
-        const block = lines.slice(header.lineIndex + 1, nextIdx).join("\n");
-        if (contentLooksLikeDuties(block) && !contentLooksLikeIntro(block)) {
-          kind = "responsibilities";
-        } else if (hasIntroHeader && h > 0) {
+        const previewBlock = lines.slice(header.lineIndex + 1, nextIdx).join("\n");
+        if (hasNestedSubsections(previewBlock)) {
+          kind = "intro";
+        } else if (contentLooksLikeDuties(previewBlock) && !contentLooksLikeIntro(previewBlock)) {
           kind = "responsibilities";
         } else {
           kind = "intro";
@@ -214,14 +266,18 @@ export function extractJobSections(text: string): ParsedSections {
     }
 
     if (!block) continue;
-
     if (STOP_LINE.test(block.split("\n")[0]?.trim() || "")) continue;
+
+    if (kind === "intro" && hasNestedSubsections(block)) {
+      const nested = splitNestedSubsections(block);
+      Object.assign(result, mergeSections(result, nested));
+      continue;
+    }
 
     if (kind === "intro") {
       if (contentLooksLikeIntro(block) && contentLooksLikeDuties(block)) {
-        const split = splitIntroAndDuties(block);
-        result.jobIntro = [result.jobIntro, split.intro].filter(Boolean).join("\n\n");
-        result.responsibilities.push(...split.duties);
+        const nested = splitNestedSubsections(block);
+        Object.assign(result, mergeSections(result, nested));
       } else {
         result.jobIntro = [result.jobIntro, block].filter(Boolean).join("\n\n");
       }
@@ -238,6 +294,22 @@ export function extractJobSections(text: string): ParsedSections {
 function inferSectionsFromPlainText(text: string): ParsedSections {
   const result: ParsedSections = { jobIntro: "", responsibilities: [], requirements: [] };
 
+  const introRegion = text.match(
+    /(?:职位描述|工作信息|福利待遇)[：:]?\s*\n([\s\S]*?)(?=岗位职责|工作内容|工作职责|任职要求|任职条件|岗位要求|工作地址|$)/i
+  );
+  if (introRegion?.[1]) {
+    const block = introRegion[1].trim();
+    if (hasNestedSubsections(block)) {
+      Object.assign(result, mergeSections(result, splitNestedSubsections(block)));
+    } else if (contentLooksLikeIntro(block)) {
+      result.jobIntro = block;
+    } else if (contentLooksLikeDuties(block)) {
+      result.responsibilities = parseListItems(block);
+    } else {
+      result.jobIntro = block;
+    }
+  }
+
   const dutyMatch = text.match(
     /(?:岗位职责|工作内容|工作职责)[：:]?\s*\n([\s\S]*?)(?=任职条件|任职要求|岗位要求|工作地址|$)/i
   );
@@ -250,20 +322,6 @@ function inferSectionsFromPlainText(text: string): ParsedSections {
   );
   if (reqMatch?.[1]) {
     result.requirements = parseListItems(reqMatch[1]);
-  }
-
-  const introMatch = text.match(
-    /(?:职位描述|工作信息|福利待遇)[：:]?\s*\n([\s\S]*?)(?=岗位职责|工作内容|任职要求|任职条件|$)/i
-  );
-  if (introMatch?.[1]) {
-    const block = introMatch[1].trim();
-    if (contentLooksLikeIntro(block)) {
-      result.jobIntro = block;
-    } else if (!result.responsibilities.length && contentLooksLikeDuties(block)) {
-      result.responsibilities = parseListItems(block);
-    } else {
-      result.jobIntro = block;
-    }
   }
 
   return dedupeSections(result);

@@ -71,6 +71,10 @@ function SmartJobInput({
         company: merged.company || prev?.company || initial?.company || "",
         status: prev?.status || initial?.status || "saved",
         createdAt: prev?.createdAt || initial?.createdAt || new Date().toISOString(),
+        preferredSkills: merged.preferredSkills || prev?.preferredSkills || initial?.preferredSkills || [],
+        requirements: merged.requirements || [],
+        responsibilities: merged.responsibilities || [],
+        jobIntro: merged.jobIntro,
       } as JobPosting;
     });
   }, [initial]);
@@ -141,6 +145,7 @@ function SmartJobInput({
             {initial ? "编辑岗位" : "智能添加岗位"}
           </h3>
           <p className="text-sm text-slate-500">粘贴 JD 文字或上传截图，自动识别关键信息</p>
+          <p className="text-xs text-slate-400">版本 0.2.1 · 支持职位描述 / 岗位职责 / 任职要求 三版块</p>
         </div>
       </div>
 
@@ -236,7 +241,7 @@ function SmartJobInput({
 
           <CommuteInfo workAddress={preview.workAddress} />
 
-          <div className="mb-4">
+          <div className="mb-4 rounded-xl border border-indigo-100 bg-white/70 p-4">
             <JobDetailSections job={preview} />
           </div>
 

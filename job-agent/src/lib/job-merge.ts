@@ -1,5 +1,6 @@
 import type { JobPosting } from "./types";
 import type { ParsedJobDraft } from "./jd-parser";
+import { assembleJobDescription } from "./job-sections";
 
 const UNKNOWN_TITLE = "未知岗位";
 const UNKNOWN_COMPANY = "未知公司";
@@ -28,7 +29,10 @@ export function jobToEditableText(job: JobPosting): string {
 
   if (lines.length > 0) lines.push("");
 
-  if (job.description?.trim()) {
+  const structured = assembleJobDescription(job);
+  if (structured) {
+    lines.push(structured);
+  } else if (job.description?.trim()) {
     lines.push(job.description.trim());
   }
 
