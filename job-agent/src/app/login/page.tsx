@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Briefcase, Loader2 } from "lucide-react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { SetupWizard } from "@/components/SetupWizard";
 import { Button, Input } from "@/components/ui";
 
 export default function LoginPage() {
@@ -15,19 +16,8 @@ export default function LoginPage() {
 
   if (!isSupabaseConfigured()) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md rounded-2xl border border-amber-200 bg-white p-8 shadow-sm">
-          <h1 className="text-xl font-bold text-slate-900">需要配置 Supabase</h1>
-          <p className="mt-3 text-sm text-slate-600">
-            请先配置云端存储，数据将保存在 Supabase 云端，不会写入浏览器本地。
-          </p>
-          <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-slate-600">
-            <li>在 <a href="https://supabase.com" className="text-indigo-600 underline" target="_blank" rel="noreferrer">supabase.com</a> 创建免费项目</li>
-            <li>执行 <code className="rounded bg-slate-100 px-1">supabase/schema.sql</code> 建表</li>
-            <li>复制 <code className="rounded bg-slate-100 px-1">.env.local.example</code> 为 <code className="rounded bg-slate-100 px-1">.env.local</code> 并填入密钥</li>
-            <li>重启开发服务器</li>
-          </ol>
-        </div>
+      <div className="min-h-screen bg-slate-50 py-10 px-6">
+        <SetupWizard />
       </div>
     );
   }

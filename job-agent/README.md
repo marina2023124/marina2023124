@@ -20,20 +20,31 @@
 
 ### 2. 配置环境变量
 
+**方式 A：网页向导（推荐）**
+
 ```bash
 cd job-agent
-cp .env.local.example .env.local
-# 编辑 .env.local，填入 Supabase URL 和 anon key
-```
-
-### 3. 启动应用
-
-```bash
 npm install
 npm run dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)，注册账号后即可使用。
+打开 http://localhost:3000 ，按页面上的 4 步向导完成配置（复制 SQL → 填入密钥 → 测试连接 → 保存并重启）。
+
+**方式 B：命令行**
+
+```bash
+cd job-agent
+npm run setup   # 交互式输入 URL 和 anon key
+npm run dev
+```
+
+**方式 C：手动**
+
+```bash
+cp .env.local.example .env.local
+# 编辑 .env.local，填入 Supabase URL 和 anon key
+npm run dev
+```
 
 ## 数据存储说明
 
