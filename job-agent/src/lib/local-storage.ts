@@ -3,46 +3,86 @@ import { defaultAppData } from "./types";
 
 export const LOCAL_MODE_KEY = "job-agent-offline";
 export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
-const DATA_KEY = "job-agent-session-data";
+const DATA_KEY = "job-agent-data";
+const LEGACY_SESSION_DATA_KEY = "job-agent-session-data";
+
+function readStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+}
+
+function writeStorage(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(key, value);
+}
+
+function removeStorage(key: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(key);
+  sessionStorage.removeItem(key);
+}
 
 export function wantsCloudMode(): boolean {
-  if (typeof window === "undefined") return false;
-  return sessionStorage.getItem(CLOUD_MODE_KEY) === "1";
+  return readStorage(CLOUD_MODE_KEY) === "1";
 }
 
 export function enableCloudMode(): void {
-  sessionStorage.setItem(CLOUD_MODE_KEY, "1");
-  sessionStorage.removeItem(LOCAL_MODE_KEY);
+  writeStorage(CLOUD_MODE_KEY, "1");
+  removeStorage(LOCAL_MODE_KEY);
 }
 
 export function disableCloudMode(): void {
-  sessionStorage.removeItem(CLOUD_MODE_KEY);
+  removeStorage(CLOUD_MODE_KEY);
 }
 
 export function isLocalModeEnabled(): boolean {
-  if (typeof window === "undefined") return false;
-  return sessionStorage.getItem(LOCAL_MODE_KEY) === "1";
+  return readStorage(LOCAL_MODE_KEY) === "1";
 }
 
 export function enableLocalMode(): void {
-  sessionStorage.setItem(LOCAL_MODE_KEY, "1");
+  writeStorage(LOCAL_MODE_KEY, "1");
 }
 
 export function disableLocalMode(): void {
-  sessionStorage.removeItem(LOCAL_MODE_KEY);
-  sessionStorage.removeItem(DATA_KEY);
+  removeStorage(LOCAL_MODE_KEY);
+  removeStorage(DATA_KEY);
+  removeStorage(LEGACY_SESSION_DATA_KEY);
+}
+
+/** 尝试从旧 sessionStorage 迁移到 localStorage */
+function migrateLegacySessionData(): AppData | null {
+  if (typeof window === "undefined") return null;
+  const legacy = sessionStorage.getItem(LEGACY_SESSION_DATA_KEY);
+  if (!legacy) return null;
+  try {
+    const parsed = { ...defaultAppData(), ...(JSON.parse(legacy) as AppData) };
+    writeStorage(DATA_KEY, JSON.stringify(parsed));
+    sessionStorage.removeItem(LEGACY_SESSION_DATA_KEY);
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 export function loadLocalData(): AppData {
   try {
-    const raw = sessionStorage.getItem(DATA_KEY);
-    if (!raw) return defaultAppData();
-    return { ...defaultAppData(), ...(JSON.parse(raw) as AppData) };
+    const raw = readStorage(DATA_KEY);
+    if (raw) {
+      return { ...defaultAppData(), ...(JSON.parse(raw) as AppData) };
+    }
+    const migrated = migrateLegacySessionData();
+    if (migrated) return migrated;
+    return defaultAppData();
   } catch {
     return defaultAppData();
   }
 }
 
 export function saveLocalData(data: AppData): void {
-  sessionStorage.setItem(DATA_KEY, JSON.stringify(data));
+  writeStorage(DATA_KEY, JSON.stringify(data));
+}
+
+export function hasLocalData(): boolean {
+  const data = loadLocalData();
+  return data.jobs.length > 0 || data.profile.workExperiences.length > 0;
 }

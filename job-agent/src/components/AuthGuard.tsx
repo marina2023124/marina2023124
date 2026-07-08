@@ -66,7 +66,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             跳过等待，尝试登录云端
           </Button>
           <p className="text-xs text-amber-700">
-            离线模式：数据仅保存在本次浏览器会话，关闭浏览器后自动清除，不会写入硬盘。
+            离线模式：数据保存在本机浏览器（localStorage），关闭浏览器后仍保留。建议定期「下载备份」。
           </p>
         </div>
       </div>
@@ -106,7 +106,7 @@ export function CloudSyncStatus() {
     return (
       <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
         <WifiOff className="h-3 w-3" />
-        离线模式 · 关闭浏览器后数据自动清除
+        离线模式 · 数据保存在本机浏览器
       </div>
     );
   }
