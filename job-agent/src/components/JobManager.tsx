@@ -19,6 +19,8 @@ import { parseJobDescription } from "@/lib/jd-parser";
 import { extractTextFromImage, isImageFile } from "@/lib/ocr";
 import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
 import { CommuteInfo } from "@/components/CommuteInfo";
+import { JobDetailSections } from "@/components/JobDetailSections";
+import { assembleJobDescription } from "@/lib/job-sections";
 import { Button, Card, Input, Textarea, Select, Badge, EmptyState } from "./ui";
 
 const statusOptions: { value: JobStatus; label: string }[] = [
@@ -63,6 +65,11 @@ function SmartJobInput({
       location: parsed.location ?? prev?.location,
       workAddress: parsed.workAddress ?? prev?.workAddress,
       salary: parsed.salary ?? prev?.salary,
+      jobIntro: parsed.jobIntro ?? prev?.jobIntro,
+      responsibilities:
+        parsed.responsibilities && parsed.responsibilities.length > 0
+          ? parsed.responsibilities
+          : prev?.responsibilities || [],
       experienceYears: parsed.experienceYears ?? prev?.experienceYears,
       url: parsed.url ?? prev?.url,
       description: parsed.description,
@@ -119,7 +126,7 @@ function SmartJobInput({
     onSave({
       ...preview,
       company: preview.company || "未知公司",
-      description: rawInput || preview.description,
+      description: assembleJobDescription(preview),
     });
   };
 
@@ -233,6 +240,10 @@ function SmartJobInput({
 
           <CommuteInfo workAddress={preview.workAddress} />
 
+          <div className="mb-4">
+            <JobDetailSections job={preview} />
+          </div>
+
           {preview.preferredSkills.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-1.5">
               {preview.preferredSkills.map((s) => (
@@ -241,7 +252,7 @@ function SmartJobInput({
             </div>
           )}
 
-          {preview.requirements.length > 0 && (
+          {preview.requirements.length > 0 && preview.responsibilities && preview.responsibilities.length === 0 && (
             <ul className="mb-4 space-y-1 text-sm text-slate-600">
               {preview.requirements.slice(0, 5).map((r, i) => (
                 <li key={i} className="before:mr-2 before:content-['•']">{r}</li>
@@ -263,6 +274,25 @@ function SmartJobInput({
                 <Input label="经验（年）" type="number" value={preview.experienceYears ?? ""} onChange={(e) => updatePreview({ experienceYears: e.target.value ? Number(e.target.value) : undefined })} />
                 <Input label="链接" value={preview.url || ""} onChange={(e) => updatePreview({ url: e.target.value })} />
               </div>
+              <Textarea
+                label="职位描述（工时、福利等）"
+                rows={4}
+                value={preview.jobIntro || ""}
+                onChange={(e) => updatePreview({ jobIntro: e.target.value })}
+              />
+              <Textarea
+                label="岗位职责（每行一条）"
+                rows={5}
+                value={(preview.responsibilities || []).join("\n")}
+                onChange={(e) =>
+                  updatePreview({
+                    responsibilities: e.target.value
+                      .split("\n")
+                      .map((l) => l.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
               <Select
                 label="状态"
                 options={statusOptions}
@@ -354,9 +384,7 @@ export function JobManager() {
                     )}
                   </div>
                   <CommuteInfo workAddress={job.workAddress} />
-                  {job.description && (
-                    <p className="mt-3 line-clamp-3 text-sm text-slate-600">{job.description}</p>
-                  )}
+                  <JobDetailSections job={job} compact />
                   {job.preferredSkills.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {job.preferredSkills.slice(0, 8).map((s) => (

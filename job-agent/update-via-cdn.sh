@@ -41,6 +41,7 @@ download() {
 FILES=(
   "src/lib/types.ts"
   "src/lib/commute.ts"
+  "src/lib/job-sections.ts"
   "src/lib/local-storage.ts"
   "src/lib/jd-parser.ts"
   "src/lib/boss-bookmarklet.ts"
@@ -48,6 +49,7 @@ FILES=(
   "src/lib/supabase/middleware.ts"
   "src/components/AuthGuard.tsx"
   "src/components/CommuteInfo.tsx"
+  "src/components/JobDetailSections.tsx"
   "src/components/JobManager.tsx"
   "src/components/BossImportGuide.tsx"
   "src/app/api/commute/route.ts"

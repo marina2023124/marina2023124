@@ -61,6 +61,10 @@ export interface JobPosting {
   location?: string;
   workAddress?: string;
   salary?: string;
+  /** 职位描述：工时、福利、标签等 */
+  jobIntro?: string;
+  /** 岗位职责条目 */
+  responsibilities?: string[];
   description: string;
   requirements: string[];
   preferredSkills: string[];

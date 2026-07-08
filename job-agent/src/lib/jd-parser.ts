@@ -8,6 +8,8 @@ export interface ParsedJobDraft {
   salary?: string;
   experienceYears?: number;
   url?: string;
+  jobIntro?: string;
+  responsibilities?: string[];
   description: string;
   requirements: string[];
   preferredSkills: string[];
@@ -313,31 +315,62 @@ function applyBossMetaLine(metaLine: string, result: Partial<ParsedJobDraft>): v
   }
 }
 
-function extractBossSections(cleanText: string): { description: string; requirements: string[] } {
-  const parts: string[] = [];
+function parseNumberedLines(block: string): string[] {
+  const items: string[] = [];
+  for (const line of block.split("\n")) {
+    const cleaned = line.trim().replace(/^\d+[、.．)]\s*/, "").replace(/^[：:]\s*/, "");
+    if (cleaned.length >= 4 && !isNoiseLine(cleaned)) items.push(cleaned);
+  }
+  return items;
+}
+
+function extractBossSections(cleanText: string): {
+  jobIntro: string;
+  responsibilities: string[];
+  requirements: string[];
+  description: string;
+} {
+  let jobIntro = "";
+  const responsibilities: string[] = [];
   const requirements: string[] = [];
 
-  const descMatch = cleanText.match(/职位描述\s*\n([\s\S]*?)(?=任职条件|岗位职责|工作地址|公司介绍|$)/);
-  if (descMatch?.[1]) parts.push(descMatch[1].trim());
+  const introMatch = cleanText.match(
+    /职位描述\s*\n([\s\S]*?)(?=岗位职责|任职条件|工作地址|公司介绍|公司基本信息|$)/
+  );
+  if (introMatch?.[1]) jobIntro = introMatch[1].trim();
 
-  const dutyMatch = cleanText.match(/岗位职责[：:]?\s*\n([\s\S]*?)(?=任职条件|工作地址|公司介绍|$)/);
-  if (dutyMatch?.[1]) parts.push("【岗位职责】\n" + dutyMatch[1].trim());
+  const dutyMatch = cleanText.match(
+    /岗位职责[：:]?\s*\n([\s\S]*?)(?=任职条件|工作地址|公司介绍|公司基本信息|$)/
+  );
+  if (dutyMatch?.[1]) {
+    responsibilities.push(...parseNumberedLines(dutyMatch[1]));
+  }
 
-  const reqMatch = cleanText.match(/任职条件[：:]?\s*\n([\s\S]*?)(?=工作地址|公司介绍|陈女士|竞争力|$)/);
+  const reqMatch = cleanText.match(
+    /任职条件[：:]?\s*\n([\s\S]*?)(?=工作地址|公司介绍|公司基本信息|陈女士|竞争力|$)/
+  );
   if (reqMatch?.[1]) {
-    const block = reqMatch[1].trim();
-    parts.push("【任职条件】\n" + block);
-    for (const line of block.split("\n")) {
-      const cleaned = line.trim().replace(/^\d+[、.．)]\s*/, "").replace(/^[：:]\s*/, "");
-      if (cleaned.length >= 6 && cleaned.length <= 150 && !isNoiseLine(cleaned)) {
-        requirements.push(cleaned);
-      }
-    }
+    requirements.push(...parseNumberedLines(reqMatch[1]));
+  }
+
+  const parts: string[] = [];
+  if (jobIntro) parts.push(`【职位描述】\n${jobIntro}`);
+  if (responsibilities.length) {
+    parts.push(
+      `【岗位职责】\n${responsibilities.map((r, i) => `${i + 1}、${r}`).join("\n")}`
+    );
+  }
+  if (requirements.length) {
+    parts.push(
+      `【任职条件】\n${requirements.map((r, i) => `${i + 1}、${r}`).join("\n")}`
+    );
   }
 
   return {
+    jobIntro,
+    responsibilities,
+    requirements,
     description: parts.join("\n\n").trim() || cleanText,
-    requirements: requirements.slice(0, 12),
   };
 }
 
@@ -394,8 +427,10 @@ function parseBossFormat(fullText: string): Partial<ParsedJobDraft> | null {
   }
 
   const sections = extractBossSections(cleanText);
+  result.jobIntro = sections.jobIntro || undefined;
+  result.responsibilities = sections.responsibilities.slice(0, 15);
   result.description = sections.description;
-  result.requirements = sections.requirements;
+  result.requirements = sections.requirements.slice(0, 12);
 
   return Object.keys(result).length > 0 ? result : null;
 }
@@ -522,6 +557,12 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
   const requirements = bossPartial?.requirements?.length
     ? bossPartial.requirements
     : extractRequirements(cleanText);
+  const jobIntro = bossPartial?.jobIntro;
+  const responsibilities = bossPartial?.responsibilities?.length
+    ? bossPartial.responsibilities
+    : isBoss
+      ? extractBossSections(cleanText).responsibilities
+      : [];
   const description = bossPartial?.description || cleanText;
   const preferredSkills = extractSkillsFromJobDescription(description);
 
@@ -533,6 +574,8 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     salary,
     experienceYears,
     url,
+    jobIntro,
+    responsibilities,
     description,
     requirements,
     preferredSkills,
