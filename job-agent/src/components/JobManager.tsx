@@ -17,6 +17,7 @@ import type { JobPosting, JobStatus } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { parseJobDescription } from "@/lib/jd-parser";
 import { extractTextFromImage, isImageFile } from "@/lib/ocr";
+import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
 import { Button, Card, Input, Textarea, Select, Badge, EmptyState } from "./ui";
 
 const statusOptions: { value: JobStatus; label: string }[] = [
@@ -137,6 +138,12 @@ function SmartJobInput({
           <p className="text-sm text-slate-500">粘贴 JD 文字或上传截图，自动识别关键信息</p>
         </div>
       </div>
+
+      <BossImportGuide
+        onPasteDemo={() => {
+          setRawInput(BOSS_DEMO_TEXT);
+        }}
+      />
 
       {/* 文字输入 */}
       <Textarea

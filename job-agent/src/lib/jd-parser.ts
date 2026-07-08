@@ -61,7 +61,66 @@ const URL_PATTERN = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
 const REQ_SECTION_HEADERS = [
   "任职要求", "岗位要求", "职位要求", "任职资格", "基本要求",
   "必备条件", "Qualifications", "Requirements", "我们需要你",
+  "职位描述", "岗位职责", "工作内容",
 ];
+
+/** BOSS直聘常见格式检测 */
+export function isBossZhipinContent(text: string): boolean {
+  return (
+    text.includes("zhipin.com") ||
+    text.includes("BOSS直聘") ||
+    /(\d+-\d+K|·[\u4e00-\u9fff]{2,4}·\d)/.test(text)
+  );
+}
+
+/** 解析 BOSS直聘复制/书签提取的文本 */
+function parseBossFormat(text: string): Partial<ParsedJobDraft> | null {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return null;
+
+  const result: Partial<ParsedJobDraft> = {};
+  const url = text.match(/https?:\/\/[^\s]*zhipin\.com[^\s]*/)?.[0];
+  if (url) result.url = url;
+
+  // 第一行通常是岗位名
+  const titleLine = lines.find((l) =>
+    TITLE_KEYWORDS.some((k) => l.includes(k)) && l.length <= 40 && !/^\d+-\d+K/.test(l)
+  ) || lines[0];
+  if (titleLine && !titleLine.startsWith("来源")) result.title = titleLine;
+
+  // BOSS 特征行：15-25K·北京·3-5年·本科
+  const metaLine = lines.find((l) => /\d+-\d+K|K以上|面议/.test(l) && l.includes("·"));
+  if (metaLine) {
+    const parts = metaLine.split("·").map((p) => p.trim());
+    for (const part of parts) {
+      if (/^\d+-\d+K|\d+K以上|面议|\d+-\d+万/.test(part)) result.salary = part;
+      else if (CITIES.some((c) => part.includes(c)) || part.includes("远程")) result.location = part;
+      else if (/(\d+)-(\d+)年/.test(part)) {
+        const m = part.match(/(\d+)-(\d+)年/);
+        if (m) result.experienceYears = Math.round((Number(m[1]) + Number(m[2])) / 2);
+      } else if (/(\d+)年/.test(part)) {
+        const m = part.match(/(\d+)年/);
+        if (m) result.experienceYears = Number(m[1]);
+      } else if (/经验不限|应届/.test(part)) result.experienceYears = 0;
+    }
+  }
+
+  // 公司名通常在 meta 行下一行
+  const metaIdx = metaLine ? lines.indexOf(metaLine) : -1;
+  if (metaIdx >= 0 && lines[metaIdx + 1]) {
+    const companyCandidate = lines[metaIdx + 1];
+    if (
+      companyCandidate !== titleLine &&
+      companyCandidate.length <= 30 &&
+      !companyCandidate.startsWith("职位") &&
+      !companyCandidate.startsWith("来源")
+    ) {
+      result.company = companyCandidate;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
 
 function firstMatch(text: string, patterns: RegExp[]): string | undefined {
   for (const p of patterns) {
@@ -188,12 +247,14 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     };
   }
 
-  const title = extractTitle(text);
-  const company = extractCompany(text, title);
-  const location = extractLocation(text);
-  const salary = extractSalary(text);
-  const experienceYears = extractExperienceYears(text);
-  const url = extractUrl(text);
+  const bossPartial = isBossZhipinContent(text) ? parseBossFormat(text) : null;
+
+  const title = bossPartial?.title || extractTitle(text);
+  const company = bossPartial?.company || extractCompany(text, title);
+  const location = bossPartial?.location || extractLocation(text);
+  const salary = bossPartial?.salary || extractSalary(text);
+  const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(text);
+  const url = bossPartial?.url || extractUrl(text);
   const requirements = extractRequirements(text);
   const preferredSkills = extractSkillsFromJobDescription(text);
 
