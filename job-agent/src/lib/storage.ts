@@ -7,7 +7,8 @@ import { defaultAppData } from "./types";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
 
-const LOAD_TIMEOUT_MS = 8000;
+const AUTH_TIMEOUT_MS = 4000;
+const LOAD_TIMEOUT_MS = 6000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -36,39 +37,47 @@ export function useAppData() {
       return;
     }
 
-    const supabase = createClient();
     let done = false;
+    let subscription: { unsubscribe: () => void } | null = null;
 
-    const finishAuth = () => {
+    const finishAuth = (errorMessage?: string) => {
       if (!done) {
         done = true;
+        if (errorMessage) setSyncError(errorMessage);
         setAuthReady(true);
       }
     };
 
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
+    const authTimer = setTimeout(
+      () => finishAuth("云端连接超时，请检查 VPN 能否访问 supabase.co"),
+      AUTH_TIMEOUT_MS
+    );
+
+    try {
+      const supabase = createClient();
+
+      supabase.auth
+        .getSession()
+        .then(({ data: { session } }) => {
+          setUser(session?.user ?? null);
+        })
+        .catch(() => {
+          setUser(null);
+        })
+        .finally(() => finishAuth());
+
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
-      })
-      .catch(() => {
-        setUser(null);
-      })
-      .finally(finishAuth);
-
-    // 防止 getSession 挂起导致永远 loading
-    const authTimer = setTimeout(finishAuth, LOAD_TIMEOUT_MS);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      finishAuth();
-    });
+        finishAuth();
+      });
+      subscription = data.subscription;
+    } catch (err) {
+      finishAuth(err instanceof Error ? err.message : "Supabase 配置错误");
+    }
 
     return () => {
       clearTimeout(authTimer);
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 

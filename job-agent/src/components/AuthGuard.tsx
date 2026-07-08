@@ -13,7 +13,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [showSkip, setShowSkip] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setShowSkip(true), 6000);
+    const t = setTimeout(() => setShowSkip(true), 2000);
     return () => clearTimeout(t);
   }, []);
 
@@ -34,18 +34,25 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const loadingScreen = (message: string) => (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="flex flex-col items-center gap-4 text-center px-6">
+      <div className="flex flex-col items-center gap-4 text-center px-6 max-w-md">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
         <p className="text-sm text-slate-600">{message}</p>
+        <p className="text-xs text-slate-400">
+          国内网络通常需要 VPN 才能访问 supabase.co
+        </p>
         {showSkip && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 max-w-sm">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full">
             <p className="mb-3 text-sm text-amber-900">
-              加载时间过长？可能是 Supabase 云端连接失败（需 VPN 访问 supabase.co）
+              一直转圈说明连不上 Supabase 云端。请先<strong>开启 VPN</strong>，再刷新页面；或暂时跳过进入登录页重试。
             </p>
-            <Button size="sm" variant="secondary" onClick={() => {
-              forceReady();
-              router.replace("/login");
-            }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                forceReady();
+                router.replace("/login");
+              }}
+            >
               跳过等待，进入登录页
             </Button>
           </div>
