@@ -6,7 +6,7 @@ set -e
 
 # 用 commit 固定版本，避免 jsDelivr 分支缓存返回旧文件
 COMMIT_SHA="0726108dd9ee"
-EXPECTED_VERSION="0.2.2-jd-sections"
+EXPECTED_VERSION="0.2.3-jd-sections"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent（无需访问 github.com）"
@@ -43,6 +43,7 @@ download() {
 
 FILES=(
   "VERSION"
+  "start.sh"
   "src/lib/types.ts"
   "src/lib/commute.ts"
   "src/lib/jd-sections.ts"
@@ -78,8 +79,19 @@ if ! grep -q "三版块" "src/components/JobManager.tsx"; then
   exit 1
 fi
 
+if [ -d ".next" ]; then
+  echo "🧹 清理 Next 构建缓存（避免 layout.js 404）..."
+  rm -rf .next
+fi
+
 echo ""
 echo "✅ 更新完成！当前版本: $(cat VERSION)"
+echo ""
+echo "⚠️  必须重启服务才能生效："
+echo "   1. 终端里按 Ctrl+C 停掉旧服务"
+echo "   2. 运行: ./start.sh"
+echo "   3. 浏览器强制刷新: Cmd+Shift+R"
+echo "   4. 若仍转圈 → 点「离线使用」，或等待 2 秒自动进入离线模式"
 echo ""
 echo "下一步："
 echo "  1. ./start.sh          # 启动服务"

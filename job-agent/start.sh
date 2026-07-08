@@ -16,11 +16,19 @@ echo "✓ npm $(npm -v)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 可选：清理构建缓存（修复异常时使用 CLEAN=1 ./start.sh）
+LAST_VER=""
+[ -f ".last-build-version" ] && LAST_VER=$(cat .last-build-version)
+CUR_VER=""
+[ -f "VERSION" ] && CUR_VER=$(cat VERSION)
+
 if [ "${CLEAN:-0}" = "1" ] && [ -d ".next" ]; then
   echo "🧹 清理旧缓存..."
   rm -rf .next
+elif [ -n "$CUR_VER" ] && [ "$CUR_VER" != "$LAST_VER" ] && [ -d ".next" ]; then
+  echo "🧹 检测到新版本 ${CUR_VER}，清理 .next 缓存（避免 layout.js 404）..."
+  rm -rf .next
 fi
+[ -n "$CUR_VER" ] && echo "$CUR_VER" > .last-build-version
 
 # 安装依赖
 if [ ! -d "node_modules" ]; then

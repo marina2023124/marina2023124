@@ -13,7 +13,7 @@ import {
   saveLocalData,
 } from "./local-storage";
 
-const AUTH_TIMEOUT_MS = 4000;
+const AUTH_TIMEOUT_MS = 2500;
 const LOAD_TIMEOUT_MS = 6000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -63,10 +63,15 @@ export function useAppData() {
       }
     };
 
-    const authTimer = setTimeout(
-      () => finishAuth("云端连接超时，请检查 VPN 能否访问 supabase.co"),
-      AUTH_TIMEOUT_MS
-    );
+    const authTimer = setTimeout(() => {
+      if (done) return;
+      enableLocalMode();
+      setLocalMode(true);
+      setUser(null);
+      setData(loadLocalData());
+      skipSaveRef.current = true;
+      finishAuth("云端连接超时，已自动切换离线模式");
+    }, AUTH_TIMEOUT_MS);
 
     try {
       const supabase = createClient();

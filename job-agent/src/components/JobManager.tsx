@@ -145,7 +145,7 @@ function SmartJobInput({
             {initial ? "编辑岗位" : "智能添加岗位"}
           </h3>
           <p className="text-sm text-slate-500">粘贴 JD 文字或上传截图，自动识别关键信息</p>
-          <p className="text-xs text-slate-400">版本 0.2.2 · 支持职位描述 / 岗位职责 / 任职要求 三版块</p>
+          <p className="text-xs text-slate-400">版本 0.2.3 · 支持职位描述 / 岗位职责 / 任职要求 三版块</p>
         </div>
       </div>
 
