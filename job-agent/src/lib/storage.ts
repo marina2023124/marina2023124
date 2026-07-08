@@ -1,39 +1,109 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import type { AppData, ChatMessage, JobPosting, Profile } from "./types";
 import { defaultAppData } from "./types";
-
-const STORAGE_KEY = "job-agent-data";
-
-export function loadData(): AppData {
-  if (typeof window === "undefined") return defaultAppData();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultAppData();
-    return { ...defaultAppData(), ...JSON.parse(raw) };
-  } catch {
-    return defaultAppData();
-  }
-}
-
-export function saveData(data: AppData): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
+import { createClient, isSupabaseConfigured } from "./supabase/client";
+import { loadCloudData, saveCloudData } from "./cloud-storage";
 
 export function useAppData() {
   const [data, setData] = useState<AppData>(defaultAppData);
   const [loaded, setLoaded] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipSaveRef = useRef(true);
 
   useEffect(() => {
-    setData(loadData());
-    setLoaded(true);
+    if (!isSupabaseConfigured()) {
+      setLoaded(true);
+      return;
+    }
+
+    const supabase = createClient();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (loaded) saveData(data);
-  }, [data, loaded]);
+    if (!isSupabaseConfigured()) {
+      setLoaded(true);
+      return;
+    }
+
+    if (!user) {
+      setData(defaultAppData());
+      setLoaded(true);
+      skipSaveRef.current = true;
+      return;
+    }
+
+    let cancelled = false;
+    setLoaded(false);
+    setSyncError(null);
+
+    const supabase = createClient();
+    loadCloudData(supabase, user.id)
+      .then((cloudData) => {
+        if (!cancelled) {
+          setData(cloudData);
+          setLastSyncedAt(new Date().toISOString());
+          skipSaveRef.current = true;
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setSyncError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!loaded || !user || !isSupabaseConfigured()) return;
+
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+      return;
+    }
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    saveTimerRef.current = setTimeout(async () => {
+      setSyncing(true);
+      setSyncError(null);
+      try {
+        const supabase = createClient();
+        await saveCloudData(supabase, user.id, data);
+        setLastSyncedAt(new Date().toISOString());
+      } catch (err) {
+        setSyncError(err instanceof Error ? err.message : "同步失败");
+      } finally {
+        setSyncing(false);
+      }
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [data, loaded, user]);
 
   const updateProfile = useCallback((profile: Partial<Profile>) => {
     setData((prev) => ({
@@ -87,22 +157,49 @@ export function useAppData() {
     URL.revokeObjectURL(url);
   }, [data]);
 
-  const importData = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const imported = JSON.parse(e.target?.result as string) as AppData;
-        setData({ ...defaultAppData(), ...imported });
-      } catch {
-        alert("导入失败，请检查文件格式");
-      }
-    };
-    reader.readAsText(file);
+  const importData = useCallback(
+    async (file: File) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const imported = {
+            ...defaultAppData(),
+            ...(JSON.parse(e.target?.result as string) as AppData),
+          };
+          setData(imported);
+
+          if (user && isSupabaseConfigured()) {
+            setSyncing(true);
+            const supabase = createClient();
+            await saveCloudData(supabase, user.id, imported);
+            setLastSyncedAt(new Date().toISOString());
+            setSyncing(false);
+          }
+        } catch {
+          alert("导入失败，请检查文件格式");
+        }
+      };
+      reader.readAsText(file);
+    },
+    [user]
+  );
+
+  const signOut = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+    setData(defaultAppData());
   }, []);
 
   return {
     data,
     loaded,
+    user,
+    syncing,
+    syncError,
+    lastSyncedAt,
+    isConfigured: isSupabaseConfigured(),
     updateProfile,
     setProfile,
     addJob,
@@ -112,5 +209,6 @@ export function useAppData() {
     clearChat,
     exportData,
     importData,
+    signOut,
   };
 }

@@ -10,8 +10,10 @@ import {
   User,
   Download,
   Upload,
+  LogOut,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { CloudSyncStatus } from "@/components/AuthGuard";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -24,7 +26,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { exportData, importData } = useApp();
+  const { exportData, importData, signOut, user } = useApp();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200 bg-white">
@@ -35,7 +37,7 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-slate-900">JobAgent</h1>
-            <p className="text-xs text-slate-500">智能求职助手</p>
+            <p className="text-xs text-slate-500">云端求职助手</p>
           </div>
         </div>
       </div>
@@ -61,17 +63,23 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-slate-200 p-4 space-y-2">
+      <div className="border-t border-slate-200 p-4 space-y-3">
+        <CloudSyncStatus />
+
+        {user && (
+          <p className="truncate px-1 text-xs text-slate-400">{user.email}</p>
+        )}
+
         <button
           onClick={exportData}
           className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
         >
           <Download className="h-4 w-4" />
-          导出数据
+          下载备份
         </button>
         <label className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <Upload className="h-4 w-4" />
-          导入数据
+          从文件恢复
           <input
             type="file"
             accept=".json"
@@ -82,12 +90,26 @@ export function Sidebar() {
             }}
           />
         </label>
+        <button
+          onClick={signOut}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+        >
+          <LogOut className="h-4 w-4" />
+          退出登录
+        </button>
       </div>
     </aside>
   );
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const showSidebar = pathname !== "/login";
+
+  if (!showSidebar) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />

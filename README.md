@@ -6,10 +6,12 @@
 
 ## JobAgent - 智能求职助手
 
-[`job-agent/`](job-agent/) 目录下是一个帮助你梳理工作经历、管理岗位 JD、智能匹配理想职位的 Web 应用。
+[`job-agent/`](job-agent/) 目录下是一个帮助你梳理工作经历、管理岗位 JD、智能匹配理想职位的 Web 应用。**数据保存在 Supabase 云端，不会写入浏览器本地。**
 
 ```bash
-cd job-agent && npm install && npm run dev
+cd job-agent
+cp .env.local.example .env.local   # 配置 Supabase 密钥
+npm install && npm run dev
 ```
 
 <!---
