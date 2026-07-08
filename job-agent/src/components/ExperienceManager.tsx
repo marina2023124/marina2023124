@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
 import { generateId, parseSkillsFromText, formatDate } from "@/lib/utils";
+import { SmartExperienceImport } from "@/components/SmartExperienceImport";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
 const skillLevelOptions = [
@@ -335,6 +336,7 @@ export function ProfileForm() {
 export function ExperienceManager() {
   return (
     <div className="space-y-6">
+      <SmartExperienceImport />
       <ProfileForm />
       <WorkExperienceSection />
       <SkillsSection />

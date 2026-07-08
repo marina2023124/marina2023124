@@ -8,7 +8,7 @@ export default function ExperiencePage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">我的经历</h1>
         <p className="mt-1 text-slate-500">
-          梳理你的工作经历、技能和项目，为智能匹配打下基础
+          粘贴简历或上传 PDF/Word/Excel，自动识别经历；也可在下方手动编辑
         </p>
       </div>
       <ExperienceManager />

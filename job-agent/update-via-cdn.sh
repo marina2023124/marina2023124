@@ -6,7 +6,7 @@ set -e
 
 # 用 commit 固定版本，避免 jsDelivr 分支缓存返回旧文件
 COMMIT_SHA="5c29c3d73119"
-EXPECTED_VERSION="0.2.3-jd-sections"
+EXPECTED_VERSION="0.2.4-experience-import"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent（无需访问 github.com）"
@@ -44,11 +44,16 @@ download() {
 FILES=(
   "VERSION"
   "start.sh"
+  "package.json"
+  "package-lock.json"
   "src/lib/types.ts"
   "src/lib/commute.ts"
   "src/lib/jd-sections.ts"
   "src/lib/job-sections.ts"
   "src/lib/job-merge.ts"
+  "src/lib/profile-merge.ts"
+  "src/lib/resume-parser.ts"
+  "src/lib/document-extract.ts"
   "src/lib/local-storage.ts"
   "src/lib/jd-parser.ts"
   "src/lib/boss-bookmarklet.ts"
@@ -59,6 +64,9 @@ FILES=(
   "src/components/JobDetailSections.tsx"
   "src/components/JobManager.tsx"
   "src/components/BossImportGuide.tsx"
+  "src/components/SmartExperienceImport.tsx"
+  "src/components/ExperienceManager.tsx"
+  "src/app/experience/page.tsx"
   "src/app/api/commute/route.ts"
   "src/app/login/page.tsx"
 )
@@ -79,6 +87,11 @@ if ! grep -q "三版块" "src/components/JobManager.tsx"; then
   exit 1
 fi
 
+if ! grep -q "SmartExperienceImport" "src/components/ExperienceManager.tsx"; then
+  echo "❌ ExperienceManager.tsx 不是最新版（缺少智能导入经历）"
+  exit 1
+fi
+
 if [ -d ".next" ]; then
   echo "🧹 清理 Next 构建缓存（避免 layout.js 404）..."
   rm -rf .next
@@ -92,6 +105,7 @@ echo "   1. 终端里按 Ctrl+C 停掉旧服务"
 echo "   2. 运行: ./start.sh"
 echo "   3. 浏览器强制刷新: Cmd+Shift+R"
 echo "   4. 若仍转圈 → 点「离线使用」，或等待 2 秒自动进入离线模式"
+echo "   5. 新依赖：运行 npm install（若 package.json 有更新）"
 echo ""
 echo "下一步："
 echo "  1. ./start.sh          # 启动服务"
