@@ -42,6 +42,7 @@ FILES=(
   "src/lib/types.ts"
   "src/lib/commute.ts"
   "src/lib/job-sections.ts"
+  "src/lib/job-merge.ts"
   "src/lib/local-storage.ts"
   "src/lib/jd-parser.ts"
   "src/lib/boss-bookmarklet.ts"

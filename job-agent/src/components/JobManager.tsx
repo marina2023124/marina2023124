@@ -16,6 +16,7 @@ import { useApp } from "@/context/AppContext";
 import type { JobPosting, JobStatus } from "@/lib/types";
 import { generateId } from "@/lib/utils";
 import { parseJobDescription } from "@/lib/jd-parser";
+import { jobToEditableText, mergeParsedJob } from "@/lib/job-merge";
 import { extractTextFromImage, isImageFile } from "@/lib/ocr";
 import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
 import { CommuteInfo } from "@/components/CommuteInfo";
@@ -48,7 +49,9 @@ function SmartJobInput({
   onSave: (job: JobPosting) => void;
   onCancel: () => void;
 }) {
-  const [rawInput, setRawInput] = useState(initial?.description || "");
+  const [rawInput, setRawInput] = useState(() =>
+    initial ? jobToEditableText(initial) : ""
+  );
   const [preview, setPreview] = useState<JobPosting | null>(initial || null);
   const [parsing, setParsing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState<string | null>(null);
@@ -58,26 +61,18 @@ function SmartJobInput({
 
   const runParse = useCallback((text: string) => {
     const parsed = parseJobDescription(text);
-    setPreview((prev) => ({
-      id: prev?.id || initial?.id || generateId(),
-      title: parsed.title || prev?.title || "",
-      company: parsed.company || prev?.company || "",
-      location: parsed.location ?? prev?.location,
-      workAddress: parsed.workAddress ?? prev?.workAddress,
-      salary: parsed.salary ?? prev?.salary,
-      jobIntro: parsed.jobIntro ?? prev?.jobIntro,
-      responsibilities:
-        parsed.responsibilities && parsed.responsibilities.length > 0
-          ? parsed.responsibilities
-          : prev?.responsibilities || [],
-      experienceYears: parsed.experienceYears ?? prev?.experienceYears,
-      url: parsed.url ?? prev?.url,
-      description: parsed.description,
-      requirements: parsed.requirements.length > 0 ? parsed.requirements : prev?.requirements || [],
-      preferredSkills: parsed.preferredSkills.length > 0 ? parsed.preferredSkills : prev?.preferredSkills || [],
-      status: prev?.status || initial?.status || "saved",
-      createdAt: prev?.createdAt || initial?.createdAt || new Date().toISOString(),
-    }));
+    setPreview((prev) => {
+      const merged = mergeParsedJob(parsed, prev, initial);
+      return {
+        ...(prev || initial || {}),
+        ...merged,
+        id: prev?.id || initial?.id || generateId(),
+        title: merged.title || prev?.title || initial?.title || "",
+        company: merged.company || prev?.company || initial?.company || "",
+        status: prev?.status || initial?.status || "saved",
+        createdAt: prev?.createdAt || initial?.createdAt || new Date().toISOString(),
+      } as JobPosting;
+    });
   }, [initial]);
 
   const handleSmartParse = async () => {
@@ -126,7 +121,8 @@ function SmartJobInput({
     onSave({
       ...preview,
       company: preview.company || "未知公司",
-      description: assembleJobDescription(preview),
+      title: preview.title || "未知岗位",
+      description: rawInput.trim() || assembleJobDescription(preview),
     });
   };
 
