@@ -5,8 +5,8 @@
 set -e
 
 # 用 commit 固定版本，避免 jsDelivr 分支缓存返回旧文件
-COMMIT_SHA="3678ba8e4804"
-EXPECTED_VERSION="0.2.4-experience-import"
+COMMIT_SHA="2fcdf11"
+EXPECTED_VERSION="0.2.5-default-offline"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent（无需访问 github.com）"
