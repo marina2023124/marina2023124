@@ -54,12 +54,15 @@ const TITLE_PATTERNS = [
   /([^\n]{2,25}(?:工程师|经理|总监|专员|主管|架构师|设计师|Developer|Engineer|Manager))/i,
 ];
 
+/** BOSS 常见：11-20K·14薪、15-25K·13薪 */
+const BOSS_SALARY_RE =
+  /(\d+\s*[-~至到]\s*\d+\s*[Kk](?:\s*·\s*\d+\s*薪)?|\d+\s*[Kk]\s*以上|面议|\d+\s*[-~至到]\s*\d+\s*万(?:\s*\/\s*月)?)/;
+
 const SALARY_PATTERNS = [
+  BOSS_SALARY_RE,
   /(?:薪资|薪酬|月薪|工资|salary)[：:\s]*([^\n，,。]{3,25})/i,
-  /(\d+\s*[-~至到]\s*\d+\s*[Kk万wW·薪])/,
-  /(\d+[Kk]\s*[-~至到]\s*\d+[Kk])/,
+  /(\d+[Kk]\s*[-~至到]\s*\d+[Kk](?:·\d+薪)?)/,
   /(\d+[-~至]\d+万(?:\/月)?)/,
-  /(\d+-\d+K(?:·\d+薪)?)/i,
 ];
 
 const EXP_PATTERNS = [
@@ -144,15 +147,98 @@ function extractBossLocation(cleanText: string): string | undefined {
   return undefined;
 }
 
+function normalizeSalary(raw: string): string {
+  return raw.replace(/\s+/g, "").replace(/·/g, "·");
+}
+
 function extractBossSalary(cleanText: string): string | undefined {
   // 薪资应在「职位描述」之前的主岗位区域，不在推荐区
   const mainPart = cleanText.split("职位描述")[0] || cleanText;
+  for (const line of mainPart.split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const m = line.match(BOSS_SALARY_RE);
+    if (m?.[1]) return normalizeSalary(m[1]);
+  }
   for (const p of SALARY_PATTERNS) {
     const m = mainPart.match(p);
-    if (m?.[1]) return m[1].trim();
-    if (m?.[0] && /K|万/.test(m[0])) return m[0].trim();
+    if (m?.[1]) return normalizeSalary(m[1]);
   }
   return undefined;
+}
+
+/** 解析 BOSS 页头：标题/薪资/城市/经验可能各占一行 */
+function parseBossHeader(mainPart: string): Partial<ParsedJobDraft> {
+  const result: Partial<ParsedJobDraft> = {};
+  const lines = mainPart.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    const salaryOnly = line.match(/^(\d+\s*[-~至到]\s*\d+\s*[Kk])(?:\s*·\s*(\d+\s*薪))?$/i);
+    if (salaryOnly) {
+      result.salary = normalizeSalary(
+        salaryOnly[2] ? `${salaryOnly[1]}·${salaryOnly[2]}` : salaryOnly[1]
+      );
+      continue;
+    }
+
+    const salaryMatch = line.match(BOSS_SALARY_RE);
+    if (salaryMatch?.[1] && line.length <= 20) {
+      result.salary = normalizeSalary(salaryMatch[1]);
+      continue;
+    }
+
+    const expRange = line.match(/^(\d+)\s*[-~至]\s*(\d+)\s*年$/);
+    if (expRange) {
+      result.experienceYears = Math.round((Number(expRange[1]) + Number(expRange[2])) / 2);
+      continue;
+    }
+
+    if (CITIES.includes(line)) {
+      result.location = line;
+      continue;
+    }
+
+    if (
+      !result.title &&
+      !/^\d+[、.]/.test(line) &&
+      TITLE_KEYWORDS.some((k) => line.includes(k)) &&
+      line.length <= 35 &&
+      !isNoiseLine(line)
+    ) {
+      result.title = line;
+    }
+  }
+
+  return result;
+}
+
+function applyBossMetaLine(metaLine: string, result: Partial<ParsedJobDraft>): void {
+  const parts = metaLine.split("·").map((p) => p.trim()).filter(Boolean);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+
+    if (/^\d+-\d+K$/i.test(part) && i + 1 < parts.length && /^\d+薪$/.test(parts[i + 1])) {
+      result.salary = normalizeSalary(`${part}·${parts[i + 1]}`);
+      i++;
+      continue;
+    }
+
+    const salaryMatch = part.match(BOSS_SALARY_RE);
+    if (salaryMatch?.[1]) {
+      result.salary = normalizeSalary(salaryMatch[1]);
+      continue;
+    }
+
+    if (CITIES.some((c) => part === c || part.startsWith(c))) {
+      result.location = part;
+      continue;
+    }
+
+    const expRange = part.match(/(\d+)\s*[-~至]\s*(\d+)\s*年/);
+    if (expRange) {
+      result.experienceYears = Math.round((Number(expRange[1]) + Number(expRange[2])) / 2);
+    }
+  }
 }
 
 function extractBossSections(cleanText: string): { description: string; requirements: string[] } {
@@ -194,29 +280,23 @@ function parseBossFormat(fullText: string): Partial<ParsedJobDraft> | null {
   if (url) result.url = url.split("?")[0] + (url.includes("?") ? "?" + url.split("?")[1].split("&").slice(0, 1).join("&") : "");
 
   result.company = extractBossCompany(cleanText);
-  result.title = extractBossTitleFromBreadcrumb(fullText, result.company || "");
 
-  // 主岗位 meta 行：15-25K·北京·3-5年·本科（须在「职位描述」之前）
   const mainPart = cleanText.split("职位描述")[0] || "";
+  const header = parseBossHeader(mainPart);
+  Object.assign(result, header);
+
+  // 合并 meta 行：15-25K·北京·3-5年·本科 或 11-20K·14薪
   const metaLine = mainPart.split("\n").find((l) => /\d+-\d+K|K以上|面议/.test(l) && l.includes("·"));
-  if (metaLine) {
-    for (const part of metaLine.split("·").map((p) => p.trim())) {
-      if (/^\d+-\d+K|\d+K以上|面议|\d+-\d+万/.test(part)) result.salary = part;
-      else if (CITIES.some((c) => part.includes(c))) result.location = part;
-      else if (/(\d+)-(\d+)年/.test(part)) {
-        const m = part.match(/(\d+)-(\d+)年/);
-        if (m) result.experienceYears = Math.round((Number(m[1]) + Number(m[2])) / 2);
-      }
-    }
-  }
+  if (metaLine) applyBossMetaLine(metaLine, result);
+
+  result.title = result.title || extractBossTitleFromBreadcrumb(fullText, result.company || "");
 
   if (!result.location) result.location = extractBossLocation(cleanText);
   if (!result.salary) result.salary = extractBossSalary(cleanText);
 
   // 标题：面包屑优先，其次「职位描述」前含关键词的行（排除职责条目）
   if (!result.title) {
-    const beforeDesc = cleanText.split("职位描述")[0] || cleanText;
-    const titleLine = beforeDesc.split("\n").find(
+    const titleLine = mainPart.split("\n").find(
       (l) =>
         !/^\d+[、.]/.test(l) &&
         TITLE_KEYWORDS.some((k) => l.includes(k)) &&
