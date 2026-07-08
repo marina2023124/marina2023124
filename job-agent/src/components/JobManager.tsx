@@ -122,7 +122,7 @@ function SmartJobInput({
       ...preview,
       company: preview.company || "未知公司",
       title: preview.title || "未知岗位",
-      description: rawInput.trim() || assembleJobDescription(preview),
+      description: assembleJobDescription(preview) || rawInput.trim(),
     });
   };
 
@@ -272,6 +272,19 @@ function SmartJobInput({
                 onChange={(e) =>
                   updatePreview({
                     responsibilities: e.target.value
+                      .split("\n")
+                      .map((l) => l.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+              <Textarea
+                label="任职要求（每行一条）"
+                rows={5}
+                value={(preview.requirements || []).join("\n")}
+                onChange={(e) =>
+                  updatePreview({
+                    requirements: e.target.value
                       .split("\n")
                       .map((l) => l.trim())
                       .filter(Boolean),

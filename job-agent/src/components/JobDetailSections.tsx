@@ -72,11 +72,13 @@ export function JobDetailSections({
     <div className="space-y-2">
       {jobIntro && (
         <SectionBlock title="职位描述">
+          <p className="mb-1 text-xs text-slate-400">工作时间、待遇、福利等</p>
           <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{jobIntro}</p>
         </SectionBlock>
       )}
       {responsibilities.length > 0 && (
         <SectionBlock title="岗位职责">
+          <p className="mb-1 text-xs text-slate-400">这个岗位要做什么</p>
           <ol className="list-inside list-decimal space-y-2 text-sm text-slate-700">
             {responsibilities.map((r, i) => (
               <li key={i} className="leading-relaxed">{r}</li>
@@ -85,7 +87,8 @@ export function JobDetailSections({
         </SectionBlock>
       )}
       {requirements.length > 0 && (
-        <SectionBlock title="任职条件" defaultOpen={false}>
+        <SectionBlock title="任职要求" defaultOpen={false}>
+          <p className="mb-1 text-xs text-slate-400">这个岗位要怎样的人</p>
           <ol className="list-inside list-decimal space-y-2 text-sm text-slate-700">
             {requirements.map((r, i) => (
               <li key={i} className="leading-relaxed">{r}</li>

@@ -1,4 +1,5 @@
 import { extractSkillsFromJobDescription } from "./matching";
+import { extractJobSections, sectionsToDescription } from "./jd-sections";
 
 export interface ParsedJobDraft {
   title: string;
@@ -82,7 +83,10 @@ export function isBossZhipinContent(text: string): boolean {
     text.includes("zhipin.com") ||
     text.includes("BOSS直聘") ||
     text.includes("公司基本信息") ||
-    text.includes("职位描述")
+    text.includes("职位描述") ||
+    text.includes("工作地址") ||
+    (/岗位职责/.test(text) && /任职条件|任职要求/.test(text)) ||
+    (/^岗位[：:]/m.test(text) && /^薪资[：:]/m.test(text))
   );
 }
 
@@ -315,62 +319,16 @@ function applyBossMetaLine(metaLine: string, result: Partial<ParsedJobDraft>): v
   }
 }
 
-function parseNumberedLines(block: string): string[] {
-  const items: string[] = [];
-  for (const line of block.split("\n")) {
-    const cleaned = line.trim().replace(/^\d+[、.．)]\s*/, "").replace(/^[：:]\s*/, "");
-    if (cleaned.length >= 4 && !isNoiseLine(cleaned)) items.push(cleaned);
-  }
-  return items;
-}
-
 function extractBossSections(cleanText: string): {
   jobIntro: string;
   responsibilities: string[];
   requirements: string[];
   description: string;
 } {
-  let jobIntro = "";
-  const responsibilities: string[] = [];
-  const requirements: string[] = [];
-
-  const introMatch = cleanText.match(
-    /职位描述\s*\n([\s\S]*?)(?=岗位职责|任职条件|工作地址|公司介绍|公司基本信息|$)/
-  );
-  if (introMatch?.[1]) jobIntro = introMatch[1].trim();
-
-  const dutyMatch = cleanText.match(
-    /岗位职责[：:]?\s*\n([\s\S]*?)(?=任职条件|工作地址|公司介绍|公司基本信息|$)/
-  );
-  if (dutyMatch?.[1]) {
-    responsibilities.push(...parseNumberedLines(dutyMatch[1]));
-  }
-
-  const reqMatch = cleanText.match(
-    /任职条件[：:]?\s*\n([\s\S]*?)(?=工作地址|公司介绍|公司基本信息|陈女士|竞争力|$)/
-  );
-  if (reqMatch?.[1]) {
-    requirements.push(...parseNumberedLines(reqMatch[1]));
-  }
-
-  const parts: string[] = [];
-  if (jobIntro) parts.push(`【职位描述】\n${jobIntro}`);
-  if (responsibilities.length) {
-    parts.push(
-      `【岗位职责】\n${responsibilities.map((r, i) => `${i + 1}、${r}`).join("\n")}`
-    );
-  }
-  if (requirements.length) {
-    parts.push(
-      `【任职条件】\n${requirements.map((r, i) => `${i + 1}、${r}`).join("\n")}`
-    );
-  }
-
+  const sections = extractJobSections(cleanText);
   return {
-    jobIntro,
-    responsibilities,
-    requirements,
-    description: parts.join("\n\n").trim() || cleanText,
+    ...sections,
+    description: sectionsToDescription(sections) || cleanText,
   };
 }
 
@@ -511,20 +469,6 @@ function extractUrl(text: string): string | undefined {
   return urls?.[0];
 }
 
-function extractRequirements(text: string): string[] {
-  const reqMatch = text.match(/任职条件[：:]?\s*\n([\s\S]*?)(?=工作地址|公司介绍|$)/);
-  if (reqMatch?.[1]) {
-    const reqs: string[] = [];
-    for (const line of reqMatch[1].split("\n")) {
-      const cleaned = line.trim().replace(/^\d+[、.．)]\s*/, "").replace(/^[：:]\s*/, "");
-      if (cleaned.length >= 6 && cleaned.length <= 150 && !isNoiseLine(cleaned)) {
-        reqs.push(cleaned);
-      }
-    }
-    if (reqs.length > 0) return reqs.slice(0, 12);
-  }
-  return [];
-}
 
 export function parseJobDescription(rawText: string): ParsedJobDraft {
   const text = rawText.replace(/\r\n/g, "\n").trim();
@@ -554,16 +498,18 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
   const salary = bossPartial?.salary || extractSalary(cleanText);
   const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(cleanText);
   const url = bossPartial?.url || extractUrl(text);
-  const requirements = bossPartial?.requirements?.length
-    ? bossPartial.requirements
-    : extractRequirements(cleanText);
-  const jobIntro = bossPartial?.jobIntro;
-  const responsibilities = bossPartial?.responsibilities?.length
-    ? bossPartial.responsibilities
-    : isBoss
-      ? extractBossSections(cleanText).responsibilities
-      : [];
-  const description = bossPartial?.description || cleanText;
+  const sections = extractJobSections(cleanText);
+  const jobIntro = bossPartial?.jobIntro || sections.jobIntro || undefined;
+  const responsibilities =
+    bossPartial?.responsibilities?.length
+      ? bossPartial.responsibilities
+      : sections.responsibilities;
+  const requirements =
+    bossPartial?.requirements?.length ? bossPartial.requirements : sections.requirements;
+  const description =
+    bossPartial?.description ||
+    sectionsToDescription(sections) ||
+    cleanText;
   const preferredSkills = extractSkillsFromJobDescription(description);
 
   return {
