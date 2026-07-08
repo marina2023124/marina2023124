@@ -23,6 +23,13 @@ export async function POST(request: Request) {
           error: "连接成功，但数据表未创建。请先在 SQL Editor 执行建表 SQL（步骤 2）",
         });
       }
+      if (error.message.includes("permission denied")) {
+        return NextResponse.json({
+          ok: false,
+          error:
+            "数据表已创建，但缺少访问权限。请在 Supabase SQL Editor 执行 fix-permissions.sql 中的 SQL",
+        });
+      }
       if (error.message.includes("Invalid API key") || error.message.includes("JWT")) {
         return NextResponse.json({ ok: false, error: "anon key 无效，请重新复制" });
       }
