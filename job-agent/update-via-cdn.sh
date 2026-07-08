@@ -5,7 +5,7 @@
 set -e
 
 # 用 commit 固定版本，避免 jsDelivr 分支缓存返回旧文件
-COMMIT_SHA="0726108dd9ee"
+COMMIT_SHA="5c29c3d73119"
 EXPECTED_VERSION="0.2.3-jd-sections"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
