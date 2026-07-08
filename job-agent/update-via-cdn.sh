@@ -4,11 +4,14 @@
 
 set -e
 
-BRANCH="cursor/job-finding-agent-5260"
-BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${BRANCH}/job-agent"
+# 用 commit 固定版本，避免 jsDelivr 分支缓存返回旧文件
+COMMIT_SHA="33da603d816b"
+EXPECTED_VERSION="0.2.2-jd-sections"
+BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent（无需访问 github.com）"
 echo "   来源: cdn.jsdelivr.net"
+echo "   版本: ${COMMIT_SHA} (${EXPECTED_VERSION})"
 echo ""
 
 if ! command -v curl &>/dev/null; then
@@ -64,8 +67,19 @@ for f in "${FILES[@]}"; do
   download "$f"
 done
 
+if [ ! -f "VERSION" ] || [ "$(cat VERSION | tr -d '[:space:]')" != "$EXPECTED_VERSION" ]; then
+  echo "❌ 版本校验失败：期望 ${EXPECTED_VERSION}，实际 $(cat VERSION 2>/dev/null || echo '无')"
+  exit 1
+fi
+
+if ! grep -q "三版块" "src/components/JobManager.tsx"; then
+  echo "❌ JobManager.tsx 不是最新版（缺少三版块 UI）"
+  echo "   CDN 可能仍在缓存旧文件，请稍后重试或换网络"
+  exit 1
+fi
+
 echo ""
-echo "✅ 更新完成！"
+echo "✅ 更新完成！当前版本: $(cat VERSION)"
 echo ""
 echo "下一步："
 echo "  1. ./start.sh          # 启动服务"
