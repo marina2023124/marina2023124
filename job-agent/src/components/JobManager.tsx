@@ -252,17 +252,6 @@ function SmartJobInput({
             </div>
           )}
 
-          {preview.requirements.length > 0 && preview.responsibilities && preview.responsibilities.length === 0 && (
-            <ul className="mb-4 space-y-1 text-sm text-slate-600">
-              {preview.requirements.slice(0, 5).map((r, i) => (
-                <li key={i} className="before:mr-2 before:content-['•']">{r}</li>
-              ))}
-              {preview.requirements.length > 5 && (
-                <li className="text-slate-400">...还有 {preview.requirements.length - 5} 条要求</li>
-              )}
-            </ul>
-          )}
-
           {showDetails && (
             <div className="space-y-3 border-t border-emerald-200 pt-4">
               <div className="grid grid-cols-2 gap-3">
