@@ -46,9 +46,19 @@ if [ ! -f ".env.local" ]; then
 fi
 
 echo ""
-echo "▶  启动开发服务器..."
-echo "   浏览器访问: http://localhost:3000"
-echo "   按 Ctrl+C 停止"
-echo ""
-
-npm run dev
+if [ "${PROD:-1}" = "1" ]; then
+  echo "▶  启动生产模式（页面切换更快）..."
+  echo "   开发模式请用: PROD=0 ./start.sh"
+  npm run build
+  echo ""
+  echo "   浏览器访问: http://localhost:3000"
+  echo "   按 Ctrl+C 停止"
+  echo ""
+  npm start
+else
+  echo "▶  启动开发服务器（首次打开页面会较慢）..."
+  echo "   浏览器访问: http://localhost:3000"
+  echo "   按 Ctrl+C 停止"
+  echo ""
+  npm run dev
+fi

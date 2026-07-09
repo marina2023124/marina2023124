@@ -29,6 +29,9 @@ export function wantsCloudMode(): boolean {
 export function enableCloudMode(): void {
   writeStorage(CLOUD_MODE_KEY, "1");
   removeStorage(LOCAL_MODE_KEY);
+  if (typeof document !== "undefined") {
+    document.cookie = "job-agent-offline=; path=/; max-age=0; SameSite=Lax";
+  }
 }
 
 export function disableCloudMode(): void {
@@ -41,12 +44,18 @@ export function isLocalModeEnabled(): boolean {
 
 export function enableLocalMode(): void {
   writeStorage(LOCAL_MODE_KEY, "1");
+  if (typeof document !== "undefined") {
+    document.cookie = "job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";
+  }
 }
 
 export function disableLocalMode(): void {
   removeStorage(LOCAL_MODE_KEY);
   removeStorage(DATA_KEY);
   removeStorage(LEGACY_SESSION_DATA_KEY);
+  if (typeof document !== "undefined") {
+    document.cookie = "job-agent-offline=; path=/; max-age=0; SameSite=Lax";
+  }
 }
 
 /** 尝试从旧 sessionStorage 迁移到 localStorage */

@@ -5,8 +5,20 @@ import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
 import { generateId, parseSkillsFromText, formatDate } from "@/lib/utils";
-import { SmartExperienceImport } from "@/components/SmartExperienceImport";
+import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
+
+const SmartExperienceImport = dynamic(
+  () => import("@/components/SmartExperienceImport").then((m) => m.SmartExperienceImport),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-6 text-sm text-slate-500">
+        加载智能导入模块...
+      </div>
+    ),
+  }
+);
 
 const skillLevelOptions = [
   { value: "beginner", label: "入门" },
