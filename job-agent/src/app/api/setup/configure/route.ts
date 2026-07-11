@@ -2,8 +2,19 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { NextResponse } from "next/server";
 
+function isHostedDeploy(): boolean {
+  return process.env.VERCEL === "1" || process.env.NETLIFY === "true";
+}
+
+function canConfigureViaApi(): boolean {
+  if (process.env.ALLOW_SETUP_CONFIGURE === "0") return false;
+  if (process.env.ALLOW_SETUP_CONFIGURE === "1") return true;
+  // Self-hosted production (e.g. ./start.sh) can write .env.local; PaaS cannot.
+  return process.env.NODE_ENV !== "production" || !isHostedDeploy();
+}
+
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV === "production") {
+  if (!canConfigureViaApi()) {
     return NextResponse.json(
       { ok: false, error: "生产环境请通过部署平台设置环境变量，不要使用此接口" },
       { status: 403 }
@@ -26,9 +37,15 @@ export async function POST(request: Request) {
 
     await writeFile(join(process.cwd(), ".env.local"), content, "utf-8");
 
+    const isProd = process.env.NODE_ENV === "production";
+    const message = isProd
+      ? "配置已保存到 .env.local。请重启服务（终端 Ctrl+C 后运行 ./start.sh），会自动重新构建，然后刷新页面。"
+      : "配置已保存到 .env.local。请重启开发服务器（Ctrl+C 后重新运行 npm run dev），然后刷新页面。";
+
     return NextResponse.json({
       ok: true,
-      message: "配置已保存到 .env.local。请重启开发服务器（Ctrl+C 后重新运行 npm run dev），然后刷新页面。",
+      message,
+      needsRestart: true,
     });
   } catch {
     return NextResponse.json(

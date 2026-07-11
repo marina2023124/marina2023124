@@ -216,11 +216,17 @@ export function SetupWizard() {
             </div>
           )}
           {saveResult && (
-            <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+            <div
+              className={`rounded-lg px-3 py-2 text-sm ${
+                saveResult.includes("失败") || saveResult.includes("生产环境")
+                  ? "bg-red-50 text-red-600"
+                  : "bg-indigo-50 text-indigo-700"
+              }`}
+            >
               {saveResult}
               {saveResult.includes("重启") && (
                 <p className="mt-2 font-medium">
-                  请重启服务后刷新页面（终端 Ctrl+C，再运行 ./start.sh）
+                  保存后必须重启服务，配置才会生效（生产模式会重新构建）。
                 </p>
               )}
             </div>

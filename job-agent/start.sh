@@ -46,6 +46,8 @@ if [ ! -f ".env.local" ]; then
 fi
 
 echo ""
+export ALLOW_SETUP_CONFIGURE=1
+
 if [ "${PROD:-1}" = "1" ]; then
   echo "▶  启动生产模式（页面切换更快）..."
   echo "   开发模式请用: PROD=0 ./start.sh"
