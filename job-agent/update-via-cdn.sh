@@ -41,6 +41,7 @@ download() {
 FILES=(
   "VERSION"
   "start.sh"
+  "update-via-cdn.sh"
   "package.json"
   "package-lock.json"
   "next.config.mjs"
