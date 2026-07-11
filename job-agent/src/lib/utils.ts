@@ -250,8 +250,46 @@ function projectTimeKey(project: {
   startDate?: string;
   endDate?: string;
   status?: "ongoing" | "completed";
+  projectId?: string;
+  description?: string;
 }): string {
-  return project.endDate || project.startDate || "";
+  if (project.endDate) return project.endDate;
+  if (project.startDate) return project.startDate;
+  const id = extractProjectId(project);
+  if (id && /^\d{6,7}$/.test(id)) {
+    const year = 2000 + Number(id.slice(0, 2));
+    const month = Number(id.slice(2, 4)) || 1;
+    return `${year}-${String(month).padStart(2, "0")}-01`;
+  }
+  return "";
+}
+
+const PROJECT_ID_TOKEN_RE = /^\d{6,7}$|^proposal$/i;
+
+/** Extract project id from field or description tail (e.g. 2406303). */
+export function extractProjectId(project: {
+  projectId?: string;
+  description?: string;
+}): string | undefined {
+  const direct = project.projectId?.trim();
+  if (direct && PROJECT_ID_TOKEN_RE.test(direct)) return direct;
+
+  const parts = (project.description || "").split("·").map((part) => part.trim());
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (PROJECT_ID_TOKEN_RE.test(parts[i])) return parts[i];
+  }
+  return undefined;
+}
+
+function projectIdSortValue(project: {
+  projectId?: string;
+  description?: string;
+}): number {
+  const id = extractProjectId(project);
+  if (!id) return -1;
+  if (/^proposal$/i.test(id)) return 0;
+  const num = Number(id);
+  return Number.isFinite(num) ? num : -1;
 }
 
 /** Sort projects by time — newest first; ongoing projects pinned to top. */
@@ -260,6 +298,8 @@ export function sortProjectsByTime<T extends {
   startDate?: string;
   endDate?: string;
   status?: "ongoing" | "completed";
+  projectId?: string;
+  description?: string;
 }>(projects: T[]): T[] {
   return [...projects].sort((a, b) => {
     const aOngoing = a.status === "ongoing";
@@ -268,11 +308,32 @@ export function sortProjectsByTime<T extends {
 
     const aKey = projectTimeKey(a);
     const bKey = projectTimeKey(b);
-    if (!aKey && !bKey) return a.name.localeCompare(b.name, "zh");
-    if (!aKey) return 1;
-    if (!bKey) return -1;
+    if (aKey && bKey) {
+      const byTime = bKey.localeCompare(aKey);
+      if (byTime !== 0) return byTime;
+    } else if (aKey !== bKey) {
+      return aKey ? -1 : 1;
+    }
 
-    const byTime = bKey.localeCompare(aKey);
-    return byTime !== 0 ? byTime : a.name.localeCompare(b.name, "zh");
+    const byId = projectIdSortValue(b) - projectIdSortValue(a);
+    if (byId !== 0) return byId;
+
+    return a.name.localeCompare(b.name, "zh");
   });
+}
+
+/** Normalize project list: fill projectId + sort by time. */
+export function sanitizeProfileProjects<T extends {
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status?: "ongoing" | "completed";
+  projectId?: string;
+  description?: string;
+}>(projects: T[]): T[] {
+  const enriched = projects.map((project) => ({
+    ...project,
+    projectId: project.projectId || extractProjectId(project),
+  }));
+  return sortProjectsByTime(enriched);
 }

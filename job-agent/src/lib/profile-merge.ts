@@ -1,7 +1,7 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
-import { calcDurationDays, maxIsoDate, minIsoDate, sortProjectsByTime } from "./utils";
+import { calcDurationDays, maxIsoDate, minIsoDate, sanitizeProfileProjects } from "./utils";
 
 function dedupeWork(a: WorkExperience, b: WorkExperience): boolean {
   return (
@@ -67,7 +67,7 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
     };
   }
 
-  return sortProjectsByTime(result);
+  return sanitizeProfileProjects(result);
 }
 
 export function mergeParsedProfile(parsed: ParsedProfileDraft, base: Profile): Profile {

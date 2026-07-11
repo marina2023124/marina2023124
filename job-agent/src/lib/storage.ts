@@ -15,6 +15,16 @@ import {
   wantsCloudMode,
 } from "./local-storage";
 import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
+import { sanitizeProfileProjects } from "./utils";
+
+function normalizeProfile(profile: Profile): Profile {
+  return {
+    ...profile,
+    skills: sanitizeProfileSkills(profile.skills),
+    workExperiences: profile.workExperiences.map((exp) => sanitizeWorkExperienceSkills(exp)),
+    projects: sanitizeProfileProjects(profile.projects),
+  };
+}
 
 const AUTH_TIMEOUT_MS = 2500;
 const LOAD_TIMEOUT_MS = 6000;
@@ -150,13 +160,7 @@ export function useAppData() {
         if (!cancelled) {
           setData({
             ...cloudData,
-            profile: {
-              ...cloudData.profile,
-              skills: sanitizeProfileSkills(cloudData.profile.skills),
-              workExperiences: cloudData.profile.workExperiences.map((exp) =>
-                sanitizeWorkExperienceSkills(exp)
-              ),
-            },
+            profile: normalizeProfile(cloudData.profile),
           });
           setLastSyncedAt(new Date().toISOString());
           skipSaveRef.current = true;
@@ -219,7 +223,7 @@ export function useAppData() {
   }, []);
 
   const setProfile = useCallback((profile: Profile) => {
-    setData((prev) => ({ ...prev, profile }));
+    setData((prev) => ({ ...prev, profile: normalizeProfile(profile) }));
   }, []);
 
   const addJob = useCallback((job: JobPosting) => {
