@@ -1,6 +1,7 @@
 import type { Education, Project, Skill, SkillLevel, WorkExperience } from "./types";
 import { generateId, sanitizeWorkYear, parseSkillsFromText } from "./utils";
 import { extractSkillTagsFromText, extractProfileSkillsFromSection, filterSkillTags } from "./skill-tags";
+import { hasProjectTableFormat, parseProjectsFromMarkdownTables } from "./project-table-parser";
 
 export interface ParsedProfileDraft {
   name?: string;
@@ -251,17 +252,26 @@ export function parseProjectsFromExcelRows(rows: Record<string, string>[]): Proj
   const findCol = (...candidates: string[]) =>
     headers.find((h) => candidates.some((c) => h.toLowerCase().includes(c.toLowerCase())));
 
-  const nameCol = findCol("项目", "name", "名称", "title");
-  const descCol = findCol("描述", "description", "简介", "说明", "内容");
-  const techCol = findCol("技术", "tech", "栈", "工具");
-  const highlightCol = findCol("亮点", "成果", "highlight", "achievement", "职责");
+  const nameCol = findCol("项目名", "项目", "name", "名称", "title");
+  const descCol = findCol("描述", "description", "简介", "说明", "内容", "任务");
+  const techCol = findCol("技术", "tech", "栈", "工具", "方法", "定性");
+  const highlightCol = findCol("亮点", "成果", "highlight", "achievement", "职责", "任务");
+  const industryCol = findCol("行业");
+  const categoryCol = findCol("品类");
 
   return rows
     .map((row) => {
       const name = (nameCol ? row[nameCol] : Object.values(row)[0])?.trim();
       if (!name) return null;
 
-      const description = descCol ? row[descCol]?.trim() || "" : "";
+      const description = [
+        industryCol ? row[industryCol] : "",
+        categoryCol ? row[categoryCol] : "",
+        descCol ? row[descCol] : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+        .trim();
       const techText = techCol ? row[techCol] : "";
       const highlightText = highlightCol ? row[highlightCol] : "";
 
@@ -293,6 +303,19 @@ export function parseResumeText(text: string): ParsedProfileDraft {
   if (sections.work) draft.workExperiences = parseWorkBlock(sections.work);
   if (sections.education) draft.educations = parseEducationBlock(sections.education);
   if (sections.project) draft.projects = parseProjectBlock(sections.project);
+
+  if (!draft.projects.length && hasProjectTableFormat(text)) {
+    draft.projects = parseProjectsFromMarkdownTables(text);
+  } else if (hasProjectTableFormat(text)) {
+    const fromTable = parseProjectsFromMarkdownTables(text);
+    const seen = new Set(draft.projects.map((p) => p.name));
+    for (const p of fromTable) {
+      if (!seen.has(p.name)) {
+        draft.projects.push(p);
+        seen.add(p.name);
+      }
+    }
+  }
   if (sections.skill) draft.skills = parseSkillsBlock(sections.skill);
 
   if (!draft.skills.length) {

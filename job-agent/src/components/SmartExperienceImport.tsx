@@ -198,7 +198,7 @@ export function SmartExperienceImport() {
             rows={7}
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
-            placeholder={"粘贴整份简历，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· 专业技能"}
+            placeholder={"粘贴整份简历、项目任务表格，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· Markdown 表格（行业|项目编号|项目名|任务）\n· 专业技能"}
           />
 
           <div>
