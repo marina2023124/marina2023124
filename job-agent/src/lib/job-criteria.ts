@@ -33,6 +33,8 @@ const RELATED_MAJOR_EXPANSION = [
   "传播学",
   "新闻传播学",
   "新闻学",
+  "新闻与传播",
+  "新闻传播",
   "广告学",
   "传媒",
   "人类学",
@@ -305,11 +307,114 @@ export function extractJobCriteria(job: JobPosting): JobCriterion[] {
 }
 
 export function isRelatedEducationField(field: string, majors: string[]): boolean {
-  const normalized = field.trim().toLowerCase();
+  const normalized = normalizeMajorToken(field);
   if (!normalized) return false;
 
   return majors.some((major) => {
-    const m = major.trim().toLowerCase();
+    const m = normalizeMajorToken(major);
+    if (!m) return false;
     return normalized.includes(m) || m.includes(normalized);
   });
+}
+
+function normalizeMajorToken(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/专业$|系$|学院$|学士$|硕士$|博士$|本科$|研究生$/, "")
+    .trim();
+}
+
+/** 从 degree / 学校 / 摘要等文本中提取可能的专业名 */
+function extractMajorsFromText(text: string): string[] {
+  const found: string[] = [];
+  const normalized = text.trim();
+  if (!normalized) return found;
+
+  const allTokens = [
+    ...KNOWN_MAJOR_TOKENS,
+    ...RELATED_MAJOR_EXPANSION,
+    "新闻与传播",
+    "新闻传播",
+    "应用心理学",
+    "应用统计",
+    "市场营销学",
+    "communication",
+    "communications",
+  ];
+
+  for (const token of allTokens) {
+    if (normalized.toLowerCase().includes(token.toLowerCase())) {
+      found.push(token);
+    }
+  }
+
+  const degreeMatch = normalized.match(
+    /(?:本科|硕士|博士|学士|BA|B\.A\.|MA|M\.A\.)[\s·/\-—]*([\u4e00-\u9fffA-Za-z]{2,16})/
+  );
+  if (degreeMatch?.[1]) found.push(degreeMatch[1]);
+
+  return found;
+}
+
+/** 汇总简历中所有可用于专业比对的信号 */
+export function getProfileEducationSignals(profile: {
+  summary?: string;
+  educations: { field?: string; degree?: string; school?: string }[];
+}): string[] {
+  const signals = new Set<string>();
+
+  for (const edu of profile.educations) {
+    if (edu.field?.trim()) signals.add(edu.field.trim());
+    if (edu.degree?.trim()) {
+      signals.add(edu.degree.trim());
+      extractMajorsFromText(edu.degree).forEach((m) => signals.add(m));
+    }
+    if (edu.school?.trim()) extractMajorsFromText(edu.school).forEach((m) => signals.add(m));
+  }
+
+  if (profile.summary?.trim()) {
+    signals.add(profile.summary.trim());
+    extractMajorsFromText(profile.summary).forEach((m) => signals.add(m));
+  }
+
+  return Array.from(signals);
+}
+
+/** 查找与 JD 专业要求最匹配的用户专业展示名 */
+export function findMatchingEducationLabel(
+  profile: {
+    summary?: string;
+    educations: { field?: string; degree?: string; school?: string }[];
+  },
+  majors: string[]
+): string | undefined {
+  for (const edu of profile.educations) {
+    if (edu.field?.trim() && isRelatedEducationField(edu.field, majors)) {
+      return edu.field.trim();
+    }
+  }
+
+  for (const edu of profile.educations) {
+    for (const extracted of extractMajorsFromText(edu.degree || "")) {
+      if (isRelatedEducationField(extracted, majors)) return extracted;
+    }
+  }
+
+  for (const extracted of extractMajorsFromText(profile.summary || "")) {
+    if (isRelatedEducationField(extracted, majors)) return extracted;
+  }
+
+  for (const signal of getProfileEducationSignals(profile)) {
+    if (signal.length > 12) continue;
+    if (isRelatedEducationField(signal, majors)) return signal;
+  }
+
+  for (const major of majors) {
+    for (const signal of getProfileEducationSignals(profile)) {
+      if (signal.includes(major)) return major;
+    }
+  }
+
+  return undefined;
 }

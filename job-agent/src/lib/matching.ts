@@ -3,7 +3,7 @@ import { calcTotalExperienceYears, calcYearsBetween, normalizeSkill } from "./ut
 import { extractSkillTagsFromExperience } from "./skill-tags";
 import {
   extractJobCriteria,
-  isRelatedEducationField,
+  findMatchingEducationLabel,
   type JobCriterion,
 } from "./job-criteria";
 
@@ -226,11 +226,11 @@ function evaluateCriterion(
     }
     case "education": {
       const majors = criterion.majors ?? [];
-      const edu = profile.educations.find((e) => isRelatedEducationField(e.field, majors));
-      if (edu) {
+      const label = findMatchingEducationLabel(profile, majors);
+      if (label) {
         return {
           matched: true,
-          displayLabel: `${edu.field}（相关专业）`,
+          displayLabel: `${label}（相关专业）`,
         };
       }
       return { matched: false, displayLabel: criterion.label };
@@ -306,9 +306,7 @@ function calcExperienceMatch(profile: Profile, job: JobPosting, criteria: JobCri
 function calcEducationMatch(profile: Profile, criteria: JobCriterion[]): number {
   const eduCriterion = criteria.find((c) => c.type === "education");
   if (!eduCriterion) return 85;
-  const matched = profile.educations.some((e) =>
-    isRelatedEducationField(e.field, eduCriterion.majors ?? [])
-  );
+  const matched = Boolean(findMatchingEducationLabel(profile, eduCriterion.majors ?? []));
   return matched ? 100 : 35;
 }
 
