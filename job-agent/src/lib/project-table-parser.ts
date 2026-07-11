@@ -1,6 +1,6 @@
 import type { Project } from "./types";
 import { generateId } from "./utils";
-import { extractSkillTagsFromText } from "./skill-tags";
+import { extractMethodSkillTags } from "./skill-tags";
 
 const PROJECT_ID_RE = /^\d{6,7}$|^proposal$|^培训\s*workshop$/i;
 const METHOD_RE = /定性|定量|共创|workshop|案头|培训/i;
@@ -95,13 +95,16 @@ function finalizeProject(draft: DraftProject): Project {
     .join(" · ");
   const description = meta || "";
   const highlights = draft.tasks.slice(0, 15);
-  const body = [description, ...highlights].join("\n");
+  // 技能仅从行业/方法字段提取，不扫描任务明细（避免 Spring concept、Go 等误判）
+  const technologies = extractMethodSkillTags(
+    [draft.method, draft.category].filter(Boolean).join(" ")
+  );
 
   return {
     id: generateId(),
     name: draft.name,
     description,
-    technologies: extractSkillTagsFromText(body),
+    technologies,
     highlights: highlights.length ? highlights : [draft.method || "用户研究"].filter(Boolean),
   };
 }

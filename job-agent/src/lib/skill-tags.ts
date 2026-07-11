@@ -7,7 +7,7 @@ export const KNOWN_SKILLS = [
   "深度访谈", "用户访谈", "定性访谈", "日记研究", "定量调研", "问卷设计",
   "焦点小组", "可用性测试", "概念测试", "竞品分析", "定性分析", "统计分析",
   "用户画像", "市场研究", "商业分析", "数据分析", "数据可视化", "报告撰写",
-  "用户研究", "JTBD分析", "JTBD", "深访", "访谈", "问卷", "调研",
+  "用户研究", "JTBD分析", "深访", "访谈", "问卷", "调研",
   "A/B测试", "NPS", "PSM", "MOT", "STAR", "NVivo",
   // Office & tools
   "Power BI", "PowerPoint", "JavaScript", "TypeScript", "Python", "Node.js",
@@ -26,6 +26,20 @@ const AMBIGUOUS_ENGLISH = new Set([
 
 /** Standalone tags that should never appear from auto-extraction. */
 const BLOCKED_AUTO_TAGS = new Set(["go", "spring", "java", "spark"]);
+
+/** Generic tags only valid when user lists them explicitly — skip in body scan. */
+const GENERIC_AUTO_EXTRACT_SKIP = new Set([
+  "jtbd", "问卷", "调研", "访谈", "深访", "用户研究",
+]);
+
+/** Methodology skills for project method/category fields only. */
+const METHODOLOGY_SKILLS = [
+  "价格敏感度测试", "价格敏感度", "PSM分析", "体验旅程地图",
+  "深度访谈", "用户访谈", "定性访谈", "日记研究", "定量调研", "问卷设计",
+  "焦点小组", "可用性测试", "概念测试", "竞品分析", "定性分析",
+  "用户画像", "JTBD分析", "A/B测试", "NPS", "PSM", "MOT", "NVivo",
+  "报告撰写", "PPT", "共创", "workshop",
+];
 
 /** Regex → canonical tag for methodologies mentioned in prose. */
 const METHODOLOGY_PATTERNS: { re: RegExp; tag: string }[] = [
@@ -151,7 +165,7 @@ const TAG_SUPERSEDES: [string, string[]][] = [
   ["体验旅程地图", ["旅程地图"]],
   ["价格敏感度测试", ["价格敏感度"]],
   ["PowerPoint", ["PPT"]],
-  ["用户研究", ["调研"]],
+  ["概念测试", ["可用性测试"]],
 ];
 
 /** Drop shorter tag when a longer tag in the list contains it (问卷设计 ⊃ 问卷). */
@@ -270,8 +284,9 @@ function matchKnownSkills(text: string): string[] {
   const sorted = [...KNOWN_SKILLS].sort((a, b) => b.length - a.length);
 
   for (const skill of sorted) {
+    if (GENERIC_AUTO_EXTRACT_SKIP.has(skill.toLowerCase())) continue;
     if (skill.toLowerCase() === "spring boot" && isSpringSeasonContext(text)) continue;
-    if (/^spring$/i.test(skill) && isSpringSeasonContext(text)) continue;
+    if (/^spring/i.test(skill) && isSpringSeasonContext(text)) continue;
 
     const re = skillMatchRegex(skill);
     if (!re.test(text)) continue;
@@ -309,6 +324,27 @@ function extractExplicitSkillLines(text: string): string[] {
   }
 
   return found;
+}
+
+function matchMethodologySkills(text: string): string[] {
+  const found: string[] = [];
+  const sorted = [...METHODOLOGY_SKILLS].sort((a, b) => b.length - a.length);
+
+  for (const skill of sorted) {
+    if (GENERIC_AUTO_EXTRACT_SKIP.has(skill.toLowerCase())) continue;
+    const re = skillMatchRegex(skill);
+    if (re.test(text)) found.push(skill);
+  }
+  return found;
+}
+
+/** Extract skills from project method/category — avoids scanning task prose. */
+export function extractMethodSkillTags(text: string): string[] {
+  const candidates = [
+    ...matchMethodologyPatterns(text),
+    ...matchMethodologySkills(text),
+  ];
+  return filterSkillTags(candidates);
 }
 
 /** Extract skill tags from resume/JD body text. */

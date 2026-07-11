@@ -15,6 +15,7 @@ import {
   getAcceptedDocumentExtensions,
 } from "@/lib/document-extract";
 import {
+  aggregateSkillsFromProjects,
   parseProjectsFromExcelRows,
   parseResumeText,
   summarizeParsedProfile,
@@ -112,6 +113,7 @@ export function SmartExperienceImport() {
       const fromExcel = parseProjectsFromExcelRows(excelRows);
       if (fromExcel.length) {
         parsed.projects = [...parsed.projects, ...fromExcel];
+        parsed.skills = aggregateSkillsFromProjects(parsed.projects);
       }
     }
     setPreview(parsed);

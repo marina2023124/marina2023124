@@ -286,6 +286,30 @@ export function parseProjectsFromExcelRows(rows: Record<string, string>[]): Proj
     .filter((p): p is Project => p !== null);
 }
 
+export function aggregateSkillsFromProjects(projects: Project[]): Skill[] {
+  const names = filterSkillTags(projects.flatMap((p) => p.technologies)).slice(0, 16);
+  return names.map((name) => ({
+    id: generateId(),
+    name,
+    level: "intermediate" as SkillLevel,
+  }));
+}
+
+function extractIntroText(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      if (!t) return false;
+      if (t.includes("|") || t.includes("\t")) return false;
+      if (/\b\d{6,7}\b/.test(t)) return false;
+      if (/^[-|:\s]+$/.test(t)) return false;
+      return true;
+    })
+    .join("\n")
+    .slice(0, 600);
+}
+
 export function parseResumeText(text: string): ParsedProfileDraft {
   const draft: ParsedProfileDraft = {
     workExperiences: [],
@@ -318,15 +342,23 @@ export function parseResumeText(text: string): ParsedProfileDraft {
       }
     }
   }
-  if (sections.skill) draft.skills = parseSkillsBlock(sections.skill);
+  const isProjectTableImport = hasProjectTableFormat(text) && draft.projects.length > 0;
 
-  if (!draft.skills.length) {
-    const names = extractSkillTagsFromText(text);
-    draft.skills = names.map((name) => ({
-      id: generateId(),
-      name,
-      level: "intermediate" as SkillLevel,
-    }));
+  if (isProjectTableImport) {
+    // 项目任务表：仅从各项目方法/品类聚合技能，不扫描表内任务文案
+    draft.skills = aggregateSkillsFromProjects(draft.projects);
+  } else {
+    if (sections.skill) draft.skills = parseSkillsBlock(sections.skill);
+
+    if (!draft.skills.length) {
+      const intro = extractIntroText(text);
+      const names = extractSkillTagsFromText(intro || text.slice(0, 600));
+      draft.skills = names.map((name) => ({
+        id: generateId(),
+        name,
+        level: "intermediate" as SkillLevel,
+      }));
+    }
   }
 
   if (!draft.workExperiences.length) {
