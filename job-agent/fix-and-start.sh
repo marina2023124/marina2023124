@@ -1,5 +1,6 @@
 #!/bin/bash
 # JobAgent 一键修复并启动（打不开页面时用）
+# 用法：bash fix-and-start.sh  （无需 chmod）
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -35,7 +36,7 @@ echo ""
 echo "✅ 构建完成。正在启动..."
 echo "   访问 http://localhost:3000"
 echo "   若浏览器仍异常 → Cmd+Shift+R 强刷"
-echo "   诊断命令: ./doctor.sh"
+echo "   诊断命令: bash doctor.sh"
 echo ""
 
 free_port

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { Cloud, Loader2, WifiOff } from "lucide-react";
-import { enableCloudMode, shouldStartOffline } from "@/lib/local-storage";
+import { enableCloudMode, wantsCloudMode } from "@/lib/local-storage";
 import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -15,20 +15,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loaded || !authReady) return;
-    if (localMode) {
-      if (pathname === "/login") router.replace("/");
-      return;
-    }
-    if (!isConfigured && pathname !== "/login") {
+
+    // 登录页始终放行（配置 Supabase / 云端登录）
+    if (pathname === "/login") return;
+
+    if (localMode) return;
+
+    if (!isConfigured) {
       router.replace("/login");
       return;
     }
-    if (!isConfigured) return;
-    if (!user && pathname !== "/login") {
+    if (!user) {
       router.replace("/login");
-    }
-    if (user && pathname === "/login") {
-      router.replace("/");
     }
   }, [user, loaded, authReady, isConfigured, localMode, pathname, router]);
 
@@ -39,7 +37,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         <p className="text-sm text-slate-600">{message}</p>
         <p className="text-xs text-slate-400">国内网络通常需要 VPN 才能访问 supabase.co</p>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
-          <p className="text-sm text-amber-900">一直转圈说明连不上云端，建议直接离线使用：</p>
+          <p className="text-sm text-amber-900">一直转圈？先离线使用，稍后再试云端：</p>
           <Button
             size="sm"
             className="w-full"
@@ -49,7 +47,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             }}
           >
             <WifiOff className="mr-2 h-4 w-4" />
-            离线使用（推荐，立即可用）
+            离线使用（立即可用）
           </Button>
           <Button
             size="sm"
@@ -61,15 +59,28 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               router.replace("/login");
             }}
           >
-            跳过等待，尝试登录云端
+            前往云端登录页
           </Button>
         </div>
       </div>
     </div>
   );
 
-  if (localMode || shouldStartOffline()) {
+  // 登录/配置页不拦截
+  if (pathname === "/login") {
     return <>{children}</>;
+  }
+
+  // 离线模式直接显示
+  if (localMode) {
+    return <>{children}</>;
+  }
+
+  // 用户主动选了云端，尽快进入登录流程
+  if (wantsCloudMode() && !user) {
+    if (!authReady || !loaded) {
+      return <>{children}</>;
+    }
   }
 
   if (!authReady) {
@@ -77,17 +88,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!isConfigured) {
-    if (pathname === "/login") {
-      return <>{children}</>;
-    }
-    return loadingScreen("正在跳转...");
+    return loadingScreen("正在跳转配置页...");
   }
 
   if (!loaded) {
     return loadingScreen("正在从云端加载数据...");
   }
 
-  if (!user && pathname !== "/login") {
+  if (!user) {
     return loadingScreen("正在跳转登录...");
   }
 

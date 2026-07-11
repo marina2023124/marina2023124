@@ -358,6 +358,12 @@ export function useAppData() {
 
   const enterCloudMode = useCallback(() => {
     enableCloudMode();
+    setLocalMode(false);
+    setUser(null);
+    setAuthReady(true);
+    setLoaded(true);
+    setSyncError(null);
+    skipSaveRef.current = true;
     if (typeof window !== "undefined") {
       window.location.href = "/login";
     }

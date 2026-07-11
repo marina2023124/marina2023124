@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.35-edu-major-fix"
+EXPECTED_VERSION="0.2.36-cloud-login-fix"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -21,6 +21,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
+chmod +x start.sh fix-and-start.sh doctor.sh go.sh 2>/dev/null || true
 
 [ -f ".env.local" ] && cp .env.local .env.local.bak && echo "✓ 已备份 .env.local"
 
@@ -37,7 +38,7 @@ download() {
 }
 
 FILES=(
-  "VERSION" "start.sh" "fix-and-start.sh" "doctor.sh" "update-via-cdn.sh"
+  "VERSION" "start.sh" "fix-and-start.sh" "doctor.sh" "go.sh" "update-via-cdn.sh"
   "package.json" "package-lock.json" "next.config.mjs" "tsconfig.json"
   "tailwind.config.ts" "postcss.config.mjs"
   "src/lib/types.ts" "src/lib/utils.ts" "src/lib/matching.ts" "src/lib/job-criteria.ts"
@@ -81,13 +82,14 @@ if ! grep -q "fix-and-start.sh" "update-via-cdn.sh" 2>/dev/null; then
 fi
 
 rm -rf .next
-chmod +x start.sh fix-and-start.sh doctor.sh 2>/dev/null || true
+chmod +x start.sh fix-and-start.sh doctor.sh go.sh 2>/dev/null || true
 
 echo ""
 echo "✅ 更新完成: ${ACTUAL_VERSION}"
 echo ""
 echo "下一步："
-echo "  ./fix-and-start.sh"
+echo "  bash fix-and-start.sh"
+echo "  或：bash go.sh"
 echo ""
 echo "若浏览器转圈，Console 执行："
 echo '  localStorage.removeItem("job-agent-cloud-mode");localStorage.setItem("job-agent-offline","1");location.reload()'

@@ -17,7 +17,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var cloud=localStorage.getItem("job-agent-cloud-mode");if(cloud!=="1"){localStorage.setItem("job-agent-offline","1");document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax"}}catch(e){}})();`,
+            __html: `(function(){try{var cloud=localStorage.getItem("job-agent-cloud-mode");var offline=localStorage.getItem("job-agent-offline");if(cloud==="1"){document.cookie="job-agent-offline=; path=/; max-age=0; SameSite=Lax"}else if(offline!=="1"){localStorage.setItem("job-agent-offline","1");document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax"}}catch(e){}})();`,
           }}
         />
       </head>
