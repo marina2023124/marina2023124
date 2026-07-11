@@ -246,6 +246,10 @@ export function useAppData() {
     }));
   }, []);
 
+  const replaceChatHistory = useCallback((chatHistory: ChatMessage[]) => {
+    setData((prev) => ({ ...prev, chatHistory }));
+  }, []);
+
   const clearChat = useCallback(() => {
     setData((prev) => ({ ...prev, chatHistory: [] }));
   }, []);
@@ -336,6 +340,7 @@ export function useAppData() {
     updateJob,
     deleteJob,
     addChatMessage,
+    replaceChatHistory,
     clearChat,
     exportData,
     importData,

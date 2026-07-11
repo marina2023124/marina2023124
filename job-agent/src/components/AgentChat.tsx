@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Send, Bot, User, Sparkles, Trash2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { generateAgentResponse, createChatMessage, QUICK_PROMPTS } from "@/lib/agent";
-import { Button } from "./ui";
+import {
+  estimateContextChars,
+  prepareContextForReply,
+  getContextBarColor,
+  COMPRESS_THRESHOLD,
+} from "@/lib/context-manager";
+import { Button, ProgressBar } from "./ui";
 
 function MessageContent({ content }: { content: string }) {
   const lines = content.split("\n");
@@ -33,11 +39,44 @@ function MessageContent({ content }: { content: string }) {
   );
 }
 
+function ContextUsageBar({
+  percent,
+  loading,
+  compressedNote,
+}: {
+  percent: number;
+  loading?: boolean;
+  compressedNote?: string | null;
+}) {
+  const thresholdPercent = Math.round(COMPRESS_THRESHOLD * 100);
+
+  return (
+    <div className="w-48 shrink-0">
+      <ProgressBar
+        percent={percent}
+        label="上下文占用"
+        barClassName={getContextBarColor(percent)}
+        animated={loading}
+        hint={
+          compressedNote ||
+          (percent >= thresholdPercent
+            ? `已达 ${thresholdPercent}%，发送时将自动压缩历史`
+            : `超过 ${thresholdPercent}% 时自动压缩，保持对话持续`)
+        }
+      />
+    </div>
+  );
+}
+
 export function AgentChat() {
-  const { data, addChatMessage, clearChat } = useApp();
+  const { data, addChatMessage, replaceChatHistory, clearChat } = useApp();
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [loadingPercent, setLoadingPercent] = useState<number | null>(null);
+  const [compressedNote, setCompressedNote] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const contextUsage = useMemo(() => estimateContextChars(data), [data]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -58,37 +97,71 @@ export function AgentChat() {
     if (!text.trim() || thinking) return;
 
     const userMsg = createChatMessage("user", text.trim());
-    addChatMessage(userMsg);
+    const historyWithUser = [...data.chatHistory, userMsg];
+    replaceChatHistory(historyWithUser);
     setInput("");
     setThinking(true);
+    setCompressedNote(null);
+
+    const startUsage = estimateContextChars({ ...data, chatHistory: historyWithUser }, text.trim());
+    setLoadingPercent(startUsage.percent);
 
     setTimeout(() => {
-      const response = generateAgentResponse(text.trim(), {
-        ...data,
-        chatHistory: [...data.chatHistory, userMsg],
-      });
-      addChatMessage(createChatMessage("assistant", response));
-      setThinking(false);
-    }, 600 + Math.random() * 400);
+      const prepared = prepareContextForReply(
+        { ...data, chatHistory: historyWithUser },
+        text.trim()
+      );
+
+      if (prepared.compressed) {
+        replaceChatHistory(prepared.data.chatHistory);
+        setCompressedNote(prepared.compressionNote ?? null);
+      }
+
+      setLoadingPercent(prepared.usage.percent);
+
+      const response = generateAgentResponse(text.trim(), prepared.data);
+
+      setTimeout(() => {
+        replaceChatHistory([
+          ...prepared.data.chatHistory,
+          createChatMessage("assistant", response),
+        ]);
+        setThinking(false);
+        setLoadingPercent(null);
+      }, 300);
+    }, 500);
   };
+
+  const displayPercent = loadingPercent ?? contextUsage.percent;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-            <Sparkles className="h-5 w-5" />
+      <div className="border-b border-slate-200 bg-white px-6 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
+              <p className="text-xs text-slate-500 truncate">
+                帮你梳理经历、分析技能、匹配岗位
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
-            <p className="text-xs text-slate-500">帮你梳理经历、分析技能、匹配岗位</p>
-          </div>
+
+          <ContextUsageBar
+            percent={displayPercent}
+            loading={thinking}
+            compressedNote={compressedNote}
+          />
+
+          {data.chatHistory.length > 1 && (
+            <Button variant="ghost" size="sm" onClick={clearChat}>
+              <Trash2 className="h-4 w-4" /> 清空对话
+            </Button>
+          )}
         </div>
-        {data.chatHistory.length > 1 && (
-          <Button variant="ghost" size="sm" onClick={clearChat}>
-            <Trash2 className="h-4 w-4" /> 清空对话
-          </Button>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -128,8 +201,14 @@ export function AgentChat() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
                 <Bot className="h-4 w-4" />
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <div className="flex gap-1">
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm space-y-2">
+                <p className="text-xs text-slate-500">正在加载上下文… {loadingPercent ?? contextUsage.percent}%</p>
+                <ProgressBar
+                  percent={loadingPercent ?? contextUsage.percent}
+                  barClassName={getContextBarColor(loadingPercent ?? contextUsage.percent)}
+                  animated
+                />
+                <div className="flex gap-1 pt-1">
                   <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "0ms" }} />
                   <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "150ms" }} />
                   <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "300ms" }} />
