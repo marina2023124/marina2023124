@@ -1,4 +1,6 @@
 import { summarizeProjectFromMeta, summarizeProjectWork } from "./project-work-summary";
+import { linkProjectsToWorkExperiences } from "./project-work-link";
+import type { WorkExperience } from "./types";
 
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -350,7 +352,7 @@ export function sortProjectsByTime<T extends {
   });
 }
 
-/** Normalize project list: fill projectId, work summary + sort by time. */
+/** Normalize project list: fill projectId, work summary, link work + sort by time. */
 export function sanitizeProfileProjects<T extends {
   name: string;
   description: string;
@@ -361,7 +363,11 @@ export function sanitizeProfileProjects<T extends {
   status?: "ongoing" | "completed";
   projectId?: string;
   workSummary?: string;
-}>(projects: T[]): T[] {
+  workExperienceId?: string;
+}>(
+  projects: T[],
+  workExperiences: WorkExperience[] = []
+): T[] {
   const enriched = projects.map((project) => {
     const normalized = {
       ...project,
@@ -376,5 +382,6 @@ export function sanitizeProfileProjects<T extends {
       workSummary: summary || project.workSummary,
     };
   });
-  return sortProjectsByTime(enriched);
+  const linked = linkProjectsToWorkExperiences(enriched, workExperiences);
+  return sortProjectsByTime(linked);
 }

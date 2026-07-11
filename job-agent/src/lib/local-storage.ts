@@ -88,7 +88,10 @@ export function loadLocalData(): AppData {
           workExperiences: data.profile.workExperiences.map((exp) =>
             sanitizeWorkExperienceSkills(exp)
           ),
-          projects: sanitizeProfileProjects(data.profile.projects),
+          projects: sanitizeProfileProjects(
+            data.profile.projects,
+            data.profile.workExperiences
+          ),
         },
       };
     }

@@ -47,6 +47,8 @@ export interface Project {
   durationDays?: number;
   /** ongoing = 进行中 */
   status?: "ongoing" | "completed";
+  /** 所属工作经历 ID（按项目时间自动匹配） */
+  workExperienceId?: string;
 }
 
 export interface Profile {

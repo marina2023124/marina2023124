@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime, sanitizeProfileProjects } from "@/lib/utils";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
+import { getWorkExperienceLabel } from "@/lib/project-work-link";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
@@ -59,6 +60,9 @@ function WorkExperienceSection() {
           const durationYears = calcYearsBetween(startDate, endDate);
           const startLooksWrong = isFutureYearMonth(exp.startDate);
           const skillTags = extractSkillTagsFromExperience(exp);
+          const linkedProjects = sortProjectsByTime(
+            data.profile.projects.filter((project) => project.workExperienceId === exp.id)
+          );
 
           return (
           <div key={exp.id} className="rounded-lg border border-slate-200 p-4">
@@ -100,6 +104,28 @@ function WorkExperienceSection() {
                 <div className="flex flex-wrap gap-1.5">
                   {skillTags.map((s) => <Badge key={s} color="indigo">{s}</Badge>)}
                 </div>
+              </div>
+            )}
+            {linkedProjects.length > 0 && (
+              <div className="mt-3 rounded-lg bg-violet-50/60 p-3">
+                <p className="mb-2 text-xs font-medium text-violet-800">
+                  期间项目（{linkedProjects.length}）
+                </p>
+                <ul className="space-y-1">
+                  {linkedProjects.slice(0, 6).map((project) => (
+                    <li key={project.id} className="text-sm text-violet-900">
+                      {project.name}
+                      {formatProjectDateRange(project) && (
+                        <span className="ml-2 text-xs text-violet-600">
+                          {formatProjectDateRange(project)}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                  {linkedProjects.length > 6 && (
+                    <li className="text-xs text-violet-600">…另有 {linkedProjects.length - 6} 个项目</li>
+                  )}
+                </ul>
               </div>
             )}
           </div>
@@ -262,10 +288,17 @@ function ProjectsSection() {
         highlights,
       }),
       url: form.url,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      workExperienceId: form.workExperienceId,
     };
+    const projects = sanitizeProfileProjects(
+      [project, ...data.profile.projects],
+      data.profile.workExperiences
+    );
     setProfile({
       ...data.profile,
-      projects: sortProjectsByTime([project, ...data.profile.projects]),
+      projects,
     });
     setForm({});
     setWorkInput("");
@@ -283,12 +316,16 @@ function ProjectsSection() {
         };
         const workSummary = getProjectWorkSummary(project);
         const workItems = getProjectWorkItems(project);
+        const workLabel = getWorkExperienceLabel(p.workExperienceId, data.profile.workExperiences);
         return (
           <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
             <div className="flex justify-between">
               <h4 className="font-semibold text-slate-900">{p.name}</h4>
               <button onClick={() => setProfile({ ...data.profile, projects: data.profile.projects.filter((x) => x.id !== p.id) })} className="text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
             </div>
+            {workLabel && (
+              <p className="mt-1 text-xs font-medium text-violet-700">所属工作：{workLabel}</p>
+            )}
             {p.description && <p className="mt-1 text-sm text-slate-500">{p.description}</p>}
             {formatProjectDateRange(p) && (
               <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(p)}</p>
@@ -334,6 +371,25 @@ function ProjectsSection() {
             placeholder={"深访家长需求\n撰写研究报告\n协助焦点小组"}
           />
           <Input label="研究方法/技能（逗号分隔）" onChange={(e) => setForm({ ...form, technologies: parseSkillsFromText(e.target.value) as unknown as string[] })} />
+          {data.profile.workExperiences.length > 0 && (
+            <Select
+              label="所属工作（可选，留空则按时间自动匹配）"
+              value={form.workExperienceId || ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  workExperienceId: e.target.value || undefined,
+                })
+              }
+              options={[
+                { value: "", label: "自动匹配" },
+                ...data.profile.workExperiences.map((exp) => ({
+                  value: exp.id,
+                  label: `${exp.company} · ${exp.title}`,
+                })),
+              ]}
+            />
+          )}
           <div className="flex gap-2">
             <Button onClick={addProject}>保存</Button>
             <Button variant="ghost" onClick={() => { setShowForm(false); setWorkInput(""); }}>取消</Button>

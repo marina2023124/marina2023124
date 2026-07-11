@@ -27,9 +27,57 @@ import {
   parseProjectsFromWorkbook,
   type WorkbookSheet,
 } from "@/lib/project-workbook-parser";
-import { formatProjectDateRange, getProjectWorkSummary, getProjectWorkItems, sortProjectsByTime } from "@/lib/utils";
-import { mergeParsedProfile } from "@/lib/profile-merge";
+import { formatProjectDateRange, getProjectWorkSummary, getProjectWorkItems, sortProjectsByTime, sanitizeProfileProjects } from "@/lib/utils";
+import { mergeParsedProfile, mergeWeeklyReportProjects } from "@/lib/profile-merge";
+import {
+  isWeeklyReportText,
+  parseWeeklyReportProjects,
+  summarizeWeeklyReportParse,
+} from "@/lib/weekly-report-parser";
+import { getWorkExperienceLabel } from "@/lib/project-work-link";
+import type { Project, WorkExperience } from "@/lib/types";
 import { Button, Textarea, Badge } from "./ui";
+
+type ImportMode = "resume" | "weekly";
+
+function WeeklyPreviewSummary({
+  projects,
+  workExperiences,
+}: {
+  projects: Project[];
+  workExperiences: WorkExperience[];
+}) {
+  return (
+    <ul className="space-y-2 text-sm text-slate-600">
+      {sortProjectsByTime(projects).slice(0, 5).map((project) => {
+        const workLabel = getWorkExperienceLabel(project.workExperienceId, workExperiences);
+        const workItems = getProjectWorkItems(project);
+        return (
+          <li key={project.id}>
+            <span className="font-medium text-slate-700">{project.name}</span>
+            {project.projectId && (
+              <span className="ml-2 text-xs text-slate-400">#{project.projectId}</span>
+            )}
+            {workLabel && <p className="text-xs text-violet-700">所属工作：{workLabel}</p>}
+            {workItems.slice(0, 2).map((item) => (
+              <p key={item} className="text-xs text-slate-500">· {item}</p>
+            ))}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export const WEEKLY_REPORT_DEMO_TEXT = `2024.6.24-6.28 周报
+
+本周工作
+2406303 - 雀巢春节：完成 5 组深访，整理访谈纪要并输出中期发现
+2407101 - 小学语文教材：问卷投放与数据清洗，完成 200 份有效样本
+proposal - 某品牌概念测试：完成访谈提纲与招募方案
+
+下周计划
+2406303 - 撰写最终研究报告`;
 
 export const RESUME_DEMO_TEXT = `张三
 电话：13800138000  邮箱：zhangsan@example.com
@@ -126,7 +174,9 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
 export function SmartExperienceImport() {
   const { data, setProfile } = useApp();
   const [rawInput, setRawInput] = useState("");
+  const [importMode, setImportMode] = useState<ImportMode>("resume");
   const [preview, setPreview] = useState<ParsedProfileDraft | null>(null);
+  const [weeklyPreview, setWeeklyPreview] = useState<Project[] | null>(null);
   const [parsing, setParsing] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -136,8 +186,22 @@ export function SmartExperienceImport() {
   const runParse = useCallback((
     text: string,
     excelRows?: Record<string, string>[],
-    excelWorkbook?: WorkbookSheet[]
+    excelWorkbook?: WorkbookSheet[],
+    mode: ImportMode = importMode
   ) => {
+    const weeklyMode = mode === "weekly" || (mode === "resume" && isWeeklyReportText(text) && !excelWorkbook?.length && !excelRows?.length);
+
+    if (weeklyMode) {
+      const projects = sanitizeProfileProjects(
+        parseWeeklyReportProjects(text, data.profile.projects),
+        data.profile.workExperiences
+      );
+      setWeeklyPreview(projects);
+      setPreview(null);
+      setShowDetails(true);
+      return;
+    }
+
     let parsed = parseResumeText(text);
 
     if (excelWorkbook?.length && isPersonalProjectWorkbook(excelWorkbook)) {
@@ -158,8 +222,9 @@ export function SmartExperienceImport() {
     }
 
     setPreview(parsed);
+    setWeeklyPreview(null);
     setShowDetails(true);
-  }, []);
+  }, [data.profile.projects, data.profile.workExperiences, importMode]);
 
   const handleSmartParse = () => {
     if (!rawInput.trim()) return;
@@ -192,6 +257,16 @@ export function SmartExperienceImport() {
   };
 
   const handleApply = () => {
+    if (weeklyPreview?.length) {
+      const merged = mergeWeeklyReportProjects(weeklyPreview, data.profile);
+      setProfile(merged);
+      setWeeklyPreview(null);
+      setRawInput("");
+      setShowDetails(false);
+      alert("已根据周报更新项目经历，并按时间关联到对应工作");
+      return;
+    }
+
     if (!preview) return;
     const merged = mergeParsedProfile(preview, data.profile);
     setProfile(merged);
@@ -199,6 +274,11 @@ export function SmartExperienceImport() {
     setRawInput("");
     setShowDetails(false);
     alert("已合并到「我的经历」，可在下方继续微调");
+  };
+
+  const clearPreview = () => {
+    setPreview(null);
+    setWeeklyPreview(null);
   };
 
   return (
@@ -215,7 +295,7 @@ export function SmartExperienceImport() {
           <div>
             <h3 className="text-lg font-semibold text-slate-900">智能导入经历</h3>
             <p className="text-sm text-slate-500">
-              粘贴简历文字，或上传 PDF / Word / Excel / 图片，自动识别工作经历、项目与技能
+              支持简历/项目表导入，也可用周报/工作记录增量更新项目
             </p>
           </div>
         </div>
@@ -224,25 +304,52 @@ export function SmartExperienceImport() {
 
       {expanded && (
         <div className="mt-5 space-y-4">
+          <div className="flex gap-2">
+            <Button
+              variant={importMode === "resume" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setImportMode("resume")}
+            >
+              简历 / 项目表
+            </Button>
+            <Button
+              variant={importMode === "weekly" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setImportMode("weekly")}
+            >
+              周报 / 工作记录
+            </Button>
+          </div>
+
           <div className="rounded-lg border border-indigo-100 bg-white/80 p-3 text-xs text-slate-600">
             <p className="font-medium text-slate-700">支持格式</p>
             <p className="mt-1">PDF、Word（.docx）、Excel（.xlsx/.xls/.csv）、图片（OCR）、纯文本</p>
-            <p className="mt-1">Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）</p>
-            <button
-              type="button"
-              className="mt-2 text-indigo-600 hover:underline"
-              onClick={() => setRawInput(RESUME_DEMO_TEXT)}
-            >
-              填入示例简历
-            </button>
+            <p className="mt-1">
+              {importMode === "weekly"
+                ? "周报模式：识别项目编号（如 2406303）与本周任务，合并到已有项目并自动关联所属工作"
+                : "Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）"}
+            </p>
+            <div className="mt-2 flex gap-3">
+              <button
+                type="button"
+                className="text-indigo-600 hover:underline"
+                onClick={() => setRawInput(importMode === "weekly" ? WEEKLY_REPORT_DEMO_TEXT : RESUME_DEMO_TEXT)}
+              >
+                {importMode === "weekly" ? "填入示例周报" : "填入示例简历"}
+              </button>
+            </div>
           </div>
 
           <Textarea
-            label="粘贴简历 / 经历文本"
+            label={importMode === "weekly" ? "粘贴周报 / 工作记录" : "粘贴简历 / 经历文本"}
             rows={7}
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
-            placeholder={"粘贴整份简历、项目任务表格，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· Markdown 表格（行业|项目编号|项目名|任务）\n· 专业技能"}
+            placeholder={
+              importMode === "weekly"
+                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· 本周工作 / 本周完成\n· 2406303 - 项目名：任务描述\n· 自动合并到已有项目并补充任务明细"
+                : "粘贴整份简历、项目任务表格，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· Markdown 表格（行业|项目编号|项目名|任务）\n· 专业技能"
+            }
           />
 
           <div>
@@ -289,12 +396,18 @@ export function SmartExperienceImport() {
             )}
           </Button>
 
-          {preview && (
+          {(preview || weeklyPreview) && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h4 className="font-semibold text-emerald-900">识别结果</h4>
-                  <p className="text-sm text-emerald-700">{summarizeParsedProfile(preview)}</p>
+                  <p className="text-sm text-emerald-700">
+                    {weeklyPreview
+                      ? summarizeWeeklyReportParse(weeklyPreview, rawInput)
+                      : preview
+                        ? summarizeParsedProfile(preview)
+                        : ""}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -305,18 +418,27 @@ export function SmartExperienceImport() {
                 </button>
               </div>
 
-              {showDetails && <PreviewSummary draft={preview} />}
+              {showDetails && weeklyPreview && (
+                <WeeklyPreviewSummary
+                  projects={weeklyPreview}
+                  workExperiences={data.profile.workExperiences}
+                />
+              )}
+              {showDetails && preview && <PreviewSummary draft={preview} />}
 
               <div className="mt-4 flex gap-2">
                 <Button onClick={handleApply}>
-                  <Check className="h-4 w-4" /> 合并到我的经历
+                  <Check className="h-4 w-4" />
+                  {weeklyPreview ? "更新项目经历" : "合并到我的经历"}
                 </Button>
-                <Button variant="ghost" onClick={() => setPreview(null)}>取消</Button>
+                <Button variant="ghost" onClick={clearPreview}>取消</Button>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                合并时会保留已有内容，仅追加不重复的工作/项目/技能条目
+                {weeklyPreview
+                  ? "将把本周任务合并进对应项目，并按项目时间自动标注所属工作"
+                  : "合并时会保留已有内容，仅追加不重复的工作/项目/技能条目"}
               </p>
-              {preview.projects.length === 0 && countLikelyProjectRows(rawInput) > 0 && (
+              {preview && preview.projects.length === 0 && countLikelyProjectRows(rawInput) > 0 && (
                 <p className="mt-2 text-xs text-amber-700">
                   检测到约 {countLikelyProjectRows(rawInput)} 个项目编号，但未解析出项目。
                   请确认表格含「项目名」列；从 Excel 粘贴时应保留制表符，或导出为 CSV 后上传。

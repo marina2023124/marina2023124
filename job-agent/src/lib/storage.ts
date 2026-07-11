@@ -22,7 +22,7 @@ function normalizeProfile(profile: Profile): Profile {
     ...profile,
     skills: sanitizeProfileSkills(profile.skills),
     workExperiences: profile.workExperiences.map((exp) => sanitizeWorkExperienceSkills(exp)),
-    projects: sanitizeProfileProjects(profile.projects),
+    projects: sanitizeProfileProjects(profile.projects, profile.workExperiences),
   };
 }
 
