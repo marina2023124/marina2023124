@@ -1,49 +1,64 @@
-const WORK_THEME_RULES: {
-  patterns: RegExp[];
-  phrase: string;
-  order: number;
-}[] = [
+/** Per-task classifiers — longer / more specific patterns first. */
+const TASK_CLASSIFIERS: { patterns: RegExp[]; phrase: string; order: number }[] = [
   {
-    patterns: [/问卷|招募|甄别|二甄|编程|QC|链接测试|测试反馈/i],
+    patterns: [/问卷.*更新|问卷.*测试|问卷.*编程|问卷.*链接|甄别问卷|问卷设计/i],
     phrase: "问卷设计与执行",
     order: 1,
   },
   {
-    patterns: [/深访|访谈|FGD|IDI|组前|vlog|沉浸|座谈会|FW|notes/i],
-    phrase: "定性访谈与座谈会",
+    patterns: [/招募.*发布|样本招募|被访者招募/i],
+    phrase: "样本招募",
     order: 2,
   },
   {
-    patterns: [
-      /tabplan|tableplan|读数|聚类|topline|贴数|tab|SA|数据|惩罚|语法|检查|标注|读数/i,
-    ],
-    phrase: "数据处理与分析",
+    patterns: [/深访|用户访谈|IDI|FGD|座谈会|组前.*沟通|vlog.*沟通|沉浸/i],
+    phrase: "定性访谈",
     order: 3,
   },
   {
-    patterns: [/report|报告|Keyfindings|洞察|撰写|汇报|header页/i],
-    phrase: "研究报告撰写",
+    patterns: [/tabplan|tableplan|读数|聚类|topline|贴数|tab检查|数据读数|惩罚分析/i],
+    phrase: "数据处理与分析",
     order: 4,
   },
   {
-    patterns: [/案头|desk|资料整理|整理内容/i],
-    phrase: "案头研究",
+    patterns: [/full report|研究报告|Keyfindings|洞察报告|报告撰写|header页/i],
+    phrase: "研究报告撰写",
     order: 5,
   },
   {
-    patterns: [/concept|概念测试|可用性/i],
-    phrase: "概念与可用性测试",
+    patterns: [/案头/i],
+    phrase: "案头研究",
     order: 6,
   },
   {
-    patterns: [/workshop|培训|共创|做图|制图/i],
-    phrase: "工作坊与可视化",
+    patterns: [/concept.*test|概念测试|可用性测试/i],
+    phrase: "概念与可用性测试",
     order: 7,
   },
   {
-    patterns: [/NPS|MOT|旅程|画像|UA/i],
-    phrase: "体验洞察与用户画像",
+    patterns: [/workshop|焦点小组|共创工作坊/i],
+    phrase: "工作坊与共创",
     order: 8,
+  },
+  {
+    patterns: [/项目通知书|进度表|代理培训|项目推进|通知书/i],
+    phrase: "项目协调与执行",
+    order: 9,
+  },
+  {
+    patterns: [/二甄|甄别(?!问卷)/i],
+    phrase: "样本甄别",
+    order: 10,
+  },
+  {
+    patterns: [/NPS|MOT|旅程地图|用户画像/i],
+    phrase: "体验洞察与用户画像",
+    order: 11,
+  },
+  {
+    patterns: [/做图|制图|PPT/i],
+    phrase: "可视化呈现",
+    order: 12,
   },
 ];
 
@@ -53,11 +68,54 @@ function buildSummarySentence(phrases: string[]): string {
   return `负责${phrases.slice(0, -1).join("、")}及${phrases[phrases.length - 1]}等工作。`;
 }
 
-function cleanTaskLabel(task: string): string {
-  return task
-    .replace(/^[a-z]+/i, "")
-    .replace(/[-_]/g, "")
+function simplifyTaskLabel(task: string): string {
+  let label = task
+    .trim()
+    .replace(/^[-*•●\d、.．)\]]+\s*/, "")
+    .replace(/^[a-z0-9\s&.-]+(?=[\u4e00-\u9fa5])/i, "")
     .trim();
+
+  label = label
+    .replace(/^(高思语文|高思小数|高思|Nabati|nabati|伊利|雀巢|玉泽)/i, "")
+    .trim();
+
+  return label || task.trim();
+}
+
+function isReadableChineseTask(task: string): boolean {
+  const label = simplifyTaskLabel(task);
+  return /[\u4e00-\u9fa5]{2,}/.test(label) && label.length <= 20;
+}
+
+/** Summarize a few clear Chinese task labels literally. */
+function summarizeLiteralTasks(tasks: string[]): string {
+  const labels = tasks.map(simplifyTaskLabel).filter((t) => t.length >= 2);
+  if (!labels.length) return "";
+
+  if (labels.length === 1) return `负责${labels[0]}。`;
+  if (labels.length === 2) return `负责${labels[0]}与${labels[1]}。`;
+  if (labels.length <= 5) {
+    return `负责${labels.slice(0, -1).join("、")}及${labels[labels.length - 1]}等工作。`;
+  }
+  return `负责${labels.slice(0, 3).join("、")}等${labels.length}项研究工作。`;
+}
+
+function classifyTaskThemes(tasks: string[]): string[] {
+  const matched = new Map<number, string>();
+
+  for (const task of tasks) {
+    for (const rule of TASK_CLASSIFIERS) {
+      if (rule.patterns.some((pattern) => pattern.test(task))) {
+        matched.set(rule.order, rule.phrase);
+        break;
+      }
+    }
+  }
+
+  return Array.from(matched.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, phrase]) => phrase)
+    .slice(0, 4);
 }
 
 /** Turn recorded task rows into one resume-ready sentence. */
@@ -65,33 +123,24 @@ export function summarizeProjectWork(tasks: string[]): string {
   const items = tasks.map((task) => task.trim()).filter((task) => task.length >= 2);
   if (!items.length) return "";
 
-  const matched = new Map<number, string>();
-  for (const rule of WORK_THEME_RULES) {
-    const hit = items.some((task) => rule.patterns.some((pattern) => pattern.test(task)));
-    if (hit) matched.set(rule.order, rule.phrase);
+  const chineseTasks = items.filter(isReadableChineseTask);
+  const mostlyChinese = chineseTasks.length >= items.length * 0.6;
+
+  // Few clear Chinese tasks → use actual task names (most accurate)
+  if (items.length <= 5 && mostlyChinese && chineseTasks.length === items.length) {
+    return summarizeLiteralTasks(items);
   }
 
-  const phrases = Array.from(matched.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([, phrase]) => phrase)
-    .slice(0, 4);
-
+  const phrases = classifyTaskThemes(items);
   if (phrases.length > 0) {
     return buildSummarySentence(phrases);
   }
 
-  const fallback = items
-    .slice(0, 2)
-    .map(cleanTaskLabel)
-    .filter((task) => task.length >= 2);
-
-  if (!fallback.length) {
-    return `负责${items.length}项用户研究任务。`;
+  if (mostlyChinese) {
+    return summarizeLiteralTasks(chineseTasks);
   }
 
-  return items.length <= 2
-    ? `负责${fallback.join("与")}。`
-    : `负责${fallback.join("、")}等${items.length}项研究任务。`;
+  return `负责${items.length}项用户研究任务。`;
 }
 
 const METHOD_PHRASE_RULES: { re: RegExp; phrase: string }[] = [

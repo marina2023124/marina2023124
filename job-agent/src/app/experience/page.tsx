@@ -10,7 +10,7 @@ export default function ExperiencePage() {
         <p className="mt-1 text-slate-500">
           粘贴简历或上传 PDF/Word/Excel，自动识别经历；也可在下方手动编辑
         </p>
-        <p className="mt-1 text-xs font-medium text-indigo-600">版本 0.2.27 · 含「智能导入经历」</p>
+        <p className="mt-1 text-xs font-medium text-indigo-600">版本 0.2.29 · 含「智能导入经历」</p>
       </div>
       <ExperienceManager />
     </div>
