@@ -4,7 +4,7 @@
 
 set -e
 
-COMMIT_SHA="REPLACE_AFTER_PUSH"
+COMMIT_SHA="e028cbf"
 EXPECTED_VERSION="0.2.32-weekly-work-link"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
