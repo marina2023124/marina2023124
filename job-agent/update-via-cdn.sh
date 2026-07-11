@@ -4,7 +4,7 @@
 
 set -e
 
-COMMIT_SHA="REPLACE_SHA"
+COMMIT_SHA="b8aab5b"
 EXPECTED_VERSION="0.2.33-offline-fix"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
 
