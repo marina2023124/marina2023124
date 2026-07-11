@@ -13,11 +13,19 @@ export const KNOWN_SKILLS = [
   "Power BI", "PowerPoint", "JavaScript", "TypeScript", "Python", "Node.js",
   "Next.js", "PostgreSQL", "MongoDB", "Kubernetes",
   "Excel", "PPT", "SPSS", "Stata", "Tableau", "Figma", "SQL",
-  "机器学习", "深度学习", "TensorFlow", "PyTorch", "Spark", "Hadoop",
-  "Java", "React", "Vue", "AWS", "Docker", "Go", "Rust", "C++",
-  "MySQL", "Redis", "Angular", "Spring", "Git", "Linux", "HTML", "CSS", "Sass",
+  "机器学习", "深度学习", "TensorFlow", "PyTorch", "Hadoop",
+  "React", "Golang", "Spring Boot", "Rust", "C++", "Angular", "Git", "Linux", "HTML", "CSS", "Sass",
+  "Docker", "MySQL", "Redis",
   "R语言",
 ];
+
+/** Short tokens easily false-positive in prose — require word boundaries & context. */
+const AMBIGUOUS_ENGLISH = new Set([
+  "go", "spring", "java", "vue", "sql", "git", "rust", "mot", "psm", "nps", "star", "jtbd", "ppt",
+]);
+
+/** Standalone tags that should never appear from auto-extraction. */
+const BLOCKED_AUTO_TAGS = new Set(["go", "spring", "java", "spark"]);
 
 /** Regex → canonical tag for methodologies mentioned in prose. */
 const METHODOLOGY_PATTERNS: { re: RegExp; tag: string }[] = [
@@ -121,9 +129,12 @@ export function isValidSkillTag(
 
   if (isKnownSkillExact(token)) return true;
 
-  // English / acronym skills: React, SQL, MOT
-  if (/^[A-Z][A-Z0-9/+.\-]{0,7}$/.test(token)) return true;
-  if (/^[A-Za-z][A-Za-z0-9+#.\-/]{1,15}$/.test(token)) return true;
+  // Block ambiguous English false positives (Go from "category", Spring from season/event names)
+  if (BLOCKED_AUTO_TAGS.has(token.toLowerCase())) return false;
+
+  // English / acronym skills (4+ chars), not ambiguous short tokens
+  if (/^[A-Z][A-Z0-9/+.\-]{2,7}$/.test(token)) return true;
+  if (/^[A-Za-z][A-Za-z0-9+#.\-/]{3,15}$/.test(token)) return true;
 
   return false;
 }
@@ -134,11 +145,14 @@ const TAG_SUPERSEDES: [string, string[]][] = [
   ["深度访谈", ["深访", "访谈"]],
   ["用户访谈", ["访谈"]],
   ["定性访谈", ["深访", "访谈"]],
+  ["JTBD分析", ["JTBD"]],
   ["定量调研", ["调研", "问卷"]],
 ];
 
 function finalizeSkillTags(tags: string[]): string[] {
-  const set = new Set(tags);
+  const set = new Set(
+    tags.filter((t) => !BLOCKED_AUTO_TAGS.has(t.toLowerCase()))
+  );
   for (const [preferred, drop] of TAG_SUPERSEDES) {
     if (set.has(preferred)) drop.forEach((d) => set.delete(d));
   }
@@ -208,13 +222,37 @@ export function sanitizeProfileSkills(skills: Skill[]): Skill[] {
   });
 }
 
+function skillMatchRegex(skill: string): RegExp {
+  const escaped = escapeRegExp(skill);
+  const needsBoundary =
+    AMBIGUOUS_ENGLISH.has(skill.toLowerCase()) ||
+    skill.length <= 4 ||
+    /^[A-Za-z+#.]+$/.test(skill);
+  if (needsBoundary) {
+    return new RegExp(`(?<![A-Za-z0-9_+./#-])${escaped}(?![A-Za-z0-9])`, "i");
+  }
+  return new RegExp(escaped, "i");
+}
+
+function isSpringSeasonContext(text: string): boolean {
+  return /Spring\s+(concept|Event|Test|Halloween|Y\d)/i.test(text);
+}
+
 function matchKnownSkills(text: string): string[] {
   const found: string[] = [];
   const sorted = [...KNOWN_SKILLS].sort((a, b) => b.length - a.length);
 
   for (const skill of sorted) {
-    const re = new RegExp(escapeRegExp(skill), "i");
-    if (re.test(text)) found.push(skill);
+    if (skill.toLowerCase() === "spring boot" && isSpringSeasonContext(text)) continue;
+    if (/^spring$/i.test(skill) && isSpringSeasonContext(text)) continue;
+
+    const re = skillMatchRegex(skill);
+    if (!re.test(text)) continue;
+
+    const canonical = skill.toLowerCase();
+    if (BLOCKED_AUTO_TAGS.has(canonical)) continue;
+
+    found.push(skill);
   }
   return found;
 }
