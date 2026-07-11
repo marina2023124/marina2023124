@@ -142,12 +142,34 @@ export function isValidSkillTag(
 /** Prefer specific tags over generic subsets. */
 const TAG_SUPERSEDES: [string, string[]][] = [
   ["PSM分析", ["PSM", "价格敏感度", "价格敏感度测试"]],
+  ["问卷设计", ["问卷"]],
+  ["定量调研", ["调研", "问卷"]],
   ["深度访谈", ["深访", "访谈"]],
   ["用户访谈", ["访谈"]],
   ["定性访谈", ["深访", "访谈"]],
   ["JTBD分析", ["JTBD"]],
-  ["定量调研", ["调研", "问卷"]],
+  ["体验旅程地图", ["旅程地图"]],
+  ["价格敏感度测试", ["价格敏感度"]],
+  ["PowerPoint", ["PPT"]],
+  ["用户研究", ["调研"]],
 ];
+
+/** Drop shorter tag when a longer tag in the list contains it (问卷设计 ⊃ 问卷). */
+function dedupeBySubstring(tags: string[]): string[] {
+  const unique = Array.from(new Set(tags));
+  const drop = new Set<string>();
+
+  for (const longer of unique) {
+    for (const shorter of unique) {
+      if (longer === shorter || shorter.length < 2) continue;
+      if (longer.length > shorter.length && longer.includes(shorter)) {
+        drop.add(shorter);
+      }
+    }
+  }
+
+  return unique.filter((t) => !drop.has(t));
+}
 
 function finalizeSkillTags(tags: string[]): string[] {
   const set = new Set(
@@ -156,7 +178,7 @@ function finalizeSkillTags(tags: string[]): string[] {
   for (const [preferred, drop] of TAG_SUPERSEDES) {
     if (set.has(preferred)) drop.forEach((d) => set.delete(d));
   }
-  return Array.from(set);
+  return dedupeBySubstring(Array.from(set));
 }
 
 export function filterSkillTags(
@@ -211,15 +233,20 @@ export function extractProfileSkillsFromSection(block: string): string[] {
 }
 
 export function sanitizeProfileSkills(skills: Skill[]): Skill[] {
-  const seen = new Set<string>();
-  return skills.filter((s) => {
-    const name = cleanToken(s.name);
-    if (!isValidSkillTag(name)) return false;
-    const key = name.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const valid = skills
+    .map((s) => ({ ...s, name: cleanToken(s.name) }))
+    .filter((s) => isValidSkillTag(s.name));
+
+  const canonicalNames = finalizeSkillTags(valid.map((s) => s.name));
+  const byName = new Map<string, Skill>();
+  for (const skill of valid) {
+    const key = skill.name.toLowerCase();
+    if (!byName.has(key)) byName.set(key, skill);
+  }
+
+  return canonicalNames
+    .map((name) => byName.get(name.toLowerCase()))
+    .filter((s): s is Skill => s !== undefined);
 }
 
 function skillMatchRegex(skill: string): RegExp {
