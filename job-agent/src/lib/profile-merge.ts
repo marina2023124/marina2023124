@@ -1,5 +1,6 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
 import type { ParsedProfileDraft } from "./resume-parser";
+import { sanitizeProfileSkills } from "./skill-tags";
 
 function dedupeWork(a: WorkExperience, b: WorkExperience): boolean {
   return (
@@ -51,6 +52,8 @@ export function mergeParsedProfile(parsed: ParsedProfileDraft, base: Profile): P
     workExperiences: mergeArray(base.workExperiences, parsed.workExperiences, dedupeWork),
     educations: mergeArray(base.educations, parsed.educations, dedupeEdu),
     projects: mergeArray(base.projects, parsed.projects, dedupeProject),
-    skills: mergeArray(base.skills, parsed.skills, dedupeSkill),
+    skills: sanitizeProfileSkills(
+      mergeArray(base.skills, parsed.skills, dedupeSkill)
+    ),
   };
 }

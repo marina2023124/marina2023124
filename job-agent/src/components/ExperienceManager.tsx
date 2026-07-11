@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
 import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate } from "@/lib/utils";
-import { filterSkillTags, extractSkillTagsFromExperience } from "@/lib/skill-tags";
+import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
@@ -208,8 +208,9 @@ function SkillsSection() {
   const [level, setLevel] = useState<SkillLevel>("intermediate");
 
   const addSkill = () => {
-    if (!name.trim()) return;
-    const skill: Skill = { id: generateId(), name: name.trim(), level };
+    const trimmed = name.trim();
+    if (!trimmed || !isValidSkillTag(trimmed)) return;
+    const skill: Skill = { id: generateId(), name: trimmed, level };
     setProfile({ ...data.profile, skills: [...data.profile.skills, skill] });
     setName("");
   };
@@ -223,7 +224,7 @@ function SkillsSection() {
   return (
     <Card title="技能清单">
       <div className="mb-4 flex flex-wrap gap-2">
-        {data.profile.skills.map((s) => (
+        {sanitizeProfileSkills(data.profile.skills).map((s) => (
           <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-sm text-indigo-700">
             {s.name}
             <span className="text-xs text-indigo-400">({levelLabel(s.level)})</span>

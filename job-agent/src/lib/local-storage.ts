@@ -1,6 +1,6 @@
 import type { AppData } from "./types";
 import { defaultAppData } from "./types";
-import { sanitizeWorkExperienceSkills } from "./skill-tags";
+import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
 
 export const LOCAL_MODE_KEY = "job-agent-offline";
 export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
@@ -83,6 +83,7 @@ export function loadLocalData(): AppData {
         ...data,
         profile: {
           ...data.profile,
+          skills: sanitizeProfileSkills(data.profile.skills),
           workExperiences: data.profile.workExperiences.map((exp) =>
             sanitizeWorkExperienceSkills(exp)
           ),

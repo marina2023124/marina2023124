@@ -1,11 +1,14 @@
+import type { Skill } from "./types";
+
 /** Shared skill vocabulary — longer phrases first when matching. */
 export const KNOWN_SKILLS = [
   // Research & analytics (longer first)
-  "价格敏感度测试", "价格敏感度", "PSM分析", "深度访谈", "用户访谈", "定性访谈",
-  "定量调研", "问卷设计", "焦点小组", "可用性测试", "概念测试", "竞品分析",
+  "价格敏感度测试", "价格敏感度", "PSM分析", "体验旅程地图",
+  "深度访谈", "用户访谈", "定性访谈", "日记研究", "定量调研", "问卷设计",
+  "焦点小组", "可用性测试", "概念测试", "竞品分析", "定性分析", "统计分析",
   "用户画像", "市场研究", "商业分析", "数据分析", "数据可视化", "报告撰写",
-  "用户研究", "深访", "访谈", "问卷", "调研",
-  "A/B测试", "NPS", "PSM", "MOT", "STAR",
+  "用户研究", "JTBD分析", "JTBD", "深访", "访谈", "问卷", "调研",
+  "A/B测试", "NPS", "PSM", "MOT", "STAR", "NVivo",
   // Office & tools
   "Power BI", "PowerPoint", "JavaScript", "TypeScript", "Python", "Node.js",
   "Next.js", "PostgreSQL", "MongoDB", "Kubernetes",
@@ -18,6 +21,11 @@ export const KNOWN_SKILLS = [
 
 /** Regex → canonical tag for methodologies mentioned in prose. */
 const METHODOLOGY_PATTERNS: { re: RegExp; tag: string }[] = [
+  { re: /JTBD/i, tag: "JTBD分析" },
+  { re: /NVivo/i, tag: "NVivo" },
+  { re: /日记研究/i, tag: "日记研究" },
+  { re: /体验旅程地图|旅程地图/i, tag: "体验旅程地图" },
+  { re: /定性分析/i, tag: "定性分析" },
   { re: /PSM\s*[（(]?\s*价格敏感度测试\s*[)）]?|价格敏感度测试|PSM\s*分析/i, tag: "PSM分析" },
   { re: /\bPSM\b/i, tag: "PSM" },
   { re: /\bMOT\b|关键时刻/i, tag: "MOT" },
@@ -45,6 +53,18 @@ const SKILL_STOPWORDS = new Set([
 
 const ROLE_TITLE_WORDS = /(?:研究员|分析师|工程师|经理|总监|主管|专员|顾问|设计师|产品经理|运营|开发)$/;
 
+const PROSE_PATTERNS = [
+  /^您好|^你好|^hi\b|^hello\b/i,
+  /^我是[\u4e00-\u9fa5]{2,6}/,
+  /^请查收|附件简历|我的简历|个人简历/,
+  /拥有.*经验|几年.*经验|\d+年.*经验/,
+  /在过往|尤其擅长|我有几段|高度相关|请查收/,
+  /查收我的|附件|简历[~～]?$/,
+  /[。！？~～]$/,
+  /：$/ ,
+  /以及$|等$/,
+];
+
 const FRAGMENT_PATTERNS = [
   /^(协助|负责|进行|开展|参与|主导|完成|推动|深入|重点|围绕|针对|基于)/,
   /(行为|习惯|规模|差异|咨询有限公司|科技有限公司|集团有限公司|股份公司)/,
@@ -69,11 +89,9 @@ function cleanToken(raw: string): string {
     .trim();
 }
 
-function isKnownSkill(token: string): boolean {
+function isKnownSkillExact(token: string): boolean {
   const lower = token.toLowerCase();
-  return KNOWN_SKILLS.some(
-    (skill) => skill.toLowerCase() === lower || token.includes(skill)
-  );
+  return KNOWN_SKILLS.some((skill) => skill.toLowerCase() === lower);
 }
 
 function isCompanyOrTitleLike(token: string, company?: string, title?: string): boolean {
@@ -97,10 +115,11 @@ export function isValidSkillTag(
   if (!token || token.length < 2 || token.length > 16) return false;
   if (/^\d+$/.test(token) || /\d{4}/.test(token)) return false;
   if (SKILL_STOPWORDS.has(token)) return false;
+  if (PROSE_PATTERNS.some((re) => re.test(token))) return false;
   if (FRAGMENT_PATTERNS.some((re) => re.test(token))) return false;
   if (isCompanyOrTitleLike(token, context?.company, context?.title)) return false;
 
-  if (isKnownSkill(token)) return true;
+  if (isKnownSkillExact(token)) return true;
 
   // English / acronym skills: React, SQL, MOT
   if (/^[A-Z][A-Z0-9/+.\-]{0,7}$/.test(token)) return true;
@@ -143,6 +162,50 @@ export function filterSkillTags(
   }
 
   return finalizeSkillTags(result).slice(0, 12);
+}
+
+/** Normalize "用户研究方法：深度访谈" → "深度访谈" */
+function normalizeListedSkill(raw: string): string | null {
+  const token = cleanToken(raw.replace(/^熟练使用|^能用|^精通/, ""));
+  if (!token) return null;
+
+  const colonParts = token.split(/[：:]/).map((p) => cleanToken(p)).filter(Boolean);
+  if (colonParts.length > 1) {
+    const tail = colonParts[colonParts.length - 1];
+    if (isValidSkillTag(tail)) return tail;
+  }
+
+  // "NVivo编码" → try stripping 编码 suffix
+  const trimmed = token.replace(/编码$|分析$/, (m) => (m === "编码" ? "" : m));
+  if (trimmed !== token && isValidSkillTag(trimmed)) return trimmed;
+
+  if (isValidSkillTag(token)) return token;
+  return null;
+}
+
+/** Parse a dedicated 「专业技能」section — comma lists only, strict filter. */
+export function extractProfileSkillsFromSection(block: string): string[] {
+  const fromKeywords = extractSkillTagsFromText(block);
+  const fromList: string[] = [];
+
+  for (const part of block.split(/[,，、;；\n]+/)) {
+    const normalized = normalizeListedSkill(part);
+    if (normalized) fromList.push(normalized);
+  }
+
+  return filterSkillTags([...fromKeywords, ...fromList]).slice(0, 24);
+}
+
+export function sanitizeProfileSkills(skills: Skill[]): Skill[] {
+  const seen = new Set<string>();
+  return skills.filter((s) => {
+    const name = cleanToken(s.name);
+    if (!isValidSkillTag(name)) return false;
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function matchKnownSkills(text: string): string[] {

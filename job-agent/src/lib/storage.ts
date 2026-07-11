@@ -14,7 +14,7 @@ import {
   saveLocalData,
   wantsCloudMode,
 } from "./local-storage";
-import { sanitizeWorkExperienceSkills } from "./skill-tags";
+import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
 
 const AUTH_TIMEOUT_MS = 2500;
 const LOAD_TIMEOUT_MS = 6000;
@@ -152,6 +152,7 @@ export function useAppData() {
             ...cloudData,
             profile: {
               ...cloudData.profile,
+              skills: sanitizeProfileSkills(cloudData.profile.skills),
               workExperiences: cloudData.profile.workExperiences.map((exp) =>
                 sanitizeWorkExperienceSkills(exp)
               ),

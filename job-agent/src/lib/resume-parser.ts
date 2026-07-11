@@ -1,6 +1,6 @@
 import type { Education, Project, Skill, SkillLevel, WorkExperience } from "./types";
 import { generateId, sanitizeWorkYear, parseSkillsFromText } from "./utils";
-import { extractSkillTagsFromText, filterSkillTags } from "./skill-tags";
+import { extractSkillTagsFromText, extractProfileSkillsFromSection, filterSkillTags } from "./skill-tags";
 
 export interface ParsedProfileDraft {
   name?: string;
@@ -216,7 +216,7 @@ function parseProjectBlock(block: string): Project[] {
 }
 
 function parseSkillsBlock(block: string): Skill[] {
-  const names = extractSkillTagsFromText(block);
+  const names = extractProfileSkillsFromSection(block);
   return names.map((name) => ({
     id: generateId(),
     name,
@@ -296,7 +296,12 @@ export function parseResumeText(text: string): ParsedProfileDraft {
   if (sections.skill) draft.skills = parseSkillsBlock(sections.skill);
 
   if (!draft.skills.length) {
-    draft.skills = parseSkillsBlock(text).slice(0, 20);
+    const names = extractSkillTagsFromText(text);
+    draft.skills = names.map((name) => ({
+      id: generateId(),
+      name,
+      level: "intermediate" as SkillLevel,
+    }));
   }
 
   if (!draft.workExperiences.length) {
