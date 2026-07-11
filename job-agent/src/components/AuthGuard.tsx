@@ -35,23 +35,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col items-center gap-4 text-center px-6 max-w-md">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
         <p className="text-sm text-slate-600">{message}</p>
+        <p className="text-xs text-slate-400">
+          数据仅保存在 Supabase 云端，不会写入本机浏览器
+        </p>
         <p className="text-xs text-slate-400">国内网络通常需要 VPN 才能访问 supabase.co</p>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
-          <p className="text-sm text-amber-900">一直转圈？先离线使用，稍后再试云端：</p>
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 w-full space-y-3">
+          <p className="text-sm text-indigo-900">连接较慢？可刷新或前往登录页重试：</p>
           <Button
             size="sm"
-            className="w-full"
-            onClick={() => {
-              enterLocalMode();
-              router.replace("/");
-            }}
-          >
-            <WifiOff className="mr-2 h-4 w-4" />
-            离线使用（立即可用）
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
             className="w-full"
             onClick={() => {
               enableCloudMode();
@@ -59,7 +50,30 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               router.replace("/login");
             }}
           >
-            前往云端登录页
+            前往云端登录
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={() => window.location.reload()}
+          >
+            刷新重试
+          </Button>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
+          <p className="text-xs text-amber-800">仅在无法连云端时的备用方案（资料会暂存本机）：</p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              enterLocalMode();
+              router.replace("/");
+            }}
+          >
+            <WifiOff className="mr-2 h-4 w-4" />
+            临时离线使用
           </Button>
         </div>
       </div>

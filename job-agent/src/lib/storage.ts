@@ -7,13 +7,14 @@ import { defaultAppData } from "./types";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
 import {
+  clearLocalAppData,
   enableCloudMode,
   enableLocalMode,
+  ensureCloudDefault,
   isLocalModeEnabled,
   loadLocalData,
   saveLocalData,
   shouldStartOffline,
-  wantsCloudMode,
 } from "./local-storage";
 import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
 import { sanitizeProfileProjects } from "./utils";
@@ -27,8 +28,8 @@ function normalizeProfile(profile: Profile): Profile {
   };
 }
 
-const AUTH_TIMEOUT_MS = 600;
-const LOAD_TIMEOUT_MS = 3000;
+const AUTH_TIMEOUT_MS = 5000;
+const LOAD_TIMEOUT_MS = 8000;
 
 interface BootstrapState {
   localMode: boolean;
@@ -40,15 +41,16 @@ interface BootstrapState {
 function getBootstrapState(): BootstrapState {
   if (typeof window === "undefined") {
     return {
-      localMode: true,
-      authReady: true,
-      loaded: true,
+      localMode: false,
+      authReady: false,
+      loaded: false,
       data: defaultAppData(),
     };
   }
 
+  ensureCloudDefault();
+
   if (shouldStartOffline()) {
-    if (!isLocalModeEnabled()) enableLocalMode();
     return {
       localMode: true,
       authReady: true,
@@ -104,16 +106,6 @@ export function useAppData() {
       return;
     }
 
-    // 国内默认离线，避免一直等待 Supabase
-    if (!wantsCloudMode()) {
-      enableLocalMode();
-      setLocalMode(true);
-      setData(loadLocalData());
-      setAuthReady(true);
-      setLoaded(true);
-      return;
-    }
-
     if (!isSupabaseConfigured()) {
       setAuthReady(true);
       setLoaded(true);
@@ -133,12 +125,7 @@ export function useAppData() {
 
     const authTimer = setTimeout(() => {
       if (done) return;
-      enableLocalMode();
-      setLocalMode(true);
-      setUser(null);
-      setData(loadLocalData());
-      skipSaveRef.current = true;
-      finishAuth("云端连接超时，已自动切换离线模式");
+      finishAuth("云端连接超时，请检查 VPN 或网络后刷新重试");
     }, AUTH_TIMEOUT_MS);
 
     try {
@@ -203,6 +190,7 @@ export function useAppData() {
     )
       .then((cloudData) => {
         if (!cancelled) {
+          clearLocalAppData();
           setData({
             ...cloudData,
             profile: normalizeProfile(cloudData.profile),
@@ -347,6 +335,7 @@ export function useAppData() {
     if (!isSupabaseConfigured()) return;
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearLocalAppData();
     setUser(null);
     setData(defaultAppData());
   }, []);
@@ -358,6 +347,7 @@ export function useAppData() {
 
   const enterCloudMode = useCallback(() => {
     enableCloudMode();
+    clearLocalAppData();
     setLocalMode(false);
     setUser(null);
     setAuthReady(true);

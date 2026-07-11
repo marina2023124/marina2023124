@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Loader2, WifiOff } from "lucide-react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { SetupWizard } from "@/components/SetupWizard";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
+import { enableCloudMode } from "@/lib/local-storage";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,6 +18,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    enableCloudMode();
+  }, []);
 
   if (!isSupabaseConfigured()) {
     return (
@@ -133,6 +138,9 @@ export default function LoginPage() {
           </p>
 
           <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="mb-2 text-center text-xs text-slate-400">
+              仅在 VPN 不可用、又急需编辑时的备用入口
+            </p>
             <Button
               type="button"
               variant="secondary"
@@ -143,7 +151,7 @@ export default function LoginPage() {
               }}
             >
               <WifiOff className="h-4 w-4" />
-              云端连不上？离线使用（关闭浏览器后清除）
+              临时离线（资料会写入本机，不推荐工作电脑使用）
             </Button>
           </div>
         </div>

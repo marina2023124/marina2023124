@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.36-cloud-login-fix"
+EXPECTED_VERSION="0.2.37-cloud-only-default"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -91,6 +91,7 @@ echo "下一步："
 echo "  bash fix-and-start.sh"
 echo "  或：bash go.sh"
 echo ""
-echo "若浏览器转圈，Console 执行："
-echo '  localStorage.removeItem("job-agent-cloud-mode");localStorage.setItem("job-agent-offline","1");location.reload()'
+echo "若云端连接慢，请开 VPN 后刷新；或访问 /login"
+echo "强制切云端（清除本机缓存），Console 执行："
+echo '  localStorage.removeItem("job-agent-offline");localStorage.removeItem("job-agent-offline-explicit");localStorage.removeItem("job-agent-data");localStorage.setItem("job-agent-cloud-mode","1");location.href="/login"'
 echo ""

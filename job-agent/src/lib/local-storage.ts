@@ -5,6 +5,7 @@ import { sanitizeProfileProjects } from "./utils";
 
 export const LOCAL_MODE_KEY = "job-agent-offline";
 export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
+export const OFFLINE_EXPLICIT_KEY = "job-agent-offline-explicit";
 const DATA_KEY = "job-agent-data";
 const LEGACY_SESSION_DATA_KEY = "job-agent-session-data";
 
@@ -31,6 +32,9 @@ export function wantsCloudMode(): boolean {
 export function enableCloudMode(): void {
   writeStorage(CLOUD_MODE_KEY, "1");
   removeStorage(LOCAL_MODE_KEY);
+  removeStorage(OFFLINE_EXPLICIT_KEY);
+  removeStorage(DATA_KEY);
+  removeStorage(LEGACY_SESSION_DATA_KEY);
   if (typeof document !== "undefined") {
     document.cookie = "job-agent-offline=; path=/; max-age=0; SameSite=Lax";
   }
@@ -46,6 +50,8 @@ export function isLocalModeEnabled(): boolean {
 
 export function enableLocalMode(): void {
   writeStorage(LOCAL_MODE_KEY, "1");
+  writeStorage(OFFLINE_EXPLICIT_KEY, "1");
+  removeStorage(CLOUD_MODE_KEY);
   if (typeof document !== "undefined") {
     document.cookie = "job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";
   }
@@ -53,11 +59,18 @@ export function enableLocalMode(): void {
 
 export function disableLocalMode(): void {
   removeStorage(LOCAL_MODE_KEY);
+  removeStorage(OFFLINE_EXPLICIT_KEY);
   removeStorage(DATA_KEY);
   removeStorage(LEGACY_SESSION_DATA_KEY);
   if (typeof document !== "undefined") {
     document.cookie = "job-agent-offline=; path=/; max-age=0; SameSite=Lax";
   }
+}
+
+/** 清除本机求职资料缓存（云端登录前/退出后调用） */
+export function clearLocalAppData(): void {
+  removeStorage(DATA_KEY);
+  removeStorage(LEGACY_SESSION_DATA_KEY);
 }
 
 /** 尝试从旧 sessionStorage 迁移到 localStorage */
@@ -112,11 +125,19 @@ export function hasLocalData(): boolean {
   return data.jobs.length > 0 || data.profile.workExperiences.length > 0;
 }
 
-/** 首屏是否应直接走离线（不等待 Supabase） */
+/** 首屏是否走离线：仅用户主动选择离线时 */
 export function shouldStartOffline(): boolean {
-  if (typeof window === "undefined") return true;
-  if (isLocalModeEnabled()) return true;
-  return !wantsCloudMode();
+  if (typeof window === "undefined") return false;
+  return isLocalModeEnabled() && readStorage(OFFLINE_EXPLICIT_KEY) === "1";
+}
+
+/** 迁移旧版自动离线：未主动选择离线时默认云端 */
+export function ensureCloudDefault(): void {
+  if (typeof window === "undefined") return;
+  if (readStorage(OFFLINE_EXPLICIT_KEY) === "1") return;
+  if (isLocalModeEnabled() || !wantsCloudMode()) {
+    enableCloudMode();
+  }
 }
 
 /** 重置卡住的云端模式偏好（页面一直转圈时用） */

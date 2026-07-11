@@ -60,6 +60,6 @@ echo "1. 确认终端里 npm start 在运行且无报错"
 echo "2. 浏览器访问 http://localhost:3000 （不是 https）"
 echo "3. Cmd+Shift+R 强制刷新"
 echo "4. 若一直转圈：打开开发者工具 Console，看是否有红色报错"
-echo "5. 重置云端卡住: 浏览器 Console 执行:"
-echo '   localStorage.removeItem("job-agent-cloud-mode");localStorage.setItem("job-agent-offline","1");location.reload()'
+echo "5. 强制云端登录（清除本机缓存）: 浏览器 Console 执行:"
+echo '   localStorage.removeItem("job-agent-offline");localStorage.removeItem("job-agent-offline-explicit");localStorage.removeItem("job-agent-data");localStorage.setItem("job-agent-cloud-mode","1");location.href="/login"'
 echo ""
