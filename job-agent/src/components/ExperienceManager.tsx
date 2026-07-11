@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
 import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate } from "@/lib/utils";
-import { filterSkillTags } from "@/lib/skill-tags";
+import { filterSkillTags, extractSkillTagsFromExperience } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
@@ -58,7 +58,7 @@ function WorkExperienceSection() {
           const endDate = exp.endDate ? sanitizeWorkDate(exp.endDate) : undefined;
           const durationYears = calcYearsBetween(startDate, endDate);
           const startLooksWrong = isFutureYearMonth(exp.startDate);
-          const skillTags = filterSkillTags(exp.skills);
+          const skillTags = extractSkillTagsFromExperience(exp);
 
           return (
           <div key={exp.id} className="rounded-lg border border-slate-200 p-4">

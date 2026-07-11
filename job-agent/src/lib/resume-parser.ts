@@ -136,7 +136,9 @@ function parseWorkBlock(block: string): WorkExperience[] {
       endDate,
       description: description.trim(),
       achievements,
-      skills: extractSkillTagsFromText(chunk),
+      skills: extractSkillTagsFromText(
+        [description.trim(), ...achievements].filter(Boolean).join("\n")
+      ),
     });
   }
 
