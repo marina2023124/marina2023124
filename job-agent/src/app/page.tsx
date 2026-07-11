@@ -55,7 +55,10 @@ export default function DashboardPage() {
         <Card className="!p-5">
           <p className="text-sm text-slate-500">工作经验</p>
           <p className="mt-1 text-3xl font-bold text-slate-900">{totalYears}<span className="text-lg font-normal text-slate-400">年</span></p>
-          <p className="mt-1 text-xs text-slate-400">{profile.workExperiences.length} 段经历</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {profile.workExperiences.length} 段经历
+            {totalYears > 0 && " · 已合并重叠区间"}
+          </p>
         </Card>
         <Card className="!p-5">
           <p className="text-sm text-slate-500">技能数量</p>

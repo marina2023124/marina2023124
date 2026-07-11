@@ -1,5 +1,5 @@
 import type { Education, Project, Skill, SkillLevel, WorkExperience } from "./types";
-import { generateId, parseSkillsFromText } from "./utils";
+import { generateId, parseSkillsFromText, sanitizeWorkYear } from "./utils";
 
 export interface ParsedProfileDraft {
   name?: string;
@@ -26,7 +26,7 @@ const SECTION_MARKERS: { key: string; re: RegExp }[] = [
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 const PHONE_RE = /(?:\+?86[-\s]?)?1[3-9]\d{9}|(?:\+?86[-\s]?)?\d{3,4}[-\s]?\d{7,8}/;
 const DATE_RANGE_RE =
-  /(\d{4})[./年-]?(\d{1,2})?[./月-]?\s*(?:[-–—~至到\s]+)\s*(至今|现在|present|\d{4}[./年-]?\d{0,2}[./月]?)?/i;
+  /(\d{2,4})[./年-]?(\d{1,2})?[./月-]?\s*(?:[-–—~至到\s]+)\s*(至今|现在|present|\d{2,4}[./年-]?\d{0,2}[./月]?)?/i;
 
 const KNOWN_SKILLS = [
   "JavaScript", "TypeScript", "Python", "Java", "React", "Vue", "Node.js", "SQL",
@@ -40,10 +40,17 @@ function normalizeDate(raw?: string): string | undefined {
   if (!raw) return undefined;
   const t = raw.trim();
   if (/至今|现在|present/i.test(t)) return undefined;
-  const m = t.match(/(\d{4})[./年-]?(\d{1,2})?/);
+  const m = t.match(/(\d{2,4})[./年-]?(\d{1,2})?/);
   if (!m) return undefined;
+
+  let year = Number(m[1]);
+  if (m[1].length === 2) {
+    year = year >= 50 ? 1900 + year : 2000 + year;
+  }
+  year = sanitizeWorkYear(year);
+
   const month = m[2] ? m[2].padStart(2, "0") : "01";
-  return `${m[1]}-${month}`;
+  return `${year}-${month}`;
 }
 
 function parseListLines(block: string): string[] {

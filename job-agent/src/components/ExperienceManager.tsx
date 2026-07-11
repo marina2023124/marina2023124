@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
@@ -52,16 +52,28 @@ function WorkExperienceSection() {
   return (
     <Card title="工作经历">
       <div className="space-y-4">
-        {data.profile.workExperiences.map((exp) => (
+        {data.profile.workExperiences.map((exp) => {
+          const startDate = sanitizeWorkDate(exp.startDate);
+          const endDate = exp.endDate ? sanitizeWorkDate(exp.endDate) : undefined;
+          const durationYears = calcYearsBetween(startDate, endDate);
+          const startLooksWrong = isFutureYearMonth(exp.startDate);
+
+          return (
           <div key={exp.id} className="rounded-lg border border-slate-200 p-4">
             <div className="flex items-start justify-between">
               <div>
                 <h4 className="font-semibold text-slate-900">{exp.title}</h4>
                 <p className="text-sm text-indigo-600">{exp.company}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {formatDate(exp.startDate)} — {exp.endDate ? formatDate(exp.endDate) : "至今"}
+                  {formatDate(startDate)} — {endDate ? formatDate(endDate) : "至今"}
+                  {durationYears > 0 && ` · 约 ${durationYears} 年`}
                   {exp.location && ` · ${exp.location}`}
                 </p>
+                {startLooksWrong && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    开始日期晚于当前时间，请检查是否为 2024/2025 误写成 2026
+                  </p>
+                )}
               </div>
               <div className="flex gap-1">
                 <button onClick={() => { setEditing(exp); setShowForm(true); }} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -86,7 +98,8 @@ function WorkExperienceSection() {
               </div>
             )}
           </div>
-        ))}
+        );
+        })}
 
         {showForm ? (
           <ExperienceForm
