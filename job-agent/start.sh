@@ -48,19 +48,29 @@ fi
 echo ""
 export ALLOW_SETUP_CONFIGURE=1
 
+free_port() {
+  if command -v fuser &>/dev/null; then
+    fuser -k 3000/tcp 2>/dev/null || true
+    sleep 1
+  fi
+}
+
 if [ "${PROD:-1}" = "1" ]; then
   echo "▶  启动生产模式（页面切换更快）..."
   echo "   开发模式请用: PROD=0 ./start.sh"
+  echo "   强制清缓存: CLEAN=1 ./start.sh"
   npm run build
   echo ""
   echo "   浏览器访问: http://localhost:3000"
   echo "   按 Ctrl+C 停止"
   echo ""
+  free_port
   npm start
 else
   echo "▶  启动开发服务器（首次打开页面会较慢）..."
   echo "   浏览器访问: http://localhost:3000"
   echo "   按 Ctrl+C 停止"
   echo ""
+  free_port
   npm run dev
 fi
