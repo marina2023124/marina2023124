@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { Cloud, Loader2, WifiOff } from "lucide-react";
-import { enableCloudMode, wantsCloudMode } from "@/lib/local-storage";
+import { enableCloudMode, shouldStartOffline } from "@/lib/local-storage";
 import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -16,7 +16,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loaded || !authReady) return;
     if (localMode) {
-      if (pathname === "/login" && wantsCloudMode()) return;
       if (pathname === "/login") router.replace("/");
       return;
     }
@@ -40,9 +39,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         <p className="text-sm text-slate-600">{message}</p>
         <p className="text-xs text-slate-400">国内网络通常需要 VPN 才能访问 supabase.co</p>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
-          <p className="text-sm text-amber-900">
-            一直转圈说明连不上 Supabase。你可以：
-          </p>
+          <p className="text-sm text-amber-900">一直转圈说明连不上云端，建议直接离线使用：</p>
           <Button
             size="sm"
             className="w-full"
@@ -66,15 +63,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           >
             跳过等待，尝试登录云端
           </Button>
-          <p className="text-xs text-amber-700">
-            离线模式：数据保存在本机浏览器（localStorage），关闭浏览器后仍保留。建议定期「下载备份」。
-          </p>
         </div>
       </div>
     </div>
   );
 
-  if (localMode) {
+  if (localMode || shouldStartOffline()) {
     return <>{children}</>;
   }
 

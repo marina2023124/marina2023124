@@ -12,6 +12,7 @@ import {
   isLocalModeEnabled,
   loadLocalData,
   saveLocalData,
+  shouldStartOffline,
   wantsCloudMode,
 } from "./local-storage";
 import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
@@ -26,8 +27,43 @@ function normalizeProfile(profile: Profile): Profile {
   };
 }
 
-const AUTH_TIMEOUT_MS = 2500;
-const LOAD_TIMEOUT_MS = 6000;
+const AUTH_TIMEOUT_MS = 600;
+const LOAD_TIMEOUT_MS = 3000;
+
+interface BootstrapState {
+  localMode: boolean;
+  authReady: boolean;
+  loaded: boolean;
+  data: AppData;
+}
+
+function getBootstrapState(): BootstrapState {
+  if (typeof window === "undefined") {
+    return {
+      localMode: true,
+      authReady: true,
+      loaded: true,
+      data: defaultAppData(),
+    };
+  }
+
+  if (shouldStartOffline()) {
+    if (!isLocalModeEnabled()) enableLocalMode();
+    return {
+      localMode: true,
+      authReady: true,
+      loaded: true,
+      data: loadLocalData(),
+    };
+  }
+
+  return {
+    localMode: false,
+    authReady: false,
+    loaded: false,
+    data: defaultAppData(),
+  };
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -39,18 +75,27 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 export function useAppData() {
-  const [data, setData] = useState<AppData>(defaultAppData);
-  const [loaded, setLoaded] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const bootstrapRef = useRef<BootstrapState | null>(null);
+  if (!bootstrapRef.current) {
+    bootstrapRef.current = getBootstrapState();
+  }
+  const bootstrap = bootstrapRef.current;
+  const startedOffline = bootstrap.localMode;
+
+  const [data, setData] = useState<AppData>(bootstrap.data);
+  const [loaded, setLoaded] = useState(bootstrap.loaded);
+  const [authReady, setAuthReady] = useState(bootstrap.authReady);
   const [user, setUser] = useState<User | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [localMode, setLocalMode] = useState(false);
+  const [localMode, setLocalMode] = useState(bootstrap.localMode);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSaveRef = useRef(true);
 
   useEffect(() => {
+    if (startedOffline) return;
+
     if (isLocalModeEnabled()) {
       setLocalMode(true);
       setData(loadLocalData());
@@ -122,7 +167,7 @@ export function useAppData() {
       clearTimeout(authTimer);
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [startedOffline]);
 
   useEffect(() => {
     if (!authReady) return;

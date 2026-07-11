@@ -111,3 +111,16 @@ export function hasLocalData(): boolean {
   const data = loadLocalData();
   return data.jobs.length > 0 || data.profile.workExperiences.length > 0;
 }
+
+/** 首屏是否应直接走离线（不等待 Supabase） */
+export function shouldStartOffline(): boolean {
+  if (typeof window === "undefined") return true;
+  if (isLocalModeEnabled()) return true;
+  return !wantsCloudMode();
+}
+
+/** 重置卡住的云端模式偏好（页面一直转圈时用） */
+export function resetCloudPreference(): void {
+  disableCloudMode();
+  enableLocalMode();
+}

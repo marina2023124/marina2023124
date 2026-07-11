@@ -14,6 +14,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var cloud=localStorage.getItem("job-agent-cloud-mode");if(cloud!=="1"){localStorage.setItem("job-agent-offline","1");document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax"}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">
         <ClientProviders>{children}</ClientProviders>
       </body>
