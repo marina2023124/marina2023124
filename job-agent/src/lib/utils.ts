@@ -1,4 +1,4 @@
-import { summarizeProjectWork } from "./project-work-summary";
+import { summarizeProjectFromMeta, summarizeProjectWork } from "./project-work-summary";
 
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -154,6 +154,18 @@ export function getProjectWorkItems(project: {
     items.push(text);
   }
 
+  if (!items.length) {
+    for (const raw of project.highlights) {
+      const text = raw.trim();
+      if (!text || text.length < 2 || text === project.name.trim()) continue;
+      if (PROJECT_META_METHOD_RE.test(text)) continue;
+      const key = text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(text);
+    }
+  }
+
   return items;
 }
 
@@ -171,10 +183,12 @@ export function getProjectWorkSummary(project: {
   description: string;
   highlights: string[];
   workSummary?: string;
+  technologies?: string[];
 }): string {
   const items = getProjectWorkItems(project);
-  if (!items.length) return project.workSummary?.trim() || "";
-  return summarizeProjectWork(items);
+  if (items.length) return summarizeProjectWork(items);
+  if (project.workSummary?.trim()) return project.workSummary.trim();
+  return summarizeProjectFromMeta(project);
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -341,6 +355,7 @@ export function sanitizeProfileProjects<T extends {
   name: string;
   description: string;
   highlights: string[];
+  technologies?: string[];
   startDate?: string;
   endDate?: string;
   status?: "ongoing" | "completed";
@@ -348,11 +363,17 @@ export function sanitizeProfileProjects<T extends {
   workSummary?: string;
 }>(projects: T[]): T[] {
   const enriched = projects.map((project) => {
-    const items = getProjectWorkItems(project);
-    return {
+    const normalized = {
       ...project,
+      description: project.description || "",
+      highlights: project.highlights ?? [],
+      technologies: project.technologies ?? [],
       projectId: project.projectId || extractProjectId(project),
-      workSummary: items.length ? summarizeProjectWork(items) : project.workSummary,
+    };
+    const summary = getProjectWorkSummary(normalized);
+    return {
+      ...normalized,
+      workSummary: summary || project.workSummary,
     };
   });
   return sortProjectsByTime(enriched);

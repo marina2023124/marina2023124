@@ -93,3 +93,64 @@ export function summarizeProjectWork(tasks: string[]): string {
     ? `负责${fallback.join("与")}。`
     : `负责${fallback.join("、")}等${items.length}项研究任务。`;
 }
+
+const METHOD_PHRASE_RULES: { re: RegExp; phrase: string }[] = [
+  { re: /定性\+共创/, phrase: "定性研究与共创工作坊" },
+  { re: /定性\+定量/, phrase: "定性与定量结合研究" },
+  { re: /定性/, phrase: "定性研究" },
+  { re: /定量/, phrase: "定量研究" },
+  { re: /workshop/i, phrase: "工作坊" },
+  { re: /案头/, phrase: "案头研究" },
+  { re: /NPS/i, phrase: "NPS研究" },
+  { re: /MOT/i, phrase: "MOT研究" },
+];
+
+function resolveMethodPhrase(method: string): string {
+  const text = method.trim();
+  if (!text) return "";
+  for (const { re, phrase } of METHOD_PHRASE_RULES) {
+    if (re.test(text)) return phrase;
+  }
+  return text;
+}
+
+const INDUSTRY_RE = /^(教育|食品|互联网|宠物|保健品|服饰|文旅|电器|母婴)/;
+const PROJECT_ID_RE = /^\d{6,7}$|^proposal$/i;
+
+/** Fallback summary when task rows are missing (legacy imports). */
+export function summarizeProjectFromMeta(project: {
+  name: string;
+  description?: string;
+  technologies?: string[];
+}): string {
+  const parts = (project.description || "")
+    .split("·")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !PROJECT_ID_RE.test(part));
+
+  const industry = parts.find((part) => INDUSTRY_RE.test(part)) || "";
+  const method =
+    parts.find((part) => /定性|定量|案头|共创|workshop|NPS|MOT/i.test(part)) ||
+    project.technologies?.join("、") ||
+    "";
+
+  const methodPhrase = resolveMethodPhrase(method);
+  const category = parts.find(
+    (part) => part !== industry && part !== method && !INDUSTRY_RE.test(part)
+  );
+
+  if (category && methodPhrase) {
+    return `负责${category}${methodPhrase}相关的用户研究项目。`;
+  }
+  if (industry && methodPhrase) {
+    return `负责${industry}领域${methodPhrase}相关的用户研究项目。`;
+  }
+  if (methodPhrase) {
+    return `主要负责${methodPhrase}相关的用户研究工作。`;
+  }
+  if (project.name) {
+    return `负责${project.name}的用户研究项目交付。`;
+  }
+  return "";
+}

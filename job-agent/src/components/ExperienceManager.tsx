@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
@@ -242,10 +242,34 @@ function SkillsSection() {
 }
 
 function ProjectsSection() {
-  const { data, setProfile } = useApp();
+  const { data, setProfile, loaded } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<Project>>({});
   const [workInput, setWorkInput] = useState("");
+  const upgradedRef = useRef(false);
+
+  useEffect(() => {
+    if (!loaded || upgradedRef.current || !data.profile.projects.length) return;
+
+    const projects = data.profile.projects.map((project) => {
+      const normalized = {
+        ...project,
+        description: project.description || "",
+        highlights: project.highlights ?? [],
+        technologies: project.technologies ?? [],
+      };
+      const workSummary = getProjectWorkSummary(normalized);
+      return workSummary ? { ...normalized, workSummary } : normalized;
+    });
+
+    const changed = projects.some(
+      (project, index) => project.workSummary !== data.profile.projects[index]?.workSummary
+    );
+    if (!changed) return;
+
+    upgradedRef.current = true;
+    setProfile({ ...data.profile, projects: sortProjectsByTime(projects) });
+  }, [loaded, data.profile, setProfile]);
 
   const addProject = () => {
     if (!form.name) return;
@@ -286,12 +310,12 @@ function ProjectsSection() {
             {formatProjectDateRange(p) && (
               <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(p)}</p>
             )}
-            {workSummary && (
+            {workSummary ? (
               <div className="mt-3">
                 <p className="text-xs font-medium text-slate-500">具体工作</p>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{workSummary}</p>
               </div>
-            )}
+            ) : null}
             {p.technologies.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {p.technologies.map((t) => <Badge key={t}>{t}</Badge>)}

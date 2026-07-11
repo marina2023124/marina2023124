@@ -44,9 +44,14 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
     }
 
     const current = result[index];
-    const highlights = [...current.highlights];
-    for (const highlight of item.highlights) {
-      if (!highlights.includes(highlight)) highlights.push(highlight);
+    let highlights: string[];
+    if (!current.highlights.length && item.highlights.length) {
+      highlights = [...item.highlights];
+    } else {
+      highlights = [...current.highlights];
+      for (const highlight of item.highlights) {
+        if (!highlights.includes(highlight)) highlights.push(highlight);
+      }
     }
 
     const startDate = minIsoDate(current.startDate, item.startDate);
