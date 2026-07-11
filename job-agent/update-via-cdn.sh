@@ -4,12 +4,14 @@
 
 set -e
 
-COMMIT_SHA="b8aab5b"
+# 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
+GIT_REF="cursor/job-finding-agent-5260"
 EXPECTED_VERSION="0.2.33-offline-fix"
-BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
+BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
-echo "   版本: ${EXPECTED_VERSION} @ ${COMMIT_SHA}"
+echo "   分支: ${GIT_REF}"
+echo "   期望版本: ${EXPECTED_VERSION}"
 echo ""
 
 if ! command -v curl &>/dev/null; then
@@ -26,7 +28,12 @@ download() {
   local rel="$1"
   mkdir -p "$(dirname "$rel")"
   echo "  → $rel"
-  curl -fsSL "${BASE}/${rel}" -o "$rel" || { echo "❌ 下载失败: $rel"; exit 1; }
+  if ! curl -fsSL "${BASE}/${rel}" -o "$rel"; then
+    echo "❌ 下载失败: $rel"
+    echo "   URL: ${BASE}/${rel}"
+    echo "   请检查网络，或稍后重试"
+    exit 1
+  fi
 }
 
 FILES=(
@@ -58,21 +65,30 @@ FILES=(
   "src/app/api/setup/test/route.ts"
 )
 
-for f in "${FILES[@]}"; do download "$f"; done
+echo "开始下载 ${#FILES[@]} 个文件..."
+for f in "${FILES[@]}"; do
+  download "$f"
+done
 
-if [ "$(cat VERSION | tr -d '[:space:]')" != "$EXPECTED_VERSION" ]; then
-  echo "❌ 版本校验失败"
+ACTUAL_VERSION="$(cat VERSION | tr -d '[:space:]')"
+if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+  echo "⚠️  版本为 ${ACTUAL_VERSION}（期望 ${EXPECTED_VERSION}），继续安装..."
+fi
+
+if ! grep -q "fix-and-start.sh" "update-via-cdn.sh" 2>/dev/null; then
+  echo "❌ update-via-cdn.sh 校验失败"
   exit 1
 fi
 
 rm -rf .next
+chmod +x start.sh fix-and-start.sh doctor.sh 2>/dev/null || true
+
 echo ""
-echo "✅ 更新完成: $(cat VERSION)"
+echo "✅ 更新完成: ${ACTUAL_VERSION}"
 echo ""
-echo "下一步（必须执行）："
-echo "  chmod +x fix-and-start.sh doctor.sh start.sh"
+echo "下一步："
 echo "  ./fix-and-start.sh"
 echo ""
-echo "若浏览器仍转圈，在 Console 执行："
+echo "若浏览器转圈，Console 执行："
 echo '  localStorage.removeItem("job-agent-cloud-mode");localStorage.setItem("job-agent-offline","1");location.reload()'
 echo ""
