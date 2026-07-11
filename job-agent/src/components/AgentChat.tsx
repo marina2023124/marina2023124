@@ -39,31 +39,33 @@ function MessageContent({ content }: { content: string }) {
   );
 }
 
-function ContextUsageBar({
+function ContextChatStatus({
   percent,
   loading,
-  compressedNote,
+  note,
 }: {
   percent: number;
   loading?: boolean;
-  compressedNote?: string | null;
+  note?: string | null;
 }) {
   const thresholdPercent = Math.round(COMPRESS_THRESHOLD * 100);
 
   return (
-    <div className="w-48 shrink-0">
-      <ProgressBar
-        percent={percent}
-        label="上下文占用"
-        barClassName={getContextBarColor(percent)}
-        animated={loading}
-        hint={
-          compressedNote ||
-          (percent >= thresholdPercent
-            ? `已达 ${thresholdPercent}%，发送时将自动压缩历史`
-            : `超过 ${thresholdPercent}% 时自动压缩，保持对话持续`)
-        }
-      />
+    <div className="flex justify-center">
+      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <ProgressBar
+          percent={percent}
+          label={loading ? "正在加载上下文" : "上下文占用"}
+          barClassName={getContextBarColor(percent)}
+          animated={loading}
+          hint={
+            note ||
+            (percent >= thresholdPercent
+              ? `已达 ${thresholdPercent}%，已自动压缩历史以继续对话`
+              : `超过 ${thresholdPercent}% 时将自动压缩历史`)
+          }
+        />
+      </div>
     </div>
   );
 }
@@ -73,14 +75,14 @@ export function AgentChat() {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [loadingPercent, setLoadingPercent] = useState<number | null>(null);
-  const [compressedNote, setCompressedNote] = useState<string | null>(null);
+  const [statusNote, setStatusNote] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const contextUsage = useMemo(() => estimateContextChars(data), [data]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [data.chatHistory, thinking]);
+  }, [data.chatHistory, thinking, loadingPercent, statusNote]);
 
   useEffect(() => {
     if (data.chatHistory.length === 0) {
@@ -101,7 +103,7 @@ export function AgentChat() {
     replaceChatHistory(historyWithUser);
     setInput("");
     setThinking(true);
-    setCompressedNote(null);
+    setStatusNote(null);
 
     const startUsage = estimateContextChars({ ...data, chatHistory: historyWithUser }, text.trim());
     setLoadingPercent(startUsage.percent);
@@ -114,7 +116,7 @@ export function AgentChat() {
 
       if (prepared.compressed) {
         replaceChatHistory(prepared.data.chatHistory);
-        setCompressedNote(prepared.compressionNote ?? null);
+        setStatusNote(prepared.compressionNote ?? null);
       }
 
       setLoadingPercent(prepared.usage.percent);
@@ -136,32 +138,21 @@ export function AgentChat() {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="border-b border-slate-200 bg-white px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
-              <p className="text-xs text-slate-500 truncate">
-                帮你梳理经历、分析技能、匹配岗位
-              </p>
-            </div>
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+            <Sparkles className="h-5 w-5" />
           </div>
-
-          <ContextUsageBar
-            percent={displayPercent}
-            loading={thinking}
-            compressedNote={compressedNote}
-          />
-
-          {data.chatHistory.length > 1 && (
-            <Button variant="ghost" size="sm" onClick={clearChat}>
-              <Trash2 className="h-4 w-4" /> 清空对话
-            </Button>
-          )}
+          <div>
+            <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
+            <p className="text-xs text-slate-500">帮你梳理经历、分析技能、匹配岗位</p>
+          </div>
         </div>
+        {data.chatHistory.length > 1 && (
+          <Button variant="ghost" size="sm" onClick={clearChat}>
+            <Trash2 className="h-4 w-4" /> 清空对话
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -196,26 +187,12 @@ export function AgentChat() {
             </div>
           ))}
 
-          {thinking && (
-            <div className="flex gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm space-y-2">
-                <p className="text-xs text-slate-500">正在加载上下文… {loadingPercent ?? contextUsage.percent}%</p>
-                <ProgressBar
-                  percent={loadingPercent ?? contextUsage.percent}
-                  barClassName={getContextBarColor(loadingPercent ?? contextUsage.percent)}
-                  animated
-                />
-                <div className="flex gap-1 pt-1">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "0ms" }} />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "150ms" }} />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            </div>
-          )}
+          <ContextChatStatus
+            percent={displayPercent}
+            loading={thinking}
+            note={statusNote}
+          />
+
           <div ref={bottomRef} />
         </div>
       </div>
