@@ -1,5 +1,6 @@
 import type { JobPosting, MatchResult, Profile } from "./types";
 import { calcTotalExperienceYears, normalizeSkill } from "./utils";
+import { filterSkillTags } from "./skill-tags";
 
 const SKILL_ALIASES: Record<string, string[]> = {
   javascript: ["js", "javascript", "ecmascript"],
@@ -37,7 +38,7 @@ function getProfileSkills(profile: Profile): Set<string> {
   const skills = new Set<string>();
   profile.skills.forEach((s) => expandSkill(s.name).forEach((a) => skills.add(a)));
   profile.workExperiences.forEach((exp) =>
-    exp.skills.forEach((s) => expandSkill(s).forEach((a) => skills.add(a)))
+    filterSkillTags(exp.skills).forEach((s) => expandSkill(s).forEach((a) => skills.add(a)))
   );
   profile.projects.forEach((p) =>
     p.technologies.forEach((t) => expandSkill(t).forEach((a) => skills.add(a)))

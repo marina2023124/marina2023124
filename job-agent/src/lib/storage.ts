@@ -14,6 +14,7 @@ import {
   saveLocalData,
   wantsCloudMode,
 } from "./local-storage";
+import { sanitizeWorkExperienceSkills } from "./skill-tags";
 
 const AUTH_TIMEOUT_MS = 2500;
 const LOAD_TIMEOUT_MS = 6000;
@@ -147,7 +148,15 @@ export function useAppData() {
     )
       .then((cloudData) => {
         if (!cancelled) {
-          setData(cloudData);
+          setData({
+            ...cloudData,
+            profile: {
+              ...cloudData.profile,
+              workExperiences: cloudData.profile.workExperiences.map((exp) =>
+                sanitizeWorkExperienceSkills(exp)
+              ),
+            },
+          });
           setLastSyncedAt(new Date().toISOString());
           skipSaveRef.current = true;
         }

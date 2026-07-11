@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
 import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate } from "@/lib/utils";
+import { filterSkillTags } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
@@ -57,6 +58,7 @@ function WorkExperienceSection() {
           const endDate = exp.endDate ? sanitizeWorkDate(exp.endDate) : undefined;
           const durationYears = calcYearsBetween(startDate, endDate);
           const startLooksWrong = isFutureYearMonth(exp.startDate);
+          const skillTags = filterSkillTags(exp.skills);
 
           return (
           <div key={exp.id} className="rounded-lg border border-slate-200 p-4">
@@ -92,9 +94,12 @@ function WorkExperienceSection() {
                 ))}
               </ul>
             )}
-            {exp.skills.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {exp.skills.map((s) => <Badge key={s} color="indigo">{s}</Badge>)}
+            {skillTags.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-1.5 text-xs font-medium text-slate-500">相关技能</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {skillTags.map((s) => <Badge key={s} color="indigo">{s}</Badge>)}
+                </div>
               </div>
             )}
           </div>
@@ -142,7 +147,7 @@ function ExperienceForm({
 
   const handleSave = () => {
     if (!form.company || !form.title) return;
-    onSave({ ...form, skills: parseSkillsFromText(skillsInput) });
+    onSave({ ...form, skills: filterSkillTags(parseSkillsFromText(skillsInput)) });
   };
 
   return (

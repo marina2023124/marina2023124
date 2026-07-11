@@ -1,5 +1,6 @@
 import type { AppData } from "./types";
 import { defaultAppData } from "./types";
+import { sanitizeWorkExperienceSkills } from "./skill-tags";
 
 export const LOCAL_MODE_KEY = "job-agent-offline";
 export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
@@ -77,7 +78,16 @@ export function loadLocalData(): AppData {
   try {
     const raw = readStorage(DATA_KEY);
     if (raw) {
-      return { ...defaultAppData(), ...(JSON.parse(raw) as AppData) };
+      const data = { ...defaultAppData(), ...(JSON.parse(raw) as AppData) };
+      return {
+        ...data,
+        profile: {
+          ...data.profile,
+          workExperiences: data.profile.workExperiences.map((exp) =>
+            sanitizeWorkExperienceSkills(exp)
+          ),
+        },
+      };
     }
     const migrated = migrateLegacySessionData();
     if (migrated) return migrated;

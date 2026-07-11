@@ -1,5 +1,6 @@
 import type { Education, Project, Skill, SkillLevel, WorkExperience } from "./types";
-import { generateId, parseSkillsFromText, sanitizeWorkYear } from "./utils";
+import { generateId, sanitizeWorkYear, parseSkillsFromText } from "./utils";
+import { extractSkillTagsFromText, filterSkillTags } from "./skill-tags";
 
 export interface ParsedProfileDraft {
   name?: string;
@@ -27,14 +28,6 @@ const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 const PHONE_RE = /(?:\+?86[-\s]?)?1[3-9]\d{9}|(?:\+?86[-\s]?)?\d{3,4}[-\s]?\d{7,8}/;
 const DATE_RANGE_RE =
   /(\d{2,4})[./年-]?(\d{1,2})?[./月-]?\s*(?:[-–—~至到\s]+)\s*(至今|现在|present|\d{2,4}[./年-]?\d{0,2}[./月]?)?/i;
-
-const KNOWN_SKILLS = [
-  "JavaScript", "TypeScript", "Python", "Java", "React", "Vue", "Node.js", "SQL",
-  "Excel", "PPT", "PowerPoint", "数据分析", "机器学习", "深度学习", "TensorFlow",
-  "PyTorch", "Spark", "Hadoop", "Tableau", "Power BI", "Figma", "AWS", "Docker",
-  "Kubernetes", "Go", "Rust", "C++", "MySQL", "PostgreSQL", "MongoDB", "Redis",
-  "Next.js", "Angular", "Spring", "Git", "Linux", "HTML", "CSS", "Sass",
-];
 
 function normalizeDate(raw?: string): string | undefined {
   if (!raw) return undefined;
@@ -143,7 +136,7 @@ function parseWorkBlock(block: string): WorkExperience[] {
       endDate,
       description: description.trim(),
       achievements,
-      skills: extractSkillsFromText(chunk),
+      skills: extractSkillTagsFromText(chunk),
     });
   }
 
@@ -212,7 +205,7 @@ function parseProjectBlock(block: string): Project[] {
       id: generateId(),
       name,
       description,
-      technologies: extractSkillsFromText(chunk),
+      technologies: extractSkillTagsFromText(chunk),
       highlights: highlights.length ? highlights : description ? [description] : [],
     });
   }
@@ -220,21 +213,8 @@ function parseProjectBlock(block: string): Project[] {
   return results;
 }
 
-function extractSkillsFromText(text: string): string[] {
-  const found = new Set<string>();
-  for (const skill of KNOWN_SKILLS) {
-    if (new RegExp(skill.replace(/[.+?^${}()|[\]\\]/g, "\\$&"), "i").test(text)) {
-      found.add(skill);
-    }
-  }
-  parseSkillsFromText(text).forEach((s) => {
-    if (s.length <= 20 && !/\d{4}/.test(s)) found.add(s);
-  });
-  return Array.from(found).slice(0, 30);
-}
-
 function parseSkillsBlock(block: string): Skill[] {
-  const names = extractSkillsFromText(block);
+  const names = extractSkillTagsFromText(block);
   return names.map((name) => ({
     id: generateId(),
     name,
@@ -287,7 +267,7 @@ export function parseProjectsFromExcelRows(rows: Record<string, string>[]): Proj
         id: generateId(),
         name,
         description,
-        technologies: parseSkillsFromText(techText),
+        technologies: filterSkillTags(parseSkillsFromText(techText)),
         highlights: highlightText ? parseListLines(highlightText) : [],
       } satisfies Project;
     })
