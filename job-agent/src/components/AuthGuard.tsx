@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { Cloud, Loader2, WifiOff } from "lucide-react";
-import { enableCloudMode } from "@/lib/local-storage";
+import { enableCloudMode, wantsCloudMode } from "@/lib/local-storage";
 import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -16,6 +16,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loaded || !authReady) return;
     if (localMode) {
+      if (pathname === "/login" && wantsCloudMode()) return;
       if (pathname === "/login") router.replace("/");
       return;
     }

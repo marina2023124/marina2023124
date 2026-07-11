@@ -7,6 +7,7 @@ import { defaultAppData } from "./types";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
 import {
+  enableCloudMode,
   enableLocalMode,
   isLocalModeEnabled,
   loadLocalData,
@@ -292,6 +293,13 @@ export function useAppData() {
     setLoaded(true);
   }, []);
 
+  const enterCloudMode = useCallback(() => {
+    enableCloudMode();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+  }, []);
+
   const enterLocalMode = useCallback(() => {
     enableLocalMode();
     setLocalMode(true);
@@ -325,5 +333,6 @@ export function useAppData() {
     signOut,
     forceReady,
     enterLocalMode,
+    enterCloudMode,
   };
 }

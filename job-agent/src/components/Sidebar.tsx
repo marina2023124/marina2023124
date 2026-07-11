@@ -11,6 +11,7 @@ import {
   Download,
   Upload,
   LogOut,
+  Cloud,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { CloudSyncStatus } from "@/components/AuthGuard";
@@ -26,7 +27,7 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { exportData, importData, signOut, user } = useApp();
+  const { exportData, importData, signOut, user, localMode, enterCloudMode } = useApp();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200 bg-white">
@@ -65,6 +66,16 @@ export function Sidebar() {
 
       <div className="border-t border-slate-200 p-4 space-y-3">
         <CloudSyncStatus />
+
+        {localMode && (
+          <button
+            onClick={enterCloudMode}
+            className="flex w-full items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-100"
+          >
+            <Cloud className="h-4 w-4" />
+            切换到云端登录
+          </button>
+        )}
 
         {user && (
           <p className="truncate px-1 text-xs text-slate-400">{user.email}</p>
