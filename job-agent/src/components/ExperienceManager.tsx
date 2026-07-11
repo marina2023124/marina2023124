@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
@@ -242,34 +242,10 @@ function SkillsSection() {
 }
 
 function ProjectsSection() {
-  const { data, setProfile, loaded } = useApp();
+  const { data, setProfile } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<Project>>({});
   const [workInput, setWorkInput] = useState("");
-  const upgradedRef = useRef(false);
-
-  useEffect(() => {
-    if (!loaded || upgradedRef.current || !data.profile.projects.length) return;
-
-    const projects = data.profile.projects.map((project) => {
-      const normalized = {
-        ...project,
-        description: project.description || "",
-        highlights: project.highlights ?? [],
-        technologies: project.technologies ?? [],
-      };
-      const workSummary = getProjectWorkSummary(normalized);
-      return workSummary ? { ...normalized, workSummary } : normalized;
-    });
-
-    const changed = projects.some(
-      (project, index) => project.workSummary !== data.profile.projects[index]?.workSummary
-    );
-    if (!changed) return;
-
-    upgradedRef.current = true;
-    setProfile({ ...data.profile, projects: sortProjectsByTime(projects) });
-  }, [loaded, data.profile, setProfile]);
 
   const addProject = () => {
     if (!form.name) return;
@@ -299,8 +275,14 @@ function ProjectsSection() {
   return (
     <Card title="项目经验">
       {sortProjectsByTime(data.profile.projects).map((p) => {
-        const workSummary = getProjectWorkSummary(p);
-        const workItems = getProjectWorkItems(p);
+        const project = {
+          ...p,
+          description: p.description ?? "",
+          highlights: p.highlights ?? [],
+          technologies: p.technologies ?? [],
+        };
+        const workSummary = getProjectWorkSummary(project);
+        const workItems = getProjectWorkItems(project);
         return (
           <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
             <div className="flex justify-between">
@@ -332,9 +314,9 @@ function ProjectsSection() {
                 )}
               </div>
             )}
-            {p.technologies.length > 0 && (
+            {(project.technologies ?? []).length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {p.technologies.map((t) => <Badge key={t}>{t}</Badge>)}
+                {project.technologies.map((t) => <Badge key={t}>{t}</Badge>)}
               </div>
             )}
           </div>

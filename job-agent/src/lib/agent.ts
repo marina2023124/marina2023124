@@ -64,7 +64,7 @@ function buildExperienceGuide(profile: Profile): string {
 function buildSkillAnalysis(profile: Profile): string {
   const skills = profile.skills;
   const expSkills = profile.workExperiences.flatMap((e) => e.skills);
-  const projectTech = profile.projects.flatMap((p) => p.technologies);
+  const projectTech = profile.projects.flatMap((p) => p.technologies ?? []);
   const allSkills = Array.from(new Set([...skills.map((s) => s.name), ...expSkills, ...projectTech]));
 
   if (allSkills.length === 0) {

@@ -287,7 +287,7 @@ export function parseProjectsFromExcelRows(rows: Record<string, string>[]): Proj
 }
 
 export function aggregateSkillsFromProjects(projects: Project[]): Skill[] {
-  const names = filterSkillTags(projects.flatMap((p) => p.technologies)).slice(0, 16);
+  const names = filterSkillTags(projects.flatMap((p) => p.technologies ?? [])).slice(0, 16);
   return names.map((name) => ({
     id: generateId(),
     name,

@@ -43,7 +43,7 @@ function getProfileSkills(profile: Profile): Set<string> {
     )
   );
   profile.projects.forEach((p) =>
-    p.technologies.forEach((t) => expandSkill(t).forEach((a) => skills.add(a)))
+    (p.technologies ?? []).forEach((t) => expandSkill(t).forEach((a) => skills.add(a)))
   );
   return skills;
 }

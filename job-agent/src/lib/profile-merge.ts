@@ -45,11 +45,13 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
 
     const current = result[index];
     let highlights: string[];
-    if (!current.highlights.length && item.highlights.length) {
-      highlights = [...item.highlights];
+    const currentHighlights = current.highlights ?? [];
+    const itemHighlights = item.highlights ?? [];
+    if (!currentHighlights.length && itemHighlights.length) {
+      highlights = [...itemHighlights];
     } else {
-      highlights = [...current.highlights];
-      for (const highlight of item.highlights) {
+      highlights = [...currentHighlights];
+      for (const highlight of itemHighlights) {
         if (!highlights.includes(highlight)) highlights.push(highlight);
       }
     }
