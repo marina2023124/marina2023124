@@ -245,3 +245,34 @@ export function maxIsoDate(a?: string, b?: string): string | undefined {
   if (!b) return a;
   return a >= b ? a : b;
 }
+
+function projectTimeKey(project: {
+  startDate?: string;
+  endDate?: string;
+  status?: "ongoing" | "completed";
+}): string {
+  return project.endDate || project.startDate || "";
+}
+
+/** Sort projects by time — newest first; ongoing projects pinned to top. */
+export function sortProjectsByTime<T extends {
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status?: "ongoing" | "completed";
+}>(projects: T[]): T[] {
+  return [...projects].sort((a, b) => {
+    const aOngoing = a.status === "ongoing";
+    const bOngoing = b.status === "ongoing";
+    if (aOngoing !== bOngoing) return aOngoing ? -1 : 1;
+
+    const aKey = projectTimeKey(a);
+    const bKey = projectTimeKey(b);
+    if (!aKey && !bKey) return a.name.localeCompare(b.name, "zh");
+    if (!aKey) return 1;
+    if (!bKey) return -1;
+
+    const byTime = bKey.localeCompare(aKey);
+    return byTime !== 0 ? byTime : a.name.localeCompare(b.name, "zh");
+  });
+}

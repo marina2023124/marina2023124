@@ -3,6 +3,7 @@ import {
   calcDurationDays,
   generateId,
   parseExcelSerialDate,
+  sortProjectsByTime,
   toIsoDateString,
 } from "./utils";
 import { extractMethodSkillTags } from "./skill-tags";
@@ -214,13 +215,9 @@ export function parseProjectsFromWorkbook(sheets: WorkbookSheet[]): Project[] {
     byName.set(nameKey, existing ? mergeDraftProjects(existing, draft) : draft);
   }
 
-  return Array.from(byName.values())
-    .sort((a, b) => {
-      const aTime = a.dates[0]?.getTime() ?? 0;
-      const bTime = b.dates[0]?.getTime() ?? 0;
-      return aTime - bTime;
-    })
-    .map(finalizeWorkbookProject);
+  return sortProjectsByTime(
+    Array.from(byName.values()).map(finalizeWorkbookProject)
+  );
 }
 
 export function isPersonalProjectWorkbook(sheets: WorkbookSheet[]): boolean {

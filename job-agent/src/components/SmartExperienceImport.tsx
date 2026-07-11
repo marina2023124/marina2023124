@@ -27,7 +27,7 @@ import {
   parseProjectsFromWorkbook,
   type WorkbookSheet,
 } from "@/lib/project-workbook-parser";
-import { formatProjectDateRange, getProjectWorkItems } from "@/lib/utils";
+import { formatProjectDateRange, getProjectWorkItems, sortProjectsByTime } from "@/lib/utils";
 import { mergeParsedProfile } from "@/lib/profile-merge";
 import { Button, Textarea, Badge } from "./ui";
 
@@ -85,7 +85,7 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
         <div>
           <p className="mb-1 font-medium text-slate-700">项目（{draft.projects.length}）</p>
           <ul className="space-y-2 text-slate-600">
-            {draft.projects.slice(0, 3).map((p) => {
+            {sortProjectsByTime(draft.projects).slice(0, 3).map((p) => {
               const workItems = getProjectWorkItems(p);
               return (
                 <li key={p.id}>
@@ -148,7 +148,7 @@ export function SmartExperienceImport() {
     } else if (excelRows?.length) {
       const fromExcel = parseProjectsFromExcelRows(excelRows);
       if (fromExcel.length) {
-        parsed.projects = [...parsed.projects, ...fromExcel];
+        parsed.projects = sortProjectsByTime([...parsed.projects, ...fromExcel]);
         parsed.skills = aggregateSkillsFromProjects(parsed.projects);
       }
     }

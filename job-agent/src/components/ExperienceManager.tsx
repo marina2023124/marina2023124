@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkItems, parseWorkLines, formatProjectDateRange } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime } from "@/lib/utils";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
@@ -257,7 +257,10 @@ function ProjectsSection() {
       highlights: parseWorkLines(workInput),
       url: form.url,
     };
-    setProfile({ ...data.profile, projects: [project, ...data.profile.projects] });
+    setProfile({
+      ...data.profile,
+      projects: sortProjectsByTime([project, ...data.profile.projects]),
+    });
     setForm({});
     setWorkInput("");
     setShowForm(false);
@@ -265,7 +268,7 @@ function ProjectsSection() {
 
   return (
     <Card title="项目经验">
-      {data.profile.projects.map((p) => {
+      {sortProjectsByTime(data.profile.projects).map((p) => {
         const workItems = getProjectWorkItems(p);
         return (
           <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
