@@ -1,3 +1,5 @@
+import { summarizeProjectWork } from "./project-work-summary";
+
 export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -127,14 +129,6 @@ export function cn(...classes: (string | false | undefined | null)[]): string {
 
 const PROJECT_META_METHOD_RE = /^(定性|定量|定性\+共创|定性\+定量|共创|workshop|用户研究)$/i;
 
-/** Parse multiline work items for project highlights. */
-export function parseWorkLines(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim().replace(/^[-*•●\d、.．)\]]\s*/, ""))
-    .filter((line) => line.length >= 2);
-}
-
 /** Task rows from import — exclude metadata duplicated in description. */
 export function getProjectWorkItems(project: {
   name: string;
@@ -161,6 +155,26 @@ export function getProjectWorkItems(project: {
   }
 
   return items;
+}
+
+/** Parse multiline work items for project highlights. */
+export function parseWorkLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim().replace(/^[-*•●\d、.．)\]]\s*/, ""))
+    .filter((line) => line.length >= 2);
+}
+
+/** One-sentence work summary from task highlights. */
+export function getProjectWorkSummary(project: {
+  name: string;
+  description: string;
+  highlights: string[];
+  workSummary?: string;
+}): string {
+  const items = getProjectWorkItems(project);
+  if (!items.length) return project.workSummary?.trim() || "";
+  return summarizeProjectWork(items);
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -322,18 +336,24 @@ export function sortProjectsByTime<T extends {
   });
 }
 
-/** Normalize project list: fill projectId + sort by time. */
+/** Normalize project list: fill projectId, work summary + sort by time. */
 export function sanitizeProfileProjects<T extends {
   name: string;
+  description: string;
+  highlights: string[];
   startDate?: string;
   endDate?: string;
   status?: "ongoing" | "completed";
   projectId?: string;
-  description?: string;
+  workSummary?: string;
 }>(projects: T[]): T[] {
-  const enriched = projects.map((project) => ({
-    ...project,
-    projectId: project.projectId || extractProjectId(project),
-  }));
+  const enriched = projects.map((project) => {
+    const items = getProjectWorkItems(project);
+    return {
+      ...project,
+      projectId: project.projectId || extractProjectId(project),
+      workSummary: items.length ? summarizeProjectWork(items) : project.workSummary,
+    };
+  });
   return sortProjectsByTime(enriched);
 }

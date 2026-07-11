@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, parseWorkLines, formatProjectDateRange, sortProjectsByTime } from "@/lib/utils";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
@@ -249,12 +249,18 @@ function ProjectsSection() {
 
   const addProject = () => {
     if (!form.name) return;
+    const highlights = parseWorkLines(workInput);
     const project: Project = {
       id: generateId(),
       name: form.name,
       description: form.description || "",
       technologies: parseSkillsFromText(form.technologies?.join(", ") || ""),
-      highlights: parseWorkLines(workInput),
+      highlights,
+      workSummary: getProjectWorkSummary({
+        name: form.name,
+        description: form.description || "",
+        highlights,
+      }),
       url: form.url,
     };
     setProfile({
@@ -269,7 +275,7 @@ function ProjectsSection() {
   return (
     <Card title="项目经验">
       {sortProjectsByTime(data.profile.projects).map((p) => {
-        const workItems = getProjectWorkItems(p);
+        const workSummary = getProjectWorkSummary(p);
         return (
           <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
             <div className="flex justify-between">
@@ -280,17 +286,10 @@ function ProjectsSection() {
             {formatProjectDateRange(p) && (
               <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(p)}</p>
             )}
-            {workItems.length > 0 && (
+            {workSummary && (
               <div className="mt-3">
                 <p className="text-xs font-medium text-slate-500">具体工作</p>
-                <ul className="mt-1.5 space-y-1">
-                  {workItems.map((item) => (
-                    <li key={item} className="flex gap-2 text-sm text-slate-700">
-                      <span className="shrink-0 text-slate-400">·</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{workSummary}</p>
               </div>
             )}
             {p.technologies.length > 0 && (

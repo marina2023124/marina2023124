@@ -1,7 +1,8 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
-import { calcDurationDays, maxIsoDate, minIsoDate, sanitizeProfileProjects } from "./utils";
+import { calcDurationDays, maxIsoDate, minIsoDate, getProjectWorkItems, sanitizeProfileProjects } from "./utils";
+import { summarizeProjectWork } from "./project-work-summary";
 
 function dedupeWork(a: WorkExperience, b: WorkExperience): boolean {
   return (
@@ -50,10 +51,9 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
 
     const startDate = minIsoDate(current.startDate, item.startDate);
     const endDate = maxIsoDate(current.endDate, item.endDate);
-    const status =
+    const status: Project["status"] =
       current.status === "ongoing" || item.status === "ongoing" ? "ongoing" : "completed";
-
-    result[index] = {
+    const mergedProject: Project = {
       ...current,
       description: current.description || item.description,
       technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
@@ -65,6 +65,9 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
       durationDays:
         status === "ongoing" ? undefined : calcDurationDays(startDate, endDate) ?? current.durationDays,
     };
+    mergedProject.workSummary = summarizeProjectWork(getProjectWorkItems(mergedProject));
+
+    result[index] = mergedProject;
   }
 
   return sanitizeProfileProjects(result);

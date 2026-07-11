@@ -7,6 +7,8 @@ import {
   toIsoDateString,
 } from "./utils";
 import { extractMethodSkillTags } from "./skill-tags";
+import { summarizeProjectWork } from "./project-work-summary";
+import { getProjectWorkItems } from "./utils";
 
 export interface WorkbookSheet {
   name: string;
@@ -107,12 +109,20 @@ function finalizeWorkbookProject(draft: WorkbookDraftProject): Project {
     : undefined;
   const durationDays = calcDurationDays(startDate, endDate);
 
+  const highlights = draft.tasks.length ? draft.tasks : [draft.method || "用户研究"].filter(Boolean);
+  const workItems = getProjectWorkItems({
+    name: draft.name,
+    description: meta,
+    highlights,
+  });
+
   return {
     id: generateId(),
     name: draft.name,
     description: meta,
     technologies: extractMethodSkillTags([draft.method, draft.category].filter(Boolean).join(" ")),
-    highlights: draft.tasks.length ? draft.tasks : [draft.method || "用户研究"].filter(Boolean),
+    highlights,
+    workSummary: summarizeProjectWork(workItems),
     projectId: draft.projectId || undefined,
     startDate,
     endDate,

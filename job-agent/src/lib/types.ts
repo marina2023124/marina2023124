@@ -35,6 +35,8 @@ export interface Project {
   technologies: string[];
   highlights: string[];
   url?: string;
+  /** One-sentence summary of highlights for resume display */
+  workSummary?: string;
   /** 项目编号，如 2406303 */
   projectId?: string;
   /** 启动日期 YYYY-MM-DD */
