@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, parseWorkLines, formatProjectDateRange, sortProjectsByTime } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime } from "@/lib/utils";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
@@ -300,6 +300,7 @@ function ProjectsSection() {
     <Card title="项目经验">
       {sortProjectsByTime(data.profile.projects).map((p) => {
         const workSummary = getProjectWorkSummary(p);
+        const workItems = getProjectWorkItems(p);
         return (
           <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
             <div className="flex justify-between">
@@ -310,12 +311,27 @@ function ProjectsSection() {
             {formatProjectDateRange(p) && (
               <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(p)}</p>
             )}
-            {workSummary ? (
-              <div className="mt-3">
+            {(workSummary || workItems.length > 0) && (
+              <div className="mt-3 space-y-2">
                 <p className="text-xs font-medium text-slate-500">具体工作</p>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{workSummary}</p>
+                {workSummary && (
+                  <p className="text-sm leading-relaxed text-slate-800">{workSummary}</p>
+                )}
+                {workItems.length > 0 && (
+                  <div>
+                    <p className="text-xs text-slate-400">任务明细</p>
+                    <ul className="mt-1 space-y-1">
+                      {workItems.map((item) => (
+                        <li key={item} className="flex gap-2 text-sm text-slate-700">
+                          <span className="shrink-0 text-slate-400">·</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            ) : null}
+            )}
             {p.technologies.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {p.technologies.map((t) => <Badge key={t}>{t}</Badge>)}

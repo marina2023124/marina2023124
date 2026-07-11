@@ -27,7 +27,7 @@ import {
   parseProjectsFromWorkbook,
   type WorkbookSheet,
 } from "@/lib/project-workbook-parser";
-import { formatProjectDateRange, getProjectWorkSummary, sortProjectsByTime } from "@/lib/utils";
+import { formatProjectDateRange, getProjectWorkSummary, getProjectWorkItems, sortProjectsByTime } from "@/lib/utils";
 import { mergeParsedProfile } from "@/lib/profile-merge";
 import { Button, Textarea, Badge } from "./ui";
 
@@ -87,6 +87,7 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
           <ul className="space-y-2 text-slate-600">
             {sortProjectsByTime(draft.projects).slice(0, 3).map((p) => {
               const workSummary = getProjectWorkSummary(p);
+              const workItems = getProjectWorkItems(p);
               return (
                 <li key={p.id}>
                   <span className="font-medium text-slate-700">{p.name}</span>
@@ -95,6 +96,14 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
                   )}
                   {workSummary && (
                     <p className="mt-0.5 text-xs text-slate-600">{workSummary}</p>
+                  )}
+                  {workItems.length > 0 && (
+                    <ul className="mt-0.5 space-y-0.5 pl-3 text-xs text-slate-500">
+                      {workItems.slice(0, 3).map((item) => (
+                        <li key={item}>· {item}</li>
+                      ))}
+                      {workItems.length > 3 && <li>· …共 {workItems.length} 项任务</li>}
+                    </ul>
                   )}
                 </li>
               );
