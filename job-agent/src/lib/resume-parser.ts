@@ -304,15 +304,17 @@ export function parseResumeText(text: string): ParsedProfileDraft {
   if (sections.education) draft.educations = parseEducationBlock(sections.education);
   if (sections.project) draft.projects = parseProjectBlock(sections.project);
 
-  if (!draft.projects.length && hasProjectTableFormat(text)) {
-    draft.projects = parseProjectsFromMarkdownTables(text);
-  } else if (hasProjectTableFormat(text)) {
+  if (hasProjectTableFormat(text)) {
     const fromTable = parseProjectsFromMarkdownTables(text);
-    const seen = new Set(draft.projects.map((p) => p.name));
-    for (const p of fromTable) {
-      if (!seen.has(p.name)) {
-        draft.projects.push(p);
-        seen.add(p.name);
+    if (!draft.projects.length) {
+      draft.projects = fromTable;
+    } else {
+      const seen = new Set(draft.projects.map((p) => p.name));
+      for (const p of fromTable) {
+        if (!seen.has(p.name)) {
+          draft.projects.push(p);
+          seen.add(p.name);
+        }
       }
     }
   }

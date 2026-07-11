@@ -20,6 +20,7 @@ import {
   summarizeParsedProfile,
   type ParsedProfileDraft,
 } from "@/lib/resume-parser";
+import { countLikelyProjectRows } from "@/lib/project-table-parser";
 import { mergeParsedProfile } from "@/lib/profile-merge";
 import { Button, Textarea, Badge } from "./ui";
 
@@ -272,6 +273,12 @@ export function SmartExperienceImport() {
               <p className="mt-2 text-xs text-slate-500">
                 合并时会保留已有内容，仅追加不重复的工作/项目/技能条目
               </p>
+              {preview.projects.length === 0 && countLikelyProjectRows(rawInput) > 0 && (
+                <p className="mt-2 text-xs text-amber-700">
+                  检测到约 {countLikelyProjectRows(rawInput)} 个项目编号，但未解析出项目。
+                  请确认表格含「项目名」列；从 Excel 粘贴时应保留制表符，或导出为 CSV 后上传。
+                </p>
+              )}
             </div>
           )}
         </div>
