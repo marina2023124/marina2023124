@@ -124,3 +124,41 @@ export function parseSkillsFromText(text: string): string[] {
 export function cn(...classes: (string | false | undefined | null)[]): string {
   return classes.filter(Boolean).join(" ");
 }
+
+const PROJECT_META_METHOD_RE = /^(定性|定量|定性\+共创|定性\+定量|共创|workshop|用户研究)$/i;
+
+/** Parse multiline work items for project highlights. */
+export function parseWorkLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim().replace(/^[-*•●\d、.．)\]]\s*/, ""))
+    .filter((line) => line.length >= 2);
+}
+
+/** Task rows from import — exclude metadata duplicated in description. */
+export function getProjectWorkItems(project: {
+  name: string;
+  description: string;
+  highlights: string[];
+}): string[] {
+  const metaParts = new Set(
+    project.description.split("·").map((part) => part.trim()).filter(Boolean)
+  );
+  metaParts.add(project.name.trim());
+
+  const seen = new Set<string>();
+  const items: string[] = [];
+
+  for (const raw of project.highlights) {
+    const text = raw.trim();
+    if (!text || text.length < 2) continue;
+    if (metaParts.has(text)) continue;
+    if (PROJECT_META_METHOD_RE.test(text)) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(text);
+  }
+
+  return items;
+}

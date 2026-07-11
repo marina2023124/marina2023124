@@ -22,6 +22,7 @@ import {
   type ParsedProfileDraft,
 } from "@/lib/resume-parser";
 import { countLikelyProjectRows } from "@/lib/project-table-parser";
+import { getProjectWorkItems } from "@/lib/utils";
 import { mergeParsedProfile } from "@/lib/profile-merge";
 import { Button, Textarea, Badge } from "./ui";
 
@@ -78,10 +79,23 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
       {draft.projects.length > 0 && (
         <div>
           <p className="mb-1 font-medium text-slate-700">项目（{draft.projects.length}）</p>
-          <ul className="space-y-1 text-slate-600">
-            {draft.projects.slice(0, 3).map((p) => (
-              <li key={p.id}>{p.name}</li>
-            ))}
+          <ul className="space-y-2 text-slate-600">
+            {draft.projects.slice(0, 3).map((p) => {
+              const workItems = getProjectWorkItems(p);
+              return (
+                <li key={p.id}>
+                  <span className="font-medium text-slate-700">{p.name}</span>
+                  {workItems.length > 0 && (
+                    <ul className="mt-0.5 space-y-0.5 pl-3 text-xs">
+                      {workItems.slice(0, 2).map((item) => (
+                        <li key={item}>· {item}</li>
+                      ))}
+                      {workItems.length > 2 && <li>· …共 {workItems.length} 项工作</li>}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

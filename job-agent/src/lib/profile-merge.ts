@@ -14,10 +14,6 @@ function dedupeEdu(a: Education, b: Education): boolean {
   return a.school === b.school && a.degree === b.degree;
 }
 
-function dedupeProject(a: Project, b: Project): boolean {
-  return a.name === b.name;
-}
-
 function dedupeSkill(a: Skill, b: Skill): boolean {
   return a.name.toLowerCase() === b.name.toLowerCase();
 }
@@ -27,6 +23,33 @@ function mergeArray<T>(existing: T[], incoming: T[], isDup: (a: T, b: T) => bool
   for (const item of incoming) {
     if (!result.some((e) => isDup(e, item))) result.push(item);
   }
+  return result;
+}
+
+function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
+  const result = [...existing];
+
+  for (const item of incoming) {
+    const index = result.findIndex((project) => project.name === item.name);
+    if (index < 0) {
+      result.push(item);
+      continue;
+    }
+
+    const current = result[index];
+    const highlights = [...current.highlights];
+    for (const highlight of item.highlights) {
+      if (!highlights.includes(highlight)) highlights.push(highlight);
+    }
+
+    result[index] = {
+      ...current,
+      description: current.description || item.description,
+      technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
+      highlights,
+    };
+  }
+
   return result;
 }
 
@@ -51,7 +74,7 @@ export function mergeParsedProfile(parsed: ParsedProfileDraft, base: Profile): P
         : base.preferredLocations,
     workExperiences: mergeArray(base.workExperiences, parsed.workExperiences, dedupeWork),
     educations: mergeArray(base.educations, parsed.educations, dedupeEdu),
-    projects: mergeArray(base.projects, parsed.projects, dedupeProject),
+    projects: mergeProjects(base.projects, parsed.projects),
     skills: sanitizeProfileSkills(
       mergeArray(base.skills, parsed.skills, dedupeSkill)
     ),

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkItems, parseWorkLines } from "@/lib/utils";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
@@ -245,6 +245,7 @@ function ProjectsSection() {
   const { data, setProfile } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<Project>>({});
+  const [workInput, setWorkInput] = useState("");
 
   const addProject = () => {
     if (!form.name) return;
@@ -253,36 +254,62 @@ function ProjectsSection() {
       name: form.name,
       description: form.description || "",
       technologies: parseSkillsFromText(form.technologies?.join(", ") || ""),
-      highlights: form.highlights || [],
+      highlights: parseWorkLines(workInput),
       url: form.url,
     };
     setProfile({ ...data.profile, projects: [project, ...data.profile.projects] });
     setForm({});
+    setWorkInput("");
     setShowForm(false);
   };
 
   return (
     <Card title="项目经验">
-      {data.profile.projects.map((p) => (
-        <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
-          <div className="flex justify-between">
-            <h4 className="font-semibold text-slate-900">{p.name}</h4>
-            <button onClick={() => setProfile({ ...data.profile, projects: data.profile.projects.filter((x) => x.id !== p.id) })} className="text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+      {data.profile.projects.map((p) => {
+        const workItems = getProjectWorkItems(p);
+        return (
+          <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
+            <div className="flex justify-between">
+              <h4 className="font-semibold text-slate-900">{p.name}</h4>
+              <button onClick={() => setProfile({ ...data.profile, projects: data.profile.projects.filter((x) => x.id !== p.id) })} className="text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+            </div>
+            {p.description && <p className="mt-1 text-sm text-slate-500">{p.description}</p>}
+            {workItems.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-slate-500">具体工作</p>
+                <ul className="mt-1.5 space-y-1">
+                  {workItems.map((item) => (
+                    <li key={item} className="flex gap-2 text-sm text-slate-700">
+                      <span className="shrink-0 text-slate-400">·</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {p.technologies.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {p.technologies.map((t) => <Badge key={t}>{t}</Badge>)}
+              </div>
+            )}
           </div>
-          {p.description && <p className="mt-1 text-sm text-slate-600">{p.description}</p>}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {p.technologies.map((t) => <Badge key={t}>{t}</Badge>)}
-          </div>
-        </div>
-      ))}
+        );
+      })}
       {showForm ? (
         <div className="space-y-3 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 p-4">
           <Input label="项目名称" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Textarea label="项目描述" value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
-          <Input label="技术栈（逗号分隔）" onChange={(e) => setForm({ ...form, technologies: parseSkillsFromText(e.target.value) as unknown as string[] })} />
+          <Input label="项目信息（行业、品类、方法等）" value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="教育 · 小学语文 · 定性+共创 · 2406303" />
+          <Textarea
+            label="具体工作（每行一条）"
+            value={workInput}
+            onChange={(e) => setWorkInput(e.target.value)}
+            rows={4}
+            placeholder={"深访家长需求\n撰写研究报告\n协助焦点小组"}
+          />
+          <Input label="研究方法/技能（逗号分隔）" onChange={(e) => setForm({ ...form, technologies: parseSkillsFromText(e.target.value) as unknown as string[] })} />
           <div className="flex gap-2">
             <Button onClick={addProject}>保存</Button>
-            <Button variant="ghost" onClick={() => setShowForm(false)}>取消</Button>
+            <Button variant="ghost" onClick={() => { setShowForm(false); setWorkInput(""); }}>取消</Button>
           </div>
         </div>
       ) : (
