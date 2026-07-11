@@ -1,6 +1,7 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
+import { calcDurationDays, maxIsoDate, minIsoDate } from "./utils";
 
 function dedupeWork(a: WorkExperience, b: WorkExperience): boolean {
   return (
@@ -30,7 +31,12 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
   const result = [...existing];
 
   for (const item of incoming) {
-    const index = result.findIndex((project) => project.name === item.name);
+    const index = result.findIndex((project) => {
+      if (item.projectId && project.projectId) {
+        return project.projectId === item.projectId && project.name === item.name;
+      }
+      return project.name === item.name;
+    });
     if (index < 0) {
       result.push(item);
       continue;
@@ -42,11 +48,22 @@ function mergeProjects(existing: Project[], incoming: Project[]): Project[] {
       if (!highlights.includes(highlight)) highlights.push(highlight);
     }
 
+    const startDate = minIsoDate(current.startDate, item.startDate);
+    const endDate = maxIsoDate(current.endDate, item.endDate);
+    const status =
+      current.status === "ongoing" || item.status === "ongoing" ? "ongoing" : "completed";
+
     result[index] = {
       ...current,
       description: current.description || item.description,
       technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
       highlights,
+      projectId: current.projectId || item.projectId,
+      startDate,
+      endDate,
+      status,
+      durationDays:
+        status === "ongoing" ? undefined : calcDurationDays(startDate, endDate) ?? current.durationDays,
     };
   }
 

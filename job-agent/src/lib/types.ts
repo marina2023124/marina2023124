@@ -35,6 +35,16 @@ export interface Project {
   technologies: string[];
   highlights: string[];
   url?: string;
+  /** 项目编号，如 2406303 */
+  projectId?: string;
+  /** 启动日期 YYYY-MM-DD */
+  startDate?: string;
+  /** 结束日期 YYYY-MM-DD */
+  endDate?: string;
+  /** 项目周期（天） */
+  durationDays?: number;
+  /** ongoing = 进行中 */
+  status?: "ongoing" | "completed";
 }
 
 export interface Profile {

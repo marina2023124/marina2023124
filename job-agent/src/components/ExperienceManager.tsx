@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
-import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkItems, parseWorkLines } from "@/lib/utils";
+import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkItems, parseWorkLines, formatProjectDateRange } from "@/lib/utils";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
@@ -274,6 +274,9 @@ function ProjectsSection() {
               <button onClick={() => setProfile({ ...data.profile, projects: data.profile.projects.filter((x) => x.id !== p.id) })} className="text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
             </div>
             {p.description && <p className="mt-1 text-sm text-slate-500">{p.description}</p>}
+            {formatProjectDateRange(p) && (
+              <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(p)}</p>
+            )}
             {workItems.length > 0 && (
               <div className="mt-3">
                 <p className="text-xs font-medium text-slate-500">具体工作</p>

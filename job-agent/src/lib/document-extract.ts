@@ -8,12 +8,16 @@ export type DocumentKind =
   | "text"
   | "unknown";
 
+import type { WorkbookSheet } from "./project-workbook-parser";
+
 export interface ExtractedDocument {
   text: string;
   kind: DocumentKind;
   fileName: string;
-  /** Excel 原始行（用于项目列表解析） */
+  /** Excel 原始行（首张表，兼容旧逻辑） */
   excelRows?: Record<string, string>[];
+  /** Excel 全部工作表（个人项目管理等多 sheet 文件） */
+  excelWorkbook?: WorkbookSheet[];
 }
 
 const ACCEPT_EXTENSIONS =
@@ -69,19 +73,38 @@ async function extractWordText(file: File): Promise<string> {
   return result.value.trim();
 }
 
-async function extractExcelData(file: File): Promise<{ text: string; rows: Record<string, string>[] }> {
+async function extractExcelData(file: File): Promise<{
+  text: string;
+  rows: Record<string, string>[];
+  workbook: WorkbookSheet[];
+}> {
   const XLSX = await import("xlsx");
   const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const workbook: WorkbookSheet[] = wb.SheetNames.map((sheetName) => ({
+    name: sheetName,
+    rows: XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
+      header: 1,
+      defval: "",
+    }) as unknown[][],
+  }));
+
   const sheetName = wb.SheetNames[0];
-  if (!sheetName) return { text: "", rows: [] };
+  if (!sheetName) return { text: "", rows: [], workbook: [] };
 
   const sheet = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
-  const text = rows
-    .map((row) => Object.values(row).filter(Boolean).join("\t"))
+  const text = workbook
+    .flatMap((ws) =>
+      ws.rows.map((row) =>
+        (Array.isArray(row) ? row : [])
+          .map((cell) => String(cell ?? "").trim())
+          .filter(Boolean)
+          .join("\t")
+      )
+    )
     .join("\n");
 
-  return { text, rows };
+  return { text, rows, workbook };
 }
 
 async function extractPlainText(file: File): Promise<string> {
@@ -111,8 +134,8 @@ export async function extractTextFromDocument(file: File): Promise<ExtractedDocu
         text: await extractWordText(file),
       };
     case "excel": {
-      const { text, rows } = await extractExcelData(file);
-      return { kind, fileName: file.name, text, excelRows: rows };
+      const { text, rows, workbook } = await extractExcelData(file);
+      return { kind, fileName: file.name, text, excelRows: rows, excelWorkbook: workbook };
     }
     case "text":
       return {

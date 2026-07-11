@@ -162,3 +162,86 @@ export function getProjectWorkItems(project: {
 
   return items;
 }
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseExcelSerialDate(value: unknown): Date | null {
+  if (value === "" || value == null) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "number" && value > 20000 && value < 60000) {
+    const epoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(epoch.getTime() + value * 86400000);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const text = String(value).trim();
+  if (!text || /无明确|当日|周[一二三四五六日天]/i.test(text)) return null;
+  const match = text.match(/(\d{4})[./年-](\d{1,2})(?:[./月-](\d{1,2}))?/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3] || "1");
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function toIsoDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function calcDurationDays(startDate?: string, endDate?: string): number | undefined {
+  if (!startDate || !endDate || !ISO_DATE_RE.test(startDate) || !ISO_DATE_RE.test(endDate)) {
+    return undefined;
+  }
+  const [sy, sm, sd] = startDate.split("-").map(Number);
+  const [ey, em, ed] = endDate.split("-").map(Number);
+  const start = Date.UTC(sy, sm - 1, sd);
+  const end = Date.UTC(ey, em - 1, ed);
+  if (end < start) return undefined;
+  return Math.round((end - start) / 86400000) + 1;
+}
+
+export function formatProjectDuration(days?: number): string {
+  if (!days || days < 1) return "";
+  if (days < 30) return `${days}天`;
+  const months = Math.round((days / 30) * 10) / 10;
+  return months >= 12 ? `约${Math.round((days / 365) * 10) / 10}年` : `约${months}个月`;
+}
+
+export function formatProjectDateRange(project: {
+  startDate?: string;
+  endDate?: string;
+  durationDays?: number;
+  status?: "ongoing" | "completed";
+}): string {
+  if (!project.startDate) return "";
+  const start = formatDate(project.startDate.slice(0, 7));
+
+  if (project.status === "ongoing") {
+    const latest = project.endDate ? formatDate(project.endDate.slice(0, 7)) : "";
+    return latest && latest !== start
+      ? `${start} — 进行中（最近 ${latest}）`
+      : `${start} — 进行中`;
+  }
+
+  const end = project.endDate ? formatDate(project.endDate.slice(0, 7)) : "";
+  const duration = formatProjectDuration(
+    project.durationDays ?? calcDurationDays(project.startDate, project.endDate)
+  );
+  const range = end ? `${start} — ${end}` : start;
+  return duration ? `${range} · 周期 ${duration}` : range;
+}
+
+export function minIsoDate(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a <= b ? a : b;
+}
+
+export function maxIsoDate(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a >= b ? a : b;
+}

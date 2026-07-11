@@ -22,7 +22,12 @@ import {
   type ParsedProfileDraft,
 } from "@/lib/resume-parser";
 import { countLikelyProjectRows } from "@/lib/project-table-parser";
-import { getProjectWorkItems } from "@/lib/utils";
+import {
+  isPersonalProjectWorkbook,
+  parseProjectsFromWorkbook,
+  type WorkbookSheet,
+} from "@/lib/project-workbook-parser";
+import { formatProjectDateRange, getProjectWorkItems } from "@/lib/utils";
 import { mergeParsedProfile } from "@/lib/profile-merge";
 import { Button, Textarea, Badge } from "./ui";
 
@@ -85,6 +90,9 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
               return (
                 <li key={p.id}>
                   <span className="font-medium text-slate-700">{p.name}</span>
+                  {formatProjectDateRange(p) && (
+                    <p className="text-xs text-slate-500">{formatProjectDateRange(p)}</p>
+                  )}
                   {workItems.length > 0 && (
                     <ul className="mt-0.5 space-y-0.5 pl-3 text-xs">
                       {workItems.slice(0, 2).map((item) => (
@@ -121,15 +129,30 @@ export function SmartExperienceImport() {
   const [expanded, setExpanded] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const runParse = useCallback((text: string, excelRows?: Record<string, string>[]) => {
-    const parsed = parseResumeText(text);
-    if (excelRows?.length) {
+  const runParse = useCallback((
+    text: string,
+    excelRows?: Record<string, string>[],
+    excelWorkbook?: WorkbookSheet[]
+  ) => {
+    let parsed = parseResumeText(text);
+
+    if (excelWorkbook?.length && isPersonalProjectWorkbook(excelWorkbook)) {
+      const fromWorkbook = parseProjectsFromWorkbook(excelWorkbook);
+      if (fromWorkbook.length) {
+        parsed = {
+          ...parsed,
+          projects: fromWorkbook,
+          skills: aggregateSkillsFromProjects(fromWorkbook),
+        };
+      }
+    } else if (excelRows?.length) {
       const fromExcel = parseProjectsFromExcelRows(excelRows);
       if (fromExcel.length) {
         parsed.projects = [...parsed.projects, ...fromExcel];
         parsed.skills = aggregateSkillsFromProjects(parsed.projects);
       }
     }
+
     setPreview(parsed);
     setShowDetails(true);
   }, []);
@@ -149,12 +172,12 @@ export function SmartExperienceImport() {
     setProgress(`正在解析 ${file.name}…`);
     try {
       const extracted = await extractTextFromDocument(file);
-      if (!extracted.text.trim() && !extracted.excelRows?.length) {
+      if (!extracted.text.trim() && !extracted.excelRows?.length && !extracted.excelWorkbook?.length) {
         alert("未能从文件中提取到文字，请尝试其他格式或直接粘贴文本");
         return;
       }
       setRawInput(extracted.text);
-      runParse(extracted.text, extracted.excelRows);
+      runParse(extracted.text, extracted.excelRows, extracted.excelWorkbook);
       setProgress(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "文件解析失败");
@@ -200,7 +223,7 @@ export function SmartExperienceImport() {
           <div className="rounded-lg border border-indigo-100 bg-white/80 p-3 text-xs text-slate-600">
             <p className="font-medium text-slate-700">支持格式</p>
             <p className="mt-1">PDF、Word（.docx）、Excel（.xlsx/.xls/.csv）、图片（OCR）、纯文本</p>
-            <p className="mt-1">Excel 项目列表：表头含「项目名称 / 描述 / 技术栈 / 亮点」等列时识别更准确</p>
+            <p className="mt-1">Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）</p>
             <button
               type="button"
               className="mt-2 text-indigo-600 hover:underline"
