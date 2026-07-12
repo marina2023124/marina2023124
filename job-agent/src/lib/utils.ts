@@ -1,6 +1,6 @@
 import { summarizeProjectFromMeta, summarizeProjectWork } from "./project-work-summary";
 import { linkProjectsToWorkExperiences } from "./project-work-link";
-import { normalizeProjectName, normalizeTaskHighlight, isNoiseTaskHighlight } from "./project-name";
+import { normalizeProjectName, normalizeTaskHighlight, isNoiseTaskHighlight, dedupeWeeklyHighlights } from "./project-name";
 import type { WorkExperience } from "./types";
 
 export function generateId(): string {
@@ -375,9 +375,11 @@ export function sanitizeProfileProjects<T extends {
       ...project,
       name: normalizeProjectName(project.name),
       description: project.description || "",
-      highlights: (project.highlights ?? [])
-        .map((item) => normalizeTaskHighlight(item))
-        .filter((item) => item && !isNoiseTaskHighlight(item)),
+      highlights: dedupeWeeklyHighlights(
+        (project.highlights ?? [])
+          .map((item) => normalizeTaskHighlight(item))
+          .filter((item) => item && !isNoiseTaskHighlight(item))
+      ),
       technologies: project.technologies ?? [],
       tags: project.tags ?? [],
       projectId: project.projectId || extractProjectId(project),

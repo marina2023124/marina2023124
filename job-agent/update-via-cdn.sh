@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.44-weekly-p0-wk-fix"
+EXPECTED_VERSION="0.2.45-weekly-dedupe-highlights"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"

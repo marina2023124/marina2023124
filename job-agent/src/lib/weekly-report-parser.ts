@@ -731,7 +731,7 @@ export function parseWeeklyReportProjects(
   return Array.from(updates.values());
 }
 
-export { normalizeProjectName, labelWeeklyTasks, mergeWeeklyHighlights, normalizeTaskHighlight } from "./project-name";
+export { normalizeProjectName, labelWeeklyTasks, mergeWeeklyHighlights, normalizeTaskHighlight, dedupeWeeklyHighlights } from "./project-name";
 
 export function summarizeWeeklyReportParse(projects: Project[], sourceText: string): string {
   const entryCount = parseWeeklyEntries(sourceText).length;

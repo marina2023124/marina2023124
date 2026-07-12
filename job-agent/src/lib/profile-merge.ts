@@ -1,5 +1,5 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
-import { normalizeProjectName } from "./project-name";
+import { mergeWeeklyHighlights, normalizeProjectName } from "./project-name";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
 import { calcDurationDays, maxIsoDate, minIsoDate, getProjectWorkItems, sanitizeProfileProjects, extractProjectId } from "./utils";
@@ -50,17 +50,10 @@ function mergeProjects(
     }
 
     const current = result[index];
-    let highlights: string[];
-    const currentHighlights = current.highlights ?? [];
-    const itemHighlights = item.highlights ?? [];
-    if (!currentHighlights.length && itemHighlights.length) {
-      highlights = [...itemHighlights];
-    } else {
-      highlights = [...currentHighlights];
-      for (const highlight of itemHighlights) {
-        if (!highlights.includes(highlight)) highlights.push(highlight);
-      }
-    }
+    const highlights = mergeWeeklyHighlights(
+      current.highlights ?? [],
+      item.highlights ?? []
+    );
 
     const startDate = minIsoDate(current.startDate, item.startDate);
     const endDate = maxIsoDate(current.endDate, item.endDate);

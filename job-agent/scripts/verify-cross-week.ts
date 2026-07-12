@@ -1,8 +1,11 @@
 import mammoth from "mammoth";
 import {
+  dedupeWeeklyHighlights,
   normalizeProjectName,
 } from "../src/lib/project-name";
+import { mergeWeeklyReportProjects } from "../src/lib/profile-merge";
 import { parseWeeklyReportProjects } from "../src/lib/weekly-report-parser";
+import type { Project } from "../src/lib/types";
 
 const DOC =
   "/home/ubuntu/.cursor/projects/workspace/uploads/_________2026-07-11__c62c.docx";
@@ -112,6 +115,64 @@ async function main() {
     console.error("FAIL: noise highlights should be removed");
     process.exit(1);
   }
+
+  const dupHighlights = [
+    "周一投放，周三整理初步数据/视情况替换链接+投放ABtest问卷-回收100份，预期回收约1000份，周五同步进度",
+    "暂不投放额外测试",
+    "WK27 周一投放，周三整理初步数据/视情况替换链接+投放ABtest问卷-回收100份，预期回收约1000份，周五同步进度",
+    "WK28 暂不投放额外测试",
+  ];
+  const deduped = dedupeWeeklyHighlights(dupHighlights);
+  if (deduped.length !== 2) {
+    console.error("FAIL: dedupeWeeklyHighlights", deduped);
+    process.exit(1);
+  }
+
+  const oldProfile = {
+    name: "测试",
+    email: "",
+    summary: "",
+    targetRoles: [],
+    targetIndustries: [],
+    preferredLocations: [],
+    workExperiences: [],
+    educations: [],
+    skills: [],
+    projects: [{
+      id: "hw-old",
+      name: "硬件PSM",
+      description: "WK27（2026-06-29～2026-07-03）",
+      technologies: [],
+      highlights: dupHighlights.slice(0, 2),
+      startDate: "2026-06-29",
+      endDate: "2026-07-03",
+      status: "ongoing" as const,
+      tags: ["P1"],
+    }],
+  };
+  const incoming: Project[] = [{
+    id: "hw-new",
+    name: "硬件PSM",
+    description: "WK28（2026-07-06～2026-07-10）",
+    technologies: [],
+    highlights: dupHighlights.slice(2),
+    startDate: "2026-07-06",
+    endDate: "2026-07-10",
+    status: "ongoing",
+    tags: ["P1"],
+  }];
+  const applied = mergeWeeklyReportProjects(incoming, oldProfile);
+  const hw = applied.projects.find((p) => p.name === "硬件PSM");
+  if (!hw || (hw.highlights ?? []).length !== 2) {
+    console.error("FAIL: apply merge should dedupe old+new highlights", hw?.highlights);
+    process.exit(1);
+  }
+  if ((hw.highlights ?? []).some((h) => !/^WK\d{1,2}\b/.test(h))) {
+    console.error("FAIL: merged hardware PSM should only keep WK-prefixed items", hw?.highlights);
+    process.exit(1);
+  }
+
+  console.log("OK: highlight dedupe on merge verified");
 }
 
 main();

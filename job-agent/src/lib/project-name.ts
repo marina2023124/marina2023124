@@ -97,5 +97,39 @@ export function mergeWeeklyHighlights(current: string[], incoming: string[]): st
     }
   }
 
-  return result;
+  return dedupeWeeklyHighlights(result);
+}
+
+/** 去掉内容相同但缺 WK 前缀的重复明细 */
+export function dedupeWeeklyHighlights(highlights: string[]): string[] {
+  const cleaned = highlights
+    .map((item) => normalizeTaskHighlight(item))
+    .filter((item) => item && !isNoiseTaskHighlight(item));
+
+  const result: string[] = [];
+
+  for (const item of cleaned) {
+    let merged = false;
+    for (let i = 0; i < result.length; i++) {
+      if (!tasksEquivalent(result[i], item)) continue;
+      const itemHasWeek = /^WK\d{1,2}\b/i.test(result[i]);
+      const incomingHasWeek = /^WK\d{1,2}\b/i.test(item);
+      if (incomingHasWeek && !itemHasWeek) {
+        result[i] = item;
+      }
+      merged = true;
+      break;
+    }
+    if (!merged) result.push(item);
+  }
+
+  return result.filter((item) => {
+    if (/^WK\d{1,2}\b/i.test(item)) return true;
+    return !result.some(
+      (other) =>
+        other !== item &&
+        /^WK\d{1,2}\b/i.test(other) &&
+        tasksEquivalent(other, item)
+    );
+  });
 }
