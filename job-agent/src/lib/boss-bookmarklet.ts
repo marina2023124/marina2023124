@@ -4,7 +4,7 @@
  */
 const BOSS_BOOKMARKLET_SOURCE = `(function(){
   function domBody(){
-    var sel='.job-detail-section,.job-detail-wrapper,.job-detail,.job-box,.job-detail-body,.position-content';
+    var sel='.job-detail-section,.job-detail-wrapper,.job-detail,.job-box,.job-detail-body,.position-content,.job-detail-box';
     var s=document.querySelector(sel);var t=s?s.innerText:'';
     if(t){var cut=['更多职位','看过该职位的人还看了','精选职位'];
       for(var i=0;i<cut.length;i++){var x=t.indexOf(cut[i]);if(x>0)t=t.slice(0,x)}}
@@ -13,7 +13,7 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
   }
   function copyOut(out,hasSalary){
     navigator.clipboard.writeText(out).then(function(){
-      alert(hasSalary?'✅ 已复制（含薪资）\\n请回到 JobAgent 粘贴，点「智能识别」':'✅ 已复制\\n⚠️ 未获取薪资，请确认在 BOSS 岗位详情页点击书签');
+      alert(hasSalary?'✅ 已复制（含薪资）\\n请回到 JobAgent 粘贴，点「智能识别」':'✅ 已复制\\n⚠️ 未获取薪资，请等页面加载完成后再点书签，或从列表页进入详情后重试');
     }).catch(function(){prompt('请手动复制：',out)});
   }
   function header(meta){
@@ -45,28 +45,122 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     if(job.address)b.push('工作地址\\n'+job.address);
     return b.join('\\n\\n');
   }
+  function pickSalary(job){
+    return job.salaryDesc||job.salary||job.salaryMonthText||job.payTypeDesc||'';
+  }
+  function findCachedDetailUrl(){
+    var entries=performance.getEntriesByType('resource');
+    for(var i=entries.length-1;i>=0;i--){
+      var u=entries[i].name;
+      if(u.indexOf('/job/detail.json')>=0&&u.indexOf('securityId')>=0)return u;
+    }
+    return '';
+  }
+  function mergeIds(a,b){
+    return {securityId:a.securityId||b.securityId||'',lid:a.lid||b.lid||'',encryptJobId:a.encryptJobId||b.encryptJobId||''};
+  }
+  function idsFromSearch(){
+    var sp=new URLSearchParams(location.search);
+    return {securityId:sp.get('securityId')||sp.get('securityid')||sp.get('secId')||'',
+      lid:sp.get('lid')||'',encryptJobId:sp.get('encryptJobId')||sp.get('jobId')||sp.get('jobid')||''};
+  }
+  function idsFromPath(){
+    var m=location.pathname.match(/\\/job_detail\\/([^.?#/]+)\\.html/i);
+    return {securityId:'',lid:'',encryptJobId:m?m[1]:''};
+  }
+  function idsFromDom(){
+    var out={securityId:'',lid:'',encryptJobId:''};
+    var btn=document.querySelector('.btn-startchat,[class*="startchat"],.btn-chat,.job-detail-operate .btn');
+    if(btn){
+      out.securityId=btn.getAttribute('data-securityid')||btn.getAttribute('data-security-id')||btn.dataset.securityid||btn.dataset.securityId||'';
+      var href=btn.getAttribute('href')||'';
+      var hm=href.match(/securityId=([^&]+)/i);if(hm&&!out.securityId)out.securityId=decodeURIComponent(hm[1]);
+      var dp=btn.getAttribute('data-params');
+      if(dp&&!out.securityId){try{var p=JSON.parse(dp);out.securityId=p.securityId||'';out.lid=p.lid||out.lid;}catch(e){}}
+    }
+    if(!out.securityId){
+      var el=document.querySelector('[data-securityid],[data-security-id]');
+      if(el)out.securityId=el.getAttribute('data-securityid')||el.getAttribute('data-security-id')||'';
+    }
+    return out;
+  }
+  function idsFromPerformance(){
+    var out={securityId:'',lid:'',encryptJobId:''};
+    var entries=performance.getEntriesByType('resource');
+    for(var i=entries.length-1;i>=0;i--){
+      var u=entries[i].name;
+      if(u.indexOf('/job/detail.json')<0)continue;
+      var sm=u.match(/[?&]securityId=([^&]+)/i);if(sm)out.securityId=decodeURIComponent(sm[1]);
+      var lm=u.match(/[?&]lid=([^&]+)/i);if(lm)out.lid=decodeURIComponent(lm[1]);
+      var jm=u.match(/[?&]encryptJobId=([^&]+)/i);if(jm)out.encryptJobId=decodeURIComponent(jm[1]);
+      if(out.securityId)break;
+    }
+    return out;
+  }
+  function idsFromHtml(){
+    var out={securityId:'',lid:'',encryptJobId:''};
+    var html=document.documentElement.innerHTML;
+    var sm=html.match(/"securityId"\\s*:\\s*"([^"]{8,})"/);if(sm)out.securityId=sm[1];
+    var lm=html.match(/"lid"\\s*:\\s*"([^"]+)"/);if(lm)out.lid=lm[1];
+    var jm=html.match(/"encryptJobId"\\s*:\\s*"([^"]+)"/);if(jm)out.encryptJobId=jm[1];
+    return out;
+  }
+  function resolveIds(){
+    var ids={securityId:'',lid:'',encryptJobId:''};
+    ids=mergeIds(ids,idsFromSearch());
+    ids=mergeIds(ids,idsFromPath());
+    ids=mergeIds(ids,idsFromDom());
+    ids=mergeIds(ids,idsFromPerformance());
+    ids=mergeIds(ids,idsFromHtml());
+    return ids;
+  }
+  function buildDetailUrl(ids){
+    if(!ids.securityId)return '';
+    var q='securityId='+encodeURIComponent(ids.securityId);
+    if(ids.lid)q+='&lid='+encodeURIComponent(ids.lid);
+    if(ids.encryptJobId)q+='&encryptJobId='+encodeURIComponent(ids.encryptJobId);
+    return '/wapi/zpgeek/job/detail.json?'+q;
+  }
+  function normalizeDetailUrl(url){
+    if(!url)return '';
+    if(url.indexOf('http')===0)return url;
+    if(url.charAt(0)==='/')return location.origin+url;
+    return location.origin+'/'+url;
+  }
+  function handleDetail(d,bodyFallback){
+    if(!(d&&d.code===0&&d.zpData&&d.zpData.jobInfo))return false;
+    var job=d.zpData.jobInfo,brand=d.zpData.brandComInfo||{};
+    var meta={title:job.jobName,salary:pickSalary(job),location:job.locationName,
+      experience:job.experienceName,degree:job.degreeName,company:brand.brandName,
+      workAddress:job.address||''};
+    var body=bodyFromApi(job,brand)||bodyFallback||domBody();
+    copyOut(header(meta)+'\\n\\n'+body,!!meta.salary);
+    return true;
+  }
   function fallback(){
     var body=domBody();
     if(!body||body.length<20)body=(window.getSelection&&window.getSelection().toString())||'';
-    if(!body||body.length<20){alert('请先打开 BOSS 岗位详情页，再点击书签');return;}
+    if(!body||body.length<20){alert('请先打开 BOSS 岗位详情页，等页面加载完成后再点书签');return;}
     copyOut(header({})+'\\n\\n'+body,false);
   }
-  try{
-    var sid=new URLSearchParams(location.search).get('securityId');
-    if(!sid){fallback();return;}
-    fetch('/wapi/zpgeek/job/detail.json?securityId='+encodeURIComponent(sid),{credentials:'include'})
+  function fetchDetail(url,bodyFallback){
+    fetch(normalizeDetailUrl(url),{credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d&&d.code===0&&d.zpData&&d.zpData.jobInfo){
-          var job=d.zpData.jobInfo,brand=d.zpData.brandComInfo||{};
-          var meta={title:job.jobName,salary:job.salaryDesc,location:job.locationName,
-            experience:job.experienceName,degree:job.degreeName,company:brand.brandName,
-            workAddress:job.address||''};
-          var body=bodyFromApi(job,brand)||domBody();
-          copyOut(header(meta)+'\\n\\n'+body,!!meta.salary);
-        }else{fallback();}
-      }).catch(fallback);
-  }catch(e){alert('提取失败，请刷新页面后重试');}
+        if(handleDetail(d,bodyFallback))return;
+        fallback();
+      }).catch(function(){fallback();});
+  }
+  function attempt(retry){
+    var cached=findCachedDetailUrl();
+    if(cached){fetchDetail(cached,domBody());return;}
+    var ids=resolveIds();
+    var built=buildDetailUrl(ids);
+    if(built){fetchDetail(built,domBody());return;}
+    if(retry<6){setTimeout(function(){attempt(retry+1);},400);return;}
+    fallback();
+  }
+  try{attempt(0);}catch(e){alert('提取失败，请刷新页面后重试');}
 })();`;
 
 export const BOSS_BOOKMARKLET = `javascript:${BOSS_BOOKMARKLET_SOURCE}`;

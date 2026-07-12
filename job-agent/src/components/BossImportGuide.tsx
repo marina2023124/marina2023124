@@ -84,6 +84,7 @@ export function BossImportGuide({ onPasteDemo }: { onPasteDemo?: () => void }) {
         <StepCard step={2} title="在 BOSS 打开岗位，点一下书签">
           <p className="mb-3 text-sm text-slate-600">
             登录 BOSS直聘 → 打开<strong>某个岗位的详情页</strong>（不是列表页）
+            → <strong>等页面完全加载</strong>（薪资数字显示后再点）
             → 点击书签栏里的「📥 导入 BOSS 岗位」→ 弹出「✅ 已复制（含薪资）」
           </p>
           <p className="mb-3 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
