@@ -7,7 +7,7 @@ import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/li
 import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime, sanitizeProfileProjects } from "@/lib/utils";
 import { canonicalProjectName } from "@/lib/project-match";
 import { filterSkillTags, extractSkillTagsFromExperience, isValidSkillTag, sanitizeProfileSkills } from "@/lib/skill-tags";
-import { getWorkExperienceLabel } from "@/lib/project-work-link";
+import { groupProjectsByWorkExperience } from "@/lib/project-work-link";
 import dynamic from "next/dynamic";
 import { Button, Card, Input, Textarea, Select, Badge } from "./ui";
 
@@ -268,11 +268,97 @@ function SkillsSection() {
   );
 }
 
+function ProjectCard({
+  project,
+  onRemove,
+  nested = false,
+}: {
+  project: Project;
+  onRemove: (id: string) => void;
+  nested?: boolean;
+}) {
+  const normalized = {
+    ...project,
+    description: project.description ?? "",
+    highlights: project.highlights ?? [],
+    technologies: project.technologies ?? [],
+  };
+  const workSummary = getProjectWorkSummary(normalized);
+  const workItems = getProjectWorkItems(normalized);
+
+  return (
+    <div
+      className={
+        nested
+          ? "rounded-lg border border-slate-200 bg-white p-4"
+          : "mb-3 rounded-lg border border-slate-200 p-4"
+      }
+    >
+      <div className="flex justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="font-semibold text-slate-900">{canonicalProjectName(project.name)}</h4>
+          {(project.tags ?? []).map((tag) => (
+            <Badge key={tag} color="amber">{tag}</Badge>
+          ))}
+        </div>
+        <button
+          onClick={() => onRemove(project.id)}
+          className="text-slate-400 hover:text-red-500"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      {project.description && <p className="mt-1 text-sm text-slate-500">{project.description}</p>}
+      {formatProjectDateRange(project) && (
+        <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(project)}</p>
+      )}
+      {(workSummary || workItems.length > 0) && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-medium text-slate-500">具体工作</p>
+          {workSummary && (
+            <p className="text-sm leading-relaxed text-slate-800">{workSummary}</p>
+          )}
+          {workItems.length > 0 && (
+            <div>
+              <p className="text-xs text-slate-400">任务明细</p>
+              <ul className="mt-1 space-y-1">
+                {workItems.map((item) => (
+                  <li key={item} className="flex gap-2 text-sm text-slate-700">
+                    <span className="shrink-0 text-slate-400">·</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {(normalized.technologies ?? []).length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {normalized.technologies.map((t) => <Badge key={t}>{t}</Badge>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectsSection() {
   const { data, setProfile } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<Project>>({});
   const [workInput, setWorkInput] = useState("");
+
+  const removeProject = (id: string) => {
+    setProfile({
+      ...data.profile,
+      projects: data.profile.projects.filter((project) => project.id !== id),
+    });
+  };
+
+  const projectGroups = groupProjectsByWorkExperience(
+    data.profile.projects,
+    data.profile.workExperiences
+  );
 
   const addProject = () => {
     if (!form.name) return;
@@ -308,63 +394,43 @@ function ProjectsSection() {
 
   return (
     <Card title="项目经验">
-      {sortProjectsByTime(data.profile.projects).map((p) => {
-        const project = {
-          ...p,
-          description: p.description ?? "",
-          highlights: p.highlights ?? [],
-          technologies: p.technologies ?? [],
-        };
-        const workSummary = getProjectWorkSummary(project);
-        const workItems = getProjectWorkItems(project);
-        const workLabel = getWorkExperienceLabel(p.workExperienceId, data.profile.workExperiences);
-        return (
-          <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
-            <div className="flex justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <h4 className="font-semibold text-slate-900">{canonicalProjectName(p.name)}</h4>
-                {(p.tags ?? []).map((tag) => (
-                  <Badge key={tag} color="amber">{tag}</Badge>
-                ))}
-              </div>
-              <button onClick={() => setProfile({ ...data.profile, projects: data.profile.projects.filter((x) => x.id !== p.id) })} className="text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+      {projectGroups.length === 0 && !showForm && (
+        <p className="mb-4 text-sm text-slate-500">暂无项目，可手动添加或从周报导入。</p>
+      )}
+      <div className="space-y-5">
+        {projectGroups.map((group) => (
+          <div key={group.workExperienceId ?? group.label} className="rounded-xl border border-violet-200 bg-violet-50/30 p-4">
+            <div className="mb-3 border-b border-violet-100 pb-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-violet-600">所属工作</p>
+              <h3 className="mt-1 text-base font-semibold text-violet-950">{group.label}</h3>
+              {group.workExperience && (
+                <p className="mt-1 text-xs text-violet-700">
+                  {formatDate(sanitizeWorkDate(group.workExperience.startDate))}
+                  {" — "}
+                  {group.workExperience.endDate
+                    ? formatDate(sanitizeWorkDate(group.workExperience.endDate))
+                    : "至今"}
+                  {" · "}
+                  {group.projects.length} 个项目
+                </p>
+              )}
+              {!group.workExperience && (
+                <p className="mt-1 text-xs text-violet-700">{group.projects.length} 个项目</p>
+              )}
             </div>
-            {workLabel && (
-              <p className="mt-1 text-xs font-medium text-violet-700">所属工作：{workLabel}</p>
-            )}
-            {p.description && <p className="mt-1 text-sm text-slate-500">{p.description}</p>}
-            {formatProjectDateRange(p) && (
-              <p className="mt-1 text-sm text-indigo-700">{formatProjectDateRange(p)}</p>
-            )}
-            {(workSummary || workItems.length > 0) && (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs font-medium text-slate-500">具体工作</p>
-                {workSummary && (
-                  <p className="text-sm leading-relaxed text-slate-800">{workSummary}</p>
-                )}
-                {workItems.length > 0 && (
-                  <div>
-                    <p className="text-xs text-slate-400">任务明细</p>
-                    <ul className="mt-1 space-y-1">
-                      {workItems.map((item) => (
-                        <li key={item} className="flex gap-2 text-sm text-slate-700">
-                          <span className="shrink-0 text-slate-400">·</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            {(project.technologies ?? []).length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {project.technologies.map((t) => <Badge key={t}>{t}</Badge>)}
-              </div>
-            )}
+            <div className="space-y-3">
+              {group.projects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  onRemove={removeProject}
+                  nested
+                />
+              ))}
+            </div>
           </div>
-        );
-      })}
+        ))}
+      </div>
       {showForm ? (
         <div className="space-y-3 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 p-4">
           <Input label="项目名称" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />

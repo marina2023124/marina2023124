@@ -34,7 +34,7 @@ import {
   parseWeeklyReportProjects,
   summarizeWeeklyReportParse,
 } from "@/lib/weekly-report-parser";
-import { getWorkExperienceLabel } from "@/lib/project-work-link";
+import { groupProjectsByWorkExperience } from "@/lib/project-work-link";
 import type { Project, WorkExperience } from "@/lib/types";
 import { Button, Textarea, Badge } from "./ui";
 
@@ -47,32 +47,40 @@ function WeeklyPreviewSummary({
   projects: Project[];
   workExperiences: WorkExperience[];
 }) {
+  const groups = groupProjectsByWorkExperience(projects, workExperiences).slice(0, 2);
+
   return (
-    <ul className="space-y-2 text-sm text-slate-600">
-      {sortProjectsByTime(projects).slice(0, 5).map((project) => {
-        const workLabel = getWorkExperienceLabel(project.workExperienceId, workExperiences);
-        const workItems = getProjectWorkItems(project);
-        return (
-          <li key={project.id}>
-            <span className="font-medium text-slate-700">{project.name}</span>
-            {(project.tags ?? []).map((tag) => (
-              <Badge key={tag} color="amber">{tag}</Badge>
-            ))}
-            {project.projectId && (
-              <span className="ml-2 text-xs text-slate-400">#{project.projectId}</span>
-            )}
-            {workLabel && <p className="text-xs text-violet-700">所属工作：{workLabel}</p>}
-            {workItems.length > 0 ? (
-              workItems.slice(0, 2).map((item) => (
-                <p key={item} className="text-xs text-slate-500">· {item}</p>
-              ))
-            ) : (
-              <p className="text-xs text-slate-400">（无本周新增任务，仅更新周期与标签）</p>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-3 text-sm text-slate-600">
+      {groups.map((group) => (
+        <div key={group.workExperienceId ?? group.label}>
+          <p className="font-medium text-violet-800">{group.label}</p>
+          <ul className="mt-1 space-y-2 pl-2">
+            {group.projects.slice(0, 3).map((project) => {
+              const workSummary = getProjectWorkSummary(project);
+              const workItems = getProjectWorkItems(project);
+              return (
+                <li key={project.id}>
+                  <span className="font-medium text-slate-700">{project.name}</span>
+                  {(project.tags ?? []).map((tag) => (
+                    <Badge key={tag} color="amber">{tag}</Badge>
+                  ))}
+                  {workSummary && (
+                    <p className="mt-0.5 text-xs text-slate-600">{workSummary}</p>
+                  )}
+                  {workItems.length > 0 ? (
+                    workItems.slice(0, 2).map((item) => (
+                      <p key={item} className="text-xs text-slate-500">· {item}</p>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">（无本周新增任务，仅更新周期与标签）</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -141,31 +149,37 @@ function PreviewSummary({ draft }: { draft: ParsedProfileDraft }) {
       {draft.projects.length > 0 && (
         <div>
           <p className="mb-1 font-medium text-slate-700">项目（{draft.projects.length}）</p>
-          <ul className="space-y-2 text-slate-600">
-            {sortProjectsByTime(draft.projects).slice(0, 3).map((p) => {
-              const workSummary = getProjectWorkSummary(p);
-              const workItems = getProjectWorkItems(p);
-              return (
-                <li key={p.id}>
-                  <span className="font-medium text-slate-700">{p.name}</span>
-                  {formatProjectDateRange(p) && (
-                    <p className="text-xs text-slate-500">{formatProjectDateRange(p)}</p>
-                  )}
-                  {workSummary && (
-                    <p className="mt-0.5 text-xs text-slate-600">{workSummary}</p>
-                  )}
-                  {workItems.length > 0 && (
-                    <ul className="mt-0.5 space-y-0.5 pl-3 text-xs text-slate-500">
-                      {workItems.slice(0, 3).map((item) => (
-                        <li key={item}>· {item}</li>
-                      ))}
-                      {workItems.length > 3 && <li>· …共 {workItems.length} 项任务</li>}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-3">
+            {groupProjectsByWorkExperience(draft.projects, draft.workExperiences).slice(0, 2).map((group) => (
+              <div key={group.workExperienceId ?? group.label}>
+                <p className="text-xs font-medium text-violet-800">{group.label}</p>
+                <ul className="mt-1 space-y-2 pl-2 text-slate-600">
+                  {group.projects.slice(0, 2).map((p) => {
+                    const workSummary = getProjectWorkSummary(p);
+                    const workItems = getProjectWorkItems(p);
+                    return (
+                      <li key={p.id}>
+                        <span className="font-medium text-slate-700">{p.name}</span>
+                        {formatProjectDateRange(p) && (
+                          <p className="text-xs text-slate-500">{formatProjectDateRange(p)}</p>
+                        )}
+                        {workSummary && (
+                          <p className="mt-0.5 text-xs text-slate-600">{workSummary}</p>
+                        )}
+                        {workItems.length > 0 && (
+                          <ul className="mt-0.5 space-y-0.5 pl-3 text-xs text-slate-500">
+                            {workItems.slice(0, 2).map((item) => (
+                              <li key={item}>· {item}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {draft.skills.length > 0 && (

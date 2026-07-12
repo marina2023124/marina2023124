@@ -1,6 +1,75 @@
 import type { WorkExperience } from "./types";
 import { sanitizeWorkDate } from "./utils";
 
+export interface ProjectWorkGroup<T extends { workExperienceId?: string; startDate?: string; endDate?: string; status?: string; name: string }> {
+  workExperienceId?: string;
+  label: string;
+  workExperience?: WorkExperience;
+  projects: T[];
+}
+
+function projectSortKey(project: { endDate?: string; startDate?: string }): string {
+  return project.endDate || project.startDate || "";
+}
+
+function sortProjectsNewestFirst<T extends { endDate?: string; startDate?: string; status?: string; name: string }>(
+  projects: T[]
+): T[] {
+  return [...projects].sort((a, b) => {
+    const aOngoing = a.status === "ongoing";
+    const bOngoing = b.status === "ongoing";
+    if (aOngoing !== bOngoing) return aOngoing ? -1 : 1;
+    const byTime = projectSortKey(b).localeCompare(projectSortKey(a));
+    if (byTime !== 0) return byTime;
+    return a.name.localeCompare(b.name, "zh");
+  });
+}
+
+/** Group projects under their affiliated work experience for hierarchical display */
+export function groupProjectsByWorkExperience<
+  T extends { workExperienceId?: string; startDate?: string; endDate?: string; status?: string; name: string },
+>(projects: T[], workExperiences: WorkExperience[]): ProjectWorkGroup<T>[] {
+  const buckets = new Map<string | undefined, T[]>();
+
+  for (const project of projects) {
+    const key = project.workExperienceId;
+    const list = buckets.get(key) ?? [];
+    list.push(project);
+    buckets.set(key, list);
+  }
+
+  const groups: ProjectWorkGroup<T>[] = [];
+
+  for (const exp of workExperiences) {
+    const list = buckets.get(exp.id);
+    if (!list?.length) continue;
+    groups.push({
+      workExperienceId: exp.id,
+      label: formatWorkExperienceTag(exp),
+      workExperience: exp,
+      projects: sortProjectsNewestFirst(list),
+    });
+    buckets.delete(exp.id);
+  }
+
+  const orphanEntries = Array.from(buckets.entries()).filter(([, list]) => list.length > 0);
+  orphanEntries.sort((a, b) => {
+    const aKey = projectSortKey(a[1][0]);
+    const bKey = projectSortKey(b[1][0]);
+    return bKey.localeCompare(aKey);
+  });
+
+  for (const [key, list] of orphanEntries) {
+    groups.push({
+      workExperienceId: key,
+      label: key ? getWorkExperienceLabel(key, workExperiences) ?? "其他工作" : "未关联工作",
+      projects: sortProjectsNewestFirst(list),
+    });
+  }
+
+  return groups;
+}
+
 function toMonthIndex(dateStr: string): number | null {
   const sanitized = sanitizeWorkDate(dateStr.slice(0, 7));
   const [yearRaw, monthRaw] = sanitized.split("-");
