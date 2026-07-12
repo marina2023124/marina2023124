@@ -358,6 +358,7 @@ export function sanitizeProfileProjects<T extends {
   description: string;
   highlights: string[];
   technologies?: string[];
+  tags?: string[];
   startDate?: string;
   endDate?: string;
   status?: "ongoing" | "completed";
@@ -374,6 +375,7 @@ export function sanitizeProfileProjects<T extends {
       description: project.description || "",
       highlights: project.highlights ?? [],
       technologies: project.technologies ?? [],
+      tags: project.tags ?? [],
       projectId: project.projectId || extractProjectId(project),
     };
     const summary = getProjectWorkSummary(normalized);

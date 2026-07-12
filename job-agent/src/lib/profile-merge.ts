@@ -69,6 +69,7 @@ function mergeProjects(
       ...current,
       description: current.description || item.description,
       technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
+      tags: Array.from(new Set([...(current.tags ?? []), ...(item.tags ?? [])])),
       highlights,
       projectId: current.projectId || item.projectId,
       startDate,

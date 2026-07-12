@@ -49,6 +49,8 @@ export interface Project {
   status?: "ongoing" | "completed";
   /** 所属工作经历 ID（按项目时间自动匹配） */
   workExperienceId?: string;
+  /** 项目标签，如 P0、P1 优先级 */
+  tags?: string[];
 }
 
 export interface Profile {

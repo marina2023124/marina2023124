@@ -320,7 +320,12 @@ function ProjectsSection() {
         return (
           <div key={p.id} className="mb-3 rounded-lg border border-slate-200 p-4">
             <div className="flex justify-between">
-              <h4 className="font-semibold text-slate-900">{p.name}</h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="font-semibold text-slate-900">{p.name}</h4>
+                {(p.tags ?? []).map((tag) => (
+                  <Badge key={tag} color="amber">{tag}</Badge>
+                ))}
+              </div>
               <button onClick={() => setProfile({ ...data.profile, projects: data.profile.projects.filter((x) => x.id !== p.id) })} className="text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
             </div>
             {workLabel && (

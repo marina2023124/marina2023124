@@ -36,8 +36,6 @@ const PROJECT_TITLE_ONLY_RE =
 const SKIP_PROJECT_LINE_RE =
   /每个工作日.*汇报|^P[01]每个工作日|^P3项目[：:]|^P3项目$|^P[23](?:【[^】]+】)?\s*《|^R1已购|^S2\/6|^其他用户访问|^计划[：:]|^方法策略|^业务价值|^资源支持|^目标达成|做对的方面|没有做对的方面|核心观点|接需求|SMARS|【执行待定】$/;
 const CONTINUATION_LINE_RE = /^周[一二三四五六日]|^→|^①|^②|^③|^\d+[、.]/;
-const PRIORITY_PROJECT_RE =
-  /^P[01](?:【[^】]+】)?\s*(.+?)[。.](.+)$/;
 const BARE_PROJECT_LINE_RE =
   /^([A-Za-z\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5&+／/（）()·\s]{1,30}?)[。.](.+)$/;
 
@@ -56,10 +54,62 @@ export function isWeeklyReportText(text: string): boolean {
 interface WeeklyEntry {
   projectId?: string;
   projectName?: string;
+  priority?: string;
+  tags?: string[];
   tasks: string[];
   weekStart?: string;
   weekEnd?: string;
   weekLabel?: string;
+}
+
+const STATUS_SEGMENT_RE =
+  /^(已达成|未达成|已推进|已同步|未按时达成|未调研|未达成|EOD达成|持续推进|原计划|计划[：:]|→|——)/;
+const STATUS_INLINE_RE =
+  /已达成|未达成|已推进|已同步|【被动调整】|【主动调整】|【新增高优】|【本周新增】|【紧急新增】|【被动调整】/g;
+
+function extractPriority(line: string): string | undefined {
+  const match = line.match(/^(P[0-3])/i);
+  return match?.[1]?.toUpperCase();
+}
+
+/** 从周报行提取实质工作内容，过滤「已达成」「原计划→」等动态记录 */
+function extractSubstantiveWork(line: string, projectName: string): string[] {
+  let body = line.replace(/^P[0-3](?:【[^】]+】)?\s*/i, "").trim();
+  const escaped = projectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  body = body.replace(new RegExp(`^${escaped}\\s*[。.]?\\s*`), "");
+
+  const parts = body.split(/[。.]/).map((p) => p.trim()).filter(Boolean);
+  const items: string[] = [];
+
+  for (const part of parts) {
+    if (STATUS_SEGMENT_RE.test(part)) continue;
+    if (/^→/.test(part)) continue;
+    if (/^(被动调整|主动调整|新增高优|本周新增|紧急新增)/.test(part)) continue;
+
+    const cleaned = part
+      .replace(/^(已达成|未达成|已推进|已同步)[、，,。\s]*/i, "")
+      .replace(STATUS_INLINE_RE, "")
+      .trim();
+
+    if (/^原计划/.test(cleaned) && (/→/.test(cleaned) || cleaned.length < 20)) continue;
+    if (!cleaned || cleaned.length < 4) continue;
+    if (/^(已更新|未调研|调整为|因.+暂停)/.test(cleaned) && cleaned.length < 35) continue;
+
+    items.push(cleaned);
+  }
+
+  if (items.length === 0 && CONTINUATION_LINE_RE.test(line)) {
+    const cont = line.replace(STATUS_INLINE_RE, "").trim();
+    if (cont.length >= 6 && !STATUS_SEGMENT_RE.test(cont)) items.push(cont);
+  }
+
+  return items;
+}
+
+function buildWeeklyEntry(line: string, projectName: string, priority?: string): WeeklyEntry {
+  const tasks = extractSubstantiveWork(line, projectName);
+  const tags = priority ? [priority] : [];
+  return { projectName, priority, tags, tasks };
 }
 
 /** ISO 工作周：周一～周五，如 WK28 2026 = 7.6-7.10 */
@@ -127,11 +177,12 @@ function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
   if (SKIP_PROJECT_LINE_RE.test(line)) return null;
   if (/^P[23]/i.test(line)) return null;
 
-  const priority = line.match(PRIORITY_PROJECT_RE);
-  if (priority) {
-    const name = priority[1].trim();
+  const priority = extractPriority(line);
+  const priorityLine = line.match(/^P[0-3](?:【[^】]+】)?\s*(.+?)[。.](.+)$/);
+  if (priorityLine) {
+    const name = priorityLine[1].trim();
     if (name.length >= 2 && name.length <= 40) {
-      return { projectName: name, tasks: [line] };
+      return buildWeeklyEntry(line, name, priority);
     }
   }
 
@@ -145,7 +196,7 @@ function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
         !/^(做对的|没有做|分类|包括|方法|业务|资源)/.test(name) &&
         (VERB_RE.test(line) || /已达成|已推进|已同步|原计划|→/.test(line))
       ) {
-        return { projectName: name, tasks: [line] };
+        return buildWeeklyEntry(line, name);
       }
     }
   }
@@ -218,7 +269,7 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
   let lastPushedIndex = -1;
 
   const flushCurrent = () => {
-    if (currentEntry && currentEntry.tasks.length > 0) {
+    if (currentEntry && (currentEntry.projectName || currentEntry.tasks.length > 0)) {
       entries.push(withWeekContext(currentEntry, week));
       lastPushedIndex = entries.length - 1;
     }
@@ -232,12 +283,18 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
   };
 
   const appendToLast = (line: string) => {
+    const cleaned = line.replace(STATUS_INLINE_RE, "").trim();
+    if (!cleaned || STATUS_SEGMENT_RE.test(cleaned)) return false;
     if (lastPushedIndex >= 0) {
-      entries[lastPushedIndex].tasks.push(line);
+      if (!entries[lastPushedIndex].tasks.includes(cleaned)) {
+        entries[lastPushedIndex].tasks.push(cleaned);
+      }
       return true;
     }
     if (currentEntry) {
-      currentEntry.tasks.push(line);
+      if (!currentEntry.tasks.includes(cleaned)) {
+        currentEntry.tasks.push(cleaned);
+      }
       return true;
     }
     return false;
@@ -450,6 +507,10 @@ function findExistingProject(
   return undefined;
 }
 
+function mergeTags(current: string[] = [], incoming: string[] = []): string[] {
+  return Array.from(new Set([...current, ...incoming]));
+}
+
 function mergeHighlights(current: string[], incoming: string[]): string[] {
   const result = [...current];
   for (const task of incoming) {
@@ -483,8 +544,10 @@ export function parseWeeklyReportProjects(
       const current = updates.get(key) || {
         ...existing,
         highlights: [...(existing.highlights ?? [])],
+        tags: [...(existing.tags ?? [])],
       };
       current.highlights = mergeHighlights(current.highlights ?? [], entry.tasks);
+      current.tags = mergeTags(current.tags, entry.tags);
       current.startDate = minIsoDate(current.startDate, weekDates.start);
       current.endDate = maxIsoDate(current.endDate, weekDates.end);
       current.status = "ongoing";
@@ -504,12 +567,13 @@ export function parseWeeklyReportProjects(
       : "";
     const created: Project = {
       id: generateId(),
-      name: entry.projectName || (entry.projectId ? `项目 ${entry.projectId}` : entry.tasks[0].slice(0, 24)),
+      name: entry.projectName || (entry.projectId ? `项目 ${entry.projectId}` : entry.tasks[0]?.slice(0, 24) || "未命名项目"),
       description: entry.projectId
         ? `项目编号 ${entry.projectId}${weekNote ? `；${weekNote}` : ""}`
         : weekNote,
       projectId: entry.projectId,
       technologies: [],
+      tags: entry.tags ?? [],
       highlights: entry.tasks,
       startDate: weekDates.start,
       endDate: weekDates.end,

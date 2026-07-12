@@ -45,6 +45,24 @@ async function main() {
     process.exit(1);
   }
 
+  const strategic = projects.find((p) => p.name.includes("产品战略"));
+  if (!strategic?.tags?.includes("P0")) {
+    console.error("FAIL: 产品战略分析 should have P0 tag", strategic?.tags);
+    process.exit(1);
+  }
+
+  const wbr = projects.find((p) => p.name.includes("线下WBR"));
+  const wbrText = (wbr?.highlights ?? []).join(" ");
+  if (/已达成|被动调整|原计划/.test(wbrText)) {
+    console.error("FAIL: 线下WBR highlights should not contain status noise", wbr?.highlights);
+    process.exit(1);
+  }
+
+  if (strategic && !(strategic.highlights ?? []).some((h) => h.includes("学而思"))) {
+    console.error("FAIL: 产品战略分析 should keep substantive deliverables");
+    process.exit(1);
+  }
+
   const first = projects[0];
   if (first.startDate !== "2026-07-06" || first.endDate !== "2026-07-10") {
     console.error("FAIL: WK28 dates", first.startDate, first.endDate);

@@ -55,13 +55,20 @@ function WeeklyPreviewSummary({
         return (
           <li key={project.id}>
             <span className="font-medium text-slate-700">{project.name}</span>
+            {(project.tags ?? []).map((tag) => (
+              <Badge key={tag} color="amber">{tag}</Badge>
+            ))}
             {project.projectId && (
               <span className="ml-2 text-xs text-slate-400">#{project.projectId}</span>
             )}
             {workLabel && <p className="text-xs text-violet-700">所属工作：{workLabel}</p>}
-            {workItems.slice(0, 2).map((item) => (
-              <p key={item} className="text-xs text-slate-500">· {item}</p>
-            ))}
+            {workItems.length > 0 ? (
+              workItems.slice(0, 2).map((item) => (
+                <p key={item} className="text-xs text-slate-500">· {item}</p>
+              ))
+            ) : (
+              <p className="text-xs text-slate-400">（无本周新增任务，仅更新周期与标签）</p>
+            )}
           </li>
         );
       })}
@@ -328,7 +335,7 @@ export function SmartExperienceImport() {
             <p className="mt-1">PDF、Word（.docx）、Excel（.xlsx/.xls/.csv）、图片（OCR）、纯文本</p>
             <p className="mt-1">
               {importMode === "weekly"
-                ? "周报模式：识别「本周项目」版块，支持项目编号或「项目名：任务」格式，合并到已有项目"
+                ? "周报模式：识别「本周项目」与 WK 周期；P0/P1 记入标签，不录入已达成/调整类动态"
                 : "Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）"}
             </p>
             <div className="mt-2 flex gap-3">
