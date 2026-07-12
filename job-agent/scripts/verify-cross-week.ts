@@ -1,8 +1,8 @@
 import mammoth from "mammoth";
 import {
   normalizeProjectName,
-  parseWeeklyReportProjects,
-} from "../src/lib/weekly-report-parser";
+} from "../src/lib/project-name";
+import { parseWeeklyReportProjects } from "../src/lib/weekly-report-parser";
 
 const DOC =
   "/home/ubuntu/.cursor/projects/workspace/uploads/_________2026-07-11__c62c.docx";
@@ -29,6 +29,10 @@ async function main() {
   }
   if ((xts.highlights ?? []).length < 3) {
     console.error("FAIL: XTS should merge highlights from multiple weeks", xts.highlights);
+    process.exit(1);
+  }
+  if (!(xts.highlights ?? []).every((h) => /^WK\d{1,2}\b/.test(h))) {
+    console.error("FAIL: XTS highlights should be labeled with WK prefix", xts.highlights);
     process.exit(1);
   }
 

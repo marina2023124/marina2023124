@@ -1,5 +1,6 @@
 import { summarizeProjectFromMeta, summarizeProjectWork } from "./project-work-summary";
 import { linkProjectsToWorkExperiences } from "./project-work-link";
+import { normalizeProjectName } from "./project-name";
 import type { WorkExperience } from "./types";
 
 export function generateId(): string {
@@ -372,6 +373,7 @@ export function sanitizeProfileProjects<T extends {
   const enriched = projects.map((project) => {
     const normalized = {
       ...project,
+      name: normalizeProjectName(project.name),
       description: project.description || "",
       highlights: project.highlights ?? [],
       technologies: project.technologies ?? [],

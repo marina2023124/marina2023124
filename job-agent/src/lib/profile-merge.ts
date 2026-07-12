@@ -1,5 +1,5 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
-import { normalizeProjectName } from "./weekly-report-parser";
+import { normalizeProjectName } from "./project-name";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
 import { calcDurationDays, maxIsoDate, minIsoDate, getProjectWorkItems, sanitizeProfileProjects, extractProjectId } from "./utils";
@@ -68,6 +68,7 @@ function mergeProjects(
       current.status === "ongoing" || item.status === "ongoing" ? "ongoing" : "completed";
     const mergedProject: Project = {
       ...current,
+      name: normalizeProjectName(current.name || item.name),
       description: current.description || item.description,
       technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
       tags: Array.from(new Set([...(current.tags ?? []), ...(item.tags ?? [])])),

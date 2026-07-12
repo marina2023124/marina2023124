@@ -1,4 +1,5 @@
 import type { Project } from "./types";
+import { labelWeeklyTasks, normalizeProjectName, stripWeekPrefix } from "./project-name";
 import {
   extractProjectId,
   generateId,
@@ -39,8 +40,6 @@ const CONTINUATION_LINE_RE =
   /^周[一二三四五六日]|^→|^——|^①|^②|^③|^\d+[、.]/;
 const STATUS_WORDS_RE =
   /已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进/;
-const PROJECT_STATUS_SUFFIX_RE =
-  /[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进)\s*$/i;
 const BARE_PROJECT_LINE_RE =
   /^([A-Za-z\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5&+／/（）()·\s]{1,30}?)[。.](.+)$/;
 
@@ -71,14 +70,6 @@ const STATUS_SEGMENT_RE =
   /^(已达成|未达成|已推进|已同步|未按时达成|未调研|EOD达成|持续推进|原计划|计划[：:]|卡点[：:]|→|——)/;
 const STATUS_INLINE_RE =
   /已达成|未达成|已推进|已同步|【被动调整】|【主动调整】|【新增高优】|【本周新增】|【紧急新增】/g;
-
-/** 去掉项目名称末尾的状态标记，如「XTS决策链路，已达成」→「XTS决策链路」 */
-export function normalizeProjectName(name: string): string {
-  return name
-    .replace(PROJECT_STATUS_SUFFIX_RE, "")
-    .replace(/\s*(已达成|未达成|已推进|已同步)\s*$/i, "")
-    .trim();
-}
 
 function extractPriority(line: string): string | undefined {
   const match = line.match(/^(P[0-3])/i);
@@ -666,7 +657,18 @@ function mergeHighlights(current: string[], incoming: string[]): string[] {
   for (const task of incoming) {
     const normalized = task.trim();
     if (!normalized) continue;
-    if (!result.some((item) => item === normalized || item.includes(normalized) || normalized.includes(item))) {
+    const bare = stripWeekPrefix(normalized);
+    if (
+      !result.some((item) => {
+        const itemBare = stripWeekPrefix(item);
+        return (
+          item === normalized ||
+          itemBare === bare ||
+          item.includes(normalized) ||
+          normalized.includes(item)
+        );
+      })
+    ) {
       result.push(normalized);
     }
   }
@@ -693,6 +695,8 @@ export function parseWeeklyReportProjects(
       ? normalizeProjectName(entry.projectName)
       : undefined;
 
+    const labeledTasks = labelWeeklyTasks(entry.tasks, entry.weekLabel);
+
     if (existing) {
       const current = updates.get(key) || {
         ...existing,
@@ -701,7 +705,7 @@ export function parseWeeklyReportProjects(
         tags: [...(existing.tags ?? [])],
       };
       current.name = normalizeProjectName(current.name);
-      current.highlights = mergeHighlights(current.highlights ?? [], entry.tasks);
+      current.highlights = mergeHighlights(current.highlights ?? [], labeledTasks);
       current.tags = mergeTags(current.tags, entry.tags);
       current.startDate = minIsoDate(current.startDate, weekDates.start);
       current.endDate = maxIsoDate(current.endDate, weekDates.end);
@@ -731,7 +735,7 @@ export function parseWeeklyReportProjects(
       projectId: entry.projectId,
       technologies: [],
       tags: entry.tags ?? [],
-      highlights: entry.tasks,
+      highlights: labeledTasks,
       startDate: weekDates.start,
       endDate: weekDates.end,
       status: "ongoing",
@@ -742,6 +746,8 @@ export function parseWeeklyReportProjects(
 
   return Array.from(updates.values());
 }
+
+export { normalizeProjectName, labelWeeklyTasks } from "./project-name";
 
 export function summarizeWeeklyReportParse(projects: Project[], sourceText: string): string {
   const entryCount = parseWeeklyEntries(sourceText).length;
