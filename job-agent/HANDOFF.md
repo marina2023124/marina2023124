@@ -1,6 +1,6 @@
 # JobAgent 交接文档
 
-> 写给**完全没有上下文**的新会话。最后更新：**v0.2.37-cloud-only-default**（分支 `cursor/job-finding-agent-5260`）。
+> 最后更新：**v0.2.37-cloud-only-default**（分支 `cursor/job-finding-agent-5260`）。Vercel 生产部署需跟踪此分支并 Redeploy。
 
 ---
 
