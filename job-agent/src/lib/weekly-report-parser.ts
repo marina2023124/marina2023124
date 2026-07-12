@@ -1,5 +1,16 @@
 import type { Project } from "./types";
-import { labelWeeklyTasks, mergeWeeklyHighlights, normalizeProjectName, normalizeTaskHighlight, isNoiseTaskHighlight } from "./project-name";
+import {
+  extractBlockerContent,
+  extractPlanActualContent,
+  findProjectIndexForMetaLine,
+} from "./project-match";
+import {
+  isNoiseTaskHighlight,
+  labelWeeklyTasks,
+  mergeWeeklyHighlights,
+  normalizeProjectName,
+  normalizeTaskHighlight,
+} from "./project-name";
 import {
   extractProjectId,
   generateId,
@@ -347,7 +358,11 @@ function withWeekContext(
   };
 }
 
-function parseBlockEntries(text: string, week?: { start: string; end: string; label: string }): WeeklyEntry[] {
+function parseBlockEntries(
+  text: string,
+  week?: { start: string; end: string; label: string },
+  priorWeekGoalNames: string[] = []
+): WeeklyEntry[] {
   const entries: WeeklyEntry[] = [];
   let inProjectSection = false;
   let currentEntry: WeeklyEntry | null = null;
@@ -365,6 +380,31 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
     flushCurrent();
     entries.push(withWeekContext(entry, week));
     lastPushedIndex = entries.length - 1;
+  };
+
+  const appendMetaToProject = (line: string, kind: "plan" | "blocker") => {
+    const content =
+      kind === "plan" ? extractPlanActualContent(line) : extractBlockerContent(line);
+    if (!content) return false;
+
+    let targetIdx = findProjectIndexForMetaLine(line, entries, lastPushedIndex);
+    if (targetIdx < 0 && priorWeekGoalNames.length) {
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const name = entries[i].projectName;
+        if (name && priorWeekGoalNames.some((goal) => name.includes(goal) || goal.includes(name))) {
+          if (kind === "blocker" || findProjectIndexForMetaLine(line, [entries[i]], 0) >= 0) {
+            targetIdx = i;
+            break;
+          }
+        }
+      }
+    }
+    if (targetIdx < 0) return false;
+
+    if (!entries[targetIdx].tasks.includes(content)) {
+      entries[targetIdx].tasks.push(content);
+    }
+    return true;
   };
 
   const appendToLast = (line: string) => {
@@ -439,11 +479,11 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
 
     if (inProjectSection) {
       if (/^计划[：:]/.test(line)) {
-        const dashPart = line.match(/——\s*(.+)/);
-        if (dashPart) appendToLast(dashPart[1]);
+        appendMetaToProject(line, "plan");
         continue;
       }
       if (/^卡点[：:]/.test(line)) {
+        appendMetaToProject(line, "blocker");
         continue;
       }
 
@@ -518,15 +558,40 @@ function extractWeeklyProjectBlock(sectionText: string): string {
   return match?.[1]?.trim() ?? "";
 }
 
+/** 提取「下周目标」中的项目名称，用于理解跨周衔接（上周目标 → 本周项目） */
+function extractNextGoalProjectNames(sectionText: string): string[] {
+  const block = sectionText.match(
+    /下周目标[：:.]?\s*([\s\S]*?)(?=\n\s*(?:资源支持|P3项目|方法策略|业务价值)|$)/i
+  )?.[1];
+  if (!block) return [];
+
+  const names: string[] = [];
+  for (const rawLine of block.split("\n")) {
+    const line = cleanTaskLine(rawLine);
+    if (!line || SKIP_PROJECT_LINE_RE.test(line)) continue;
+    const parsed = tryParsePriorityProjectLine(line);
+    if (parsed?.projectName && !/^(每个工作日|计划|卡点)$/i.test(parsed.projectName)) {
+      names.push(normalizeProjectName(parsed.projectName));
+    }
+  }
+  return Array.from(new Set(names));
+}
+
 function parseWeeklyEntries(text: string): WeeklyEntry[] {
   if (/\bWK\s*\d{1,2}\b/i.test(text)) {
     const year = extractReportYear(text);
     const all: WeeklyEntry[] = [];
-    for (const section of splitWeekSections(text)) {
+    const sections = splitWeekSections(text);
+
+    for (let i = 0; i < sections.length; i++) {
+      const section = sections[i];
       const week = workWeekRange(year, section.week);
       const block = extractWeeklyProjectBlock(section.content);
       const body = block ? `本周项目\n${block}` : section.content;
-      all.push(...parseBlockEntries(body, week));
+      const priorWeekGoalNames = sections[i + 1]
+        ? extractNextGoalProjectNames(sections[i + 1].content)
+        : [];
+      all.push(...parseBlockEntries(body, week, priorWeekGoalNames));
     }
     if (all.length) return all;
   }

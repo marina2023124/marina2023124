@@ -4,6 +4,7 @@ import {
   normalizeProjectName,
 } from "../src/lib/project-name";
 import { mergeWeeklyReportProjects } from "../src/lib/profile-merge";
+import { sanitizeProfileProjects } from "../src/lib/utils";
 import { parseWeeklyReportProjects } from "../src/lib/weekly-report-parser";
 import type { Project } from "../src/lib/types";
 
@@ -75,7 +76,69 @@ async function main() {
     !r2 ||
     !(r2.highlights ?? []).some((h) => h.includes("PSM&弹性&雷达图均收齐"))
   ) {
-    console.error("FAIL: R2 should include —— actual completion from 计划 line", r2?.highlights);
+    console.error("FAIL: R2 should include plan actual from —— line", r2?.highlights);
+    process.exit(1);
+  }
+  if (!(r2.highlights ?? []).some((h) => h.includes("产出在形式和内容合理性"))) {
+    console.error("FAIL: R2 should include blocker content from 卡点 line", r2?.highlights);
+    process.exit(1);
+  }
+  if (wk27projects.some((p) => p.name === "计划" || p.name === "卡点")) {
+    console.error("FAIL: 计划/卡点 should not be projects");
+    process.exit(1);
+  }
+
+  const junkProfile = {
+    name: "测试",
+    email: "",
+    summary: "",
+    targetRoles: [],
+    targetIndustries: [],
+    preferredLocations: [],
+    workExperiences: [],
+    educations: [],
+    skills: [],
+    projects: [
+      {
+        id: "r2",
+        name: "R2新品规划",
+        description: "",
+        technologies: [],
+        highlights: [],
+        status: "ongoing" as const,
+      },
+      {
+        id: "plan-junk",
+        name: "计划",
+        description: "WK27",
+        technologies: [],
+        highlights: [
+          "计划：PSM&弹性打磨观点，雷达图周一收齐，思维拓展专项，预计周一二三访问约10位4k+预算用户。——PSM&弹性&雷达图均收齐，思维拓展/AI素养实际访问9位（2位R1+7位T6用户）。",
+        ],
+        status: "ongoing" as const,
+      },
+      {
+        id: "blocker-junk",
+        name: "卡点",
+        description: "WK27",
+        technologies: [],
+        highlights: ["卡点：产出在形式和内容合理性上有一定不足，需多次迭代，造成返工"],
+        status: "ongoing" as const,
+      },
+    ],
+  };
+  const absorbed = sanitizeProfileProjects(junkProfile.projects, []);
+  if (absorbed.some((p) => p.name === "计划" || p.name === "卡点")) {
+    console.error("FAIL: absorb should remove 计划/卡点 cards");
+    process.exit(1);
+  }
+  const absorbedR2 = absorbed.find((p) => p.name === "R2新品规划");
+  if (
+    !absorbedR2 ||
+    !(absorbedR2.highlights ?? []).some((h) => h.includes("PSM&弹性&雷达图均收齐")) ||
+    !(absorbedR2.highlights ?? []).some((h) => h.includes("产出在形式和内容合理性"))
+  ) {
+    console.error("FAIL: junk 计划/卡点 should merge into R2", absorbedR2?.highlights);
     process.exit(1);
   }
 

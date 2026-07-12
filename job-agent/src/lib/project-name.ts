@@ -40,6 +40,7 @@ export function isNoiseTaskHighlight(text: string): boolean {
   if (/^P[0-3]/i.test(bare) && /已达成|已推进/.test(bare) && bare.length < 48) {
     return true;
   }
+  if (/^计划[：:]/i.test(bare) || /^卡点[：:]/i.test(bare)) return true;
   return false;
 }
 
