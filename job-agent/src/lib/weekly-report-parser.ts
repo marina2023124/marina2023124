@@ -18,11 +18,27 @@ const WEEK_RANGE_RE =
 const SINGLE_WEEK_RE =
   /(\d{4})[./年-](\d{1,2})[./月-](\d{1,2})?\s*(?:周报|周工作|Weekly)/i;
 
+const PROJECT_SECTION_HEADER_RE =
+  /^(本周项目|本周工作|本周完成|本周进展|本周任务|进行中项目|项目进展)([：:。.\s]*)$/i;
+const PROJECT_SECTION_INLINE_RE =
+  /^(本周项目|本周工作|本周完成|本周进展|本周任务)[：:]\s*(.+)$/i;
+const END_SECTION_RE =
+  /^(下周计划|下周工作|下月计划|下周任务|备注|附件|工作总结|其他事项)([：:。.\s]*)$/i;
+const CATEGORY_LABEL_RE = /^[a-zA-Z][）).、:：]\s*[\u4e00-\u9fa5A-Za-z]{1,16}$/;
+const SKIP_META_RE = /^(姓名|部门|岗位|汇报人|日期|分类包括|LLM支持)/i;
+const VERB_RE =
+  /完成|进行|负责|撰写|访谈|问卷|调研|报告|投放|分析|总结|整理|交付|推进|开展|深访|焦点小组|清洗|输出|招募|测试|上线|优化|开发|设计|座谈|纪要|投放|运营|沉淀/;
+const PROJECT_TITLE_ONLY_RE =
+  /^[\u4e00-\u9fa5A-Za-z0-9（）()·/&+]{2,30}$/;
+
 export function isWeeklyReportText(text: string): boolean {
   const sample = text.slice(0, 2000);
   return (
-    /周报|本周工作|本周完成|本周进展|周工作总结|本周任务|下周计划|Weekly\s*Report/i.test(sample) ||
-    (/本周|下周/.test(sample) && /\b\d{6,7}\b/.test(sample))
+    /周报|本周工作|本周完成|本周进展|本周项目|周工作总结|本周任务|下周计划|Weekly\s*Report/i.test(
+      sample
+    ) ||
+    (/本周|下周/.test(sample) && /\b\d{6,7}\b/.test(sample)) ||
+    /本周项目[：:\s]/i.test(sample)
   );
 }
 
@@ -41,12 +57,6 @@ function cleanTaskLine(line: string): string {
     .trim();
 }
 
-function isSectionHeader(line: string): boolean {
-  return /^(本周工作|本周完成|本周进展|本周任务|下周计划|工作总结|周报|项目进展|进行中项目|备注)[：:]?\s*$/i.test(
-    line
-  );
-}
-
 function extractNameFromTail(tail: string): string | undefined {
   const cleaned = tail
     .replace(/[：:].+$/, "")
@@ -58,40 +68,161 @@ function extractNameFromTail(tail: string): string | undefined {
   return undefined;
 }
 
-function parseWeeklyEntries(text: string): WeeklyEntry[] {
-  const entries: WeeklyEntry[] = [];
+function tryParseStructuredLine(line: string): WeeklyEntry | null {
+  const structured = line.match(PROJECT_LINE_RE) || line.match(PROJECT_ID_TASK_RE);
+  if (!structured) return null;
 
-  for (const rawLine of text.split("\n")) {
-    const line = cleanTaskLine(rawLine);
-    if (!line || line.length < 4 || isSectionHeader(line)) continue;
-    if (/^(姓名|部门|岗位|汇报人|日期)[：:]/i.test(line)) continue;
+  const projectId = structured[1].toLowerCase() === "proposal" ? "proposal" : structured[1];
+  const tail = structured[2].trim();
+  return {
+    projectId,
+    projectName: extractNameFromTail(tail),
+    tasks: [tail],
+  };
+}
 
-    const structured = line.match(PROJECT_LINE_RE) || line.match(PROJECT_ID_TASK_RE);
-    if (structured) {
-      const projectId = structured[1].toLowerCase() === "proposal" ? "proposal" : structured[1];
-      const tail = structured[2].trim();
-      entries.push({
-        projectId,
-        projectName: extractNameFromTail(tail),
-        tasks: [tail],
-      });
-      continue;
-    }
-
-    const inlineId = line.match(/\b(\d{6,7}|proposal)\b/i);
-    if (
-      inlineId &&
-      /完成|进行|负责|撰写|访谈|问卷|调研|报告|投放|分析|总结|整理|交付|推进|开展|深访|焦点小组/i.test(line)
-    ) {
-      const projectId =
-        inlineId[1].toLowerCase() === "proposal" ? "proposal" : inlineId[1];
-      entries.push({
-        projectId,
-        tasks: [line],
-      });
+function tryParseNameTaskLine(line: string): WeeklyEntry | null {
+  const colon = line.match(/^(.{2,30}?)[：:]\s*(.+)$/);
+  if (colon && colon[2].length >= 2) {
+    const name = colon[1].trim();
+    if (!/^(本周|下周|分类|包括|项目)/.test(name)) {
+      return { projectName: name, tasks: [line] };
     }
   }
 
+  const dash = line.match(/^(.{2,30}?)\s*[-–—]\s*(.+)$/);
+  if (dash && dash[2].length >= 4 && VERB_RE.test(line)) {
+    return { projectName: dash[1].trim(), tasks: [line] };
+  }
+
+  const verbSplit = line.match(
+    /^(.{2,24}?)(完成|进行|负责|撰写|访谈|投放|整理|交付|推进|清洗|输出|深访|开展|设计|开发|测试|优化).+/
+  );
+  if (verbSplit && verbSplit[1].length >= 2) {
+    const name = verbSplit[1].trim();
+    if (!/本周|下周|分类|包括|用研|算法|智能体/.test(name) || name.length >= 4) {
+      return { projectName: name, tasks: [line] };
+    }
+  }
+
+  return null;
+}
+
+function tryParseInlineIdLine(line: string): WeeklyEntry | null {
+  const inlineId = line.match(/\b(\d{6,7}|proposal)\b/i);
+  if (
+    inlineId &&
+    VERB_RE.test(line)
+  ) {
+    const projectId =
+      inlineId[1].toLowerCase() === "proposal" ? "proposal" : inlineId[1];
+    return {
+      projectId,
+      tasks: [line],
+    };
+  }
+  return null;
+}
+
+function parseWeeklyEntries(text: string): WeeklyEntry[] {
+  const entries: WeeklyEntry[] = [];
+  let inProjectSection = false;
+  let currentEntry: WeeklyEntry | null = null;
+
+  const flushCurrent = () => {
+    if (currentEntry && currentEntry.tasks.length > 0) {
+      entries.push(currentEntry);
+    }
+    currentEntry = null;
+  };
+
+  const pushEntry = (entry: WeeklyEntry) => {
+    flushCurrent();
+    entries.push(entry);
+  };
+
+  for (const rawLine of text.split("\n")) {
+    const line = cleanTaskLine(rawLine);
+    if (!line || line.length < 2) continue;
+    if (SKIP_META_RE.test(line)) {
+      flushCurrent();
+      continue;
+    }
+    if (CATEGORY_LABEL_RE.test(line)) {
+      flushCurrent();
+      continue;
+    }
+
+    if (END_SECTION_RE.test(line)) {
+      flushCurrent();
+      inProjectSection = false;
+      continue;
+    }
+
+    const inlineSection = line.match(PROJECT_SECTION_INLINE_RE);
+    if (inlineSection) {
+      flushCurrent();
+      inProjectSection = true;
+      const remainder = inlineSection[2].trim();
+      if (remainder.length >= 4) {
+        const structured = tryParseStructuredLine(remainder);
+        if (structured) pushEntry(structured);
+        else {
+          const nameTask = tryParseNameTaskLine(remainder);
+          if (nameTask) pushEntry(nameTask);
+          else pushEntry({ tasks: [remainder] });
+        }
+      }
+      continue;
+    }
+
+    if (PROJECT_SECTION_HEADER_RE.test(line)) {
+      flushCurrent();
+      inProjectSection = true;
+      continue;
+    }
+
+    const structured = tryParseStructuredLine(line);
+    if (structured) {
+      pushEntry(structured);
+      continue;
+    }
+
+    if (inProjectSection) {
+      const nameTask = tryParseNameTaskLine(line);
+      if (nameTask) {
+        pushEntry(nameTask);
+        continue;
+      }
+
+      if (PROJECT_TITLE_ONLY_RE.test(line) && !VERB_RE.test(line)) {
+        flushCurrent();
+        currentEntry = { projectName: line, tasks: [] };
+        continue;
+      }
+
+      if (currentEntry?.projectName) {
+        if (line.length >= 4) {
+          currentEntry.tasks.push(line);
+          continue;
+        }
+      }
+
+      if (VERB_RE.test(line) && line.length >= 6 && line.length <= 160) {
+        pushEntry({ tasks: [line] });
+        continue;
+      }
+
+      continue;
+    }
+
+    const inlineId = tryParseInlineIdLine(line);
+    if (inlineId) {
+      pushEntry(inlineId);
+    }
+  }
+
+  flushCurrent();
   return entries;
 }
 
@@ -218,6 +349,11 @@ export function parseWeeklyReportProjects(
 
 export function summarizeWeeklyReportParse(projects: Project[], sourceText: string): string {
   const entryCount = parseWeeklyEntries(sourceText).length;
-  if (!projects.length) return `未从周报中识别到项目条目（扫描 ${entryCount} 行）`;
+  if (!projects.length) {
+    if (/本周项目/i.test(sourceText) && entryCount === 0) {
+      return "未识别到项目：请把具体项目写在「本周项目」标题下方（项目名：本周任务）";
+    }
+    return `未从周报中识别到项目条目（扫描 ${entryCount} 行）`;
+  }
   return `识别 ${entryCount} 条工作记录 · 更新/新增 ${projects.length} 个项目`;
 }

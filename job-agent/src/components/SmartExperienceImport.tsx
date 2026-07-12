@@ -71,13 +71,15 @@ function WeeklyPreviewSummary({
 
 export const WEEKLY_REPORT_DEMO_TEXT = `2024.6.24-6.28 周报
 
-本周工作
-2406303 - 雀巢春节：完成 5 组深访，整理访谈纪要并输出中期发现
-2407101 - 小学语文教材：问卷投放与数据清洗，完成 200 份有效样本
-proposal - 某品牌概念测试：完成访谈提纲与招募方案
+a)用研
+
+本周项目
+雀巢春节：完成 5 组深访，整理访谈纪要并输出中期发现
+小学语文教材：问卷投放与数据清洗，完成 200 份有效样本
+某品牌概念测试：完成访谈提纲与招募方案
 
 下周计划
-2406303 - 撰写最终研究报告`;
+雀巢春节：撰写最终研究报告`;
 
 export const RESUME_DEMO_TEXT = `张三
 电话：13800138000  邮箱：zhangsan@example.com
@@ -326,7 +328,7 @@ export function SmartExperienceImport() {
             <p className="mt-1">PDF、Word（.docx）、Excel（.xlsx/.xls/.csv）、图片（OCR）、纯文本</p>
             <p className="mt-1">
               {importMode === "weekly"
-                ? "周报模式：识别项目编号（如 2406303）与本周任务，合并到已有项目并自动关联所属工作"
+                ? "周报模式：识别「本周项目」版块，支持项目编号或「项目名：任务」格式，合并到已有项目"
                 : "Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）"}
             </p>
             <div className="mt-2 flex gap-3">
@@ -347,7 +349,7 @@ export function SmartExperienceImport() {
             onChange={(e) => setRawInput(e.target.value)}
             placeholder={
               importMode === "weekly"
-                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· 本周工作 / 本周完成\n· 2406303 - 项目名：任务描述\n· 自动合并到已有项目并补充任务明细"
+                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· 本周项目 / 本周工作 版块\n· 2406303 - 项目名：任务描述\n· 项目名：本周任务（无编号也可）\n· 自动合并到已有项目并补充任务明细"
                 : "粘贴整份简历、项目任务表格，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· Markdown 表格（行业|项目编号|项目名|任务）\n· 专业技能"
             }
           />
