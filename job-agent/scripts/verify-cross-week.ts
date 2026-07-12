@@ -50,6 +50,11 @@ async function main() {
     process.exit(1);
   }
 
+  if (projects.some((p) => /^P[0-3]/i.test(p.name))) {
+    console.error("FAIL: project names should not contain P0/P1 prefix", projects.filter((p) => /^P[0-3]/i.test(p.name)).map((p) => p.name));
+    process.exit(1);
+  }
+
   const dupNames = projects
     .map((p) => normalizeProjectName(p.name))
     .filter((name, index, arr) => arr.indexOf(name) !== index);
@@ -78,6 +83,35 @@ async function main() {
   }
 
   console.log("OK: cross-week merge + 计划/卡点 filter + status parsing verified");
+
+  const existing = [{
+    id: "old-xts",
+    name: "P0XTS决策链路，已达成",
+    description: "WK26（2026-06-22～2026-06-26）",
+    technologies: [],
+    highlights: [
+      "因本周优先S6退货访问，调整为周一二每天新增5个，共10个",
+      "本周主要安排实习生参与分析&大模型搭建工作；共访问10个。",
+    ],
+    startDate: "2026-06-08",
+    endDate: "2026-06-26",
+    status: "ongoing" as const,
+    tags: ["P1"],
+  }];
+  const remerged = parseWeeklyReportProjects(multiWeek, existing);
+  const oldXts = remerged.find((p) => p.name === "XTS决策链路");
+  if (!oldXts || !(oldXts.highlights ?? []).every((h) => /^WK\d{1,2}\b/.test(h))) {
+    console.error("FAIL: full re-import should label all XTS highlights", oldXts?.highlights);
+    process.exit(1);
+  }
+  if (remerged.some((p) => /^P[0-3]/i.test(p.name))) {
+    console.error("FAIL: merged projects should not keep P0 in names");
+    process.exit(1);
+  }
+  if (remerged.some((p) => (p.highlights ?? []).some((h) => /^P[0-3]/i.test(h) && /已达成/.test(h)))) {
+    console.error("FAIL: noise highlights should be removed");
+    process.exit(1);
+  }
 }
 
 main();

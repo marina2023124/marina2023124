@@ -1,27 +1,101 @@
 const PROJECT_STATUS_SUFFIX_RE =
-  /[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进)\s*$/i;
+  /[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进|实际达成)\s*$/i;
+const PRIORITY_PREFIX_RE = /^P[0-3](?:【[^】]+】)?\s*/i;
 
-/** 去掉项目名称中的状态标记，如「XTS决策链路，已达成」→「XTS决策链路」 */
+/** 去掉项目名称中的优先级与状态标记 */
 export function normalizeProjectName(name: string): string {
   return name
-    .replace(/[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进)/gi, "")
+    .replace(PRIORITY_PREFIX_RE, "")
+    .replace(/[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进|实际达成)/gi, "")
     .replace(PROJECT_STATUS_SUFFIX_RE, "")
-    .replace(/\s*(已达成|未达成|已推进|已同步)\s*$/i, "")
+    .replace(/\s*(已达成|未达成|已推进|已同步|实际达成)\s*$/i, "")
     .trim();
+}
+
+/** 清理任务明细中的优先级、状态与重复标点 */
+export function normalizeTaskHighlight(text: string): string {
+  const weekMatch = text.match(/^(WK\d{1,2})\s+(.+)$/i);
+  const weekLabel = weekMatch?.[1];
+  let body = (weekMatch?.[2] ?? text).trim();
+
+  body = body
+    .replace(PRIORITY_PREFIX_RE, "")
+    .replace(/^【[^】]+】\s*/, "")
+    .replace(/^(已达成|未达成|已推进|已同步|实际达成)[、，,。\s]+/i, "")
+    .replace(/[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进|实际达成)\s*[。.]*$/gi, "")
+    .replace(/[。.]{2,}/g, "。")
+    .replace(/^[。.]+|[。.]+$/g, "")
+    .trim();
+
+  if (!body) return "";
+  return weekLabel ? `${weekLabel} ${body}` : body;
+}
+
+/** 过滤纯状态行、空行或整行项目标题回声 */
+export function isNoiseTaskHighlight(text: string): boolean {
+  const bare = stripWeekPrefix(normalizeTaskHighlight(text));
+  if (!bare || bare.length < 4) return true;
+  if (/^(已达成|未达成|已推进|已同步|实际达成)[。.]?$/i.test(bare)) return true;
+  if (/^R2新品规划PSM\+弹性测试，?$/i.test(bare)) return true;
+  if (/^P[0-3]/i.test(bare) && /已达成|已推进/.test(bare) && bare.length < 48) {
+    return true;
+  }
+  return false;
 }
 
 /** 为任务明细加上来源周次，如「WK28 因本周优先…」 */
 export function labelWeeklyTasks(tasks: string[], weekLabel?: string): string[] {
   if (!weekLabel) return tasks;
   return tasks.map((task) => {
-    const trimmed = task.trim();
-    if (!trimmed) return trimmed;
+    const trimmed = normalizeTaskHighlight(task);
+    if (!trimmed || isNoiseTaskHighlight(trimmed)) return "";
     if (new RegExp(`^${weekLabel}\\b`, "i").test(trimmed)) return trimmed;
     if (/^WK\d{1,2}\b/i.test(trimmed)) return trimmed;
-    return `${weekLabel} ${trimmed}`;
-  });
+    return `${weekLabel} ${stripWeekPrefix(trimmed)}`;
+  }).filter(Boolean);
 }
 
 export function stripWeekPrefix(task: string): string {
   return task.replace(/^WK\d{1,2}\s+/, "").trim();
+}
+
+function tasksEquivalent(a: string, b: string): boolean {
+  const bareA = stripWeekPrefix(a).trim();
+  const bareB = stripWeekPrefix(b).trim();
+  if (!bareA || !bareB) return false;
+  if (bareA === bareB) return true;
+  if (bareA.length >= 8 && bareB.length >= 8) {
+    return bareA.includes(bareB) || bareB.includes(bareA);
+  }
+  return false;
+}
+
+/** 合并任务明细，优先保留带 WK 前缀的版本 */
+export function mergeWeeklyHighlights(current: string[], incoming: string[]): string[] {
+  const result = current
+    .map((item) => normalizeTaskHighlight(item))
+    .filter((item) => item && !isNoiseTaskHighlight(item));
+
+  for (const raw of incoming) {
+    const normalized = normalizeTaskHighlight(raw);
+    if (!normalized || isNoiseTaskHighlight(normalized)) continue;
+
+    const hasWeek = /^WK\d{1,2}\b/i.test(normalized);
+    let merged = false;
+
+    for (let i = 0; i < result.length; i++) {
+      if (!tasksEquivalent(result[i], normalized)) continue;
+      if (hasWeek && !/^WK\d{1,2}\b/i.test(result[i])) {
+        result[i] = normalized;
+      }
+      merged = true;
+      break;
+    }
+
+    if (!merged) {
+      result.push(normalized);
+    }
+  }
+
+  return result;
 }

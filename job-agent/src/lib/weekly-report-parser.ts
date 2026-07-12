@@ -1,5 +1,5 @@
 import type { Project } from "./types";
-import { labelWeeklyTasks, normalizeProjectName, stripWeekPrefix } from "./project-name";
+import { labelWeeklyTasks, mergeWeeklyHighlights, normalizeProjectName, normalizeTaskHighlight, isNoiseTaskHighlight } from "./project-name";
 import {
   extractProjectId,
   generateId,
@@ -653,26 +653,7 @@ function mergeTags(current: string[] = [], incoming: string[] = []): string[] {
 }
 
 function mergeHighlights(current: string[], incoming: string[]): string[] {
-  const result = [...current];
-  for (const task of incoming) {
-    const normalized = task.trim();
-    if (!normalized) continue;
-    const bare = stripWeekPrefix(normalized);
-    if (
-      !result.some((item) => {
-        const itemBare = stripWeekPrefix(item);
-        return (
-          item === normalized ||
-          itemBare === bare ||
-          item.includes(normalized) ||
-          normalized.includes(item)
-        );
-      })
-    ) {
-      result.push(normalized);
-    }
-  }
-  return result;
+  return mergeWeeklyHighlights(current, incoming);
 }
 
 /** 从周报/工作记录提取项目更新，用于合并到已有项目列表 */
@@ -695,7 +676,10 @@ export function parseWeeklyReportProjects(
       ? normalizeProjectName(entry.projectName)
       : undefined;
 
-    const labeledTasks = labelWeeklyTasks(entry.tasks, entry.weekLabel);
+    const cleanedTasks = entry.tasks
+      .map((task) => normalizeTaskHighlight(task))
+      .filter((task) => task && !isNoiseTaskHighlight(task));
+    const labeledTasks = labelWeeklyTasks(cleanedTasks, entry.weekLabel);
 
     if (existing) {
       const current = updates.get(key) || {
@@ -747,7 +731,7 @@ export function parseWeeklyReportProjects(
   return Array.from(updates.values());
 }
 
-export { normalizeProjectName, labelWeeklyTasks } from "./project-name";
+export { normalizeProjectName, labelWeeklyTasks, mergeWeeklyHighlights, normalizeTaskHighlight } from "./project-name";
 
 export function summarizeWeeklyReportParse(projects: Project[], sourceText: string): string {
   const entryCount = parseWeeklyEntries(sourceText).length;

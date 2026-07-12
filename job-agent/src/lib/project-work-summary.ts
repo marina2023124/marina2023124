@@ -71,12 +71,16 @@ function buildSummarySentence(phrases: string[]): string {
 function simplifyTaskLabel(task: string): string {
   let label = task
     .trim()
+    .replace(/^WK\d{1,2}\s+/, "")
+    .replace(/^P[0-3](?:【[^】]+】)?\s*/i, "")
     .replace(/^[-*•●\d、.．)\]]+\s*/, "")
     .replace(/^[a-z0-9\s&.-]+(?=[\u4e00-\u9fa5])/i, "")
     .trim();
 
   label = label
     .replace(/^(高思语文|高思小数|高思|Nabati|nabati|伊利|雀巢|玉泽)/i, "")
+    .replace(/[，,]\s*(已达成|未达成|已推进|已同步|实际达成)\s*[。.]*$/gi, "")
+    .replace(/[。.]{2,}/g, "。")
     .trim();
 
   return label || task.trim();
