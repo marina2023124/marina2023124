@@ -29,8 +29,13 @@ async function main() {
   ];
 
   for (const name of expected) {
-    if (!projects.some((p) => p.name.includes(name) || name.includes(p.name))) {
+    const hit = projects.find((p) => p.name === name || p.name.includes(name));
+    if (!hit) {
       console.error("MISSING:", name);
+      process.exit(1);
+    }
+    if (hit.name !== name && /已达成|已推进/.test(hit.name)) {
+      console.error("FAIL: project name should not contain status:", hit.name);
       process.exit(1);
     }
   }

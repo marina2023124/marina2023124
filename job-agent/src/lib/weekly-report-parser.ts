@@ -34,8 +34,13 @@ const VERB_RE =
 const PROJECT_TITLE_ONLY_RE =
   /^[\u4e00-\u9fa5A-Za-z0-9（）()·/&+]{2,30}$/;
 const SKIP_PROJECT_LINE_RE =
-  /每个工作日.*汇报|^P[01]每个工作日|^P3项目[：:]|^P3项目$|^P[23](?:【[^】]+】)?\s*《|^R1已购|^S2\/6|^其他用户访问|^计划[：:]|^方法策略|^业务价值|^资源支持|^目标达成|做对的方面|没有做对的方面|核心观点|接需求|SMARS|【执行待定】$/;
-const CONTINUATION_LINE_RE = /^周[一二三四五六日]|^→|^①|^②|^③|^\d+[、.]/;
+  /每个工作日.*汇报|^P[01]每个工作日|^P3项目[：:]|^P3项目$|^P[23](?:【[^】]+】)?\s*《|^R1已购|^S2\/6|^其他用户访问|^计划[：:]|^卡点[：:]|^方法策略|^业务价值|^资源支持|^目标达成|做对的方面|没有做对的方面|核心观点|接需求|SMARS|【执行待定】$|^快速集中精力|^CURSOR下周/;
+const CONTINUATION_LINE_RE =
+  /^周[一二三四五六日]|^→|^——|^①|^②|^③|^\d+[、.]/;
+const STATUS_WORDS_RE =
+  /已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进/;
+const PROJECT_STATUS_SUFFIX_RE =
+  /[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进)\s*$/i;
 const BARE_PROJECT_LINE_RE =
   /^([A-Za-z\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5&+／/（）()·\s]{1,30}?)[。.](.+)$/;
 
@@ -63,53 +68,136 @@ interface WeeklyEntry {
 }
 
 const STATUS_SEGMENT_RE =
-  /^(已达成|未达成|已推进|已同步|未按时达成|未调研|未达成|EOD达成|持续推进|原计划|计划[：:]|→|——)/;
+  /^(已达成|未达成|已推进|已同步|未按时达成|未调研|EOD达成|持续推进|原计划|计划[：:]|卡点[：:]|→|——)/;
 const STATUS_INLINE_RE =
-  /已达成|未达成|已推进|已同步|【被动调整】|【主动调整】|【新增高优】|【本周新增】|【紧急新增】|【被动调整】/g;
+  /已达成|未达成|已推进|已同步|【被动调整】|【主动调整】|【新增高优】|【本周新增】|【紧急新增】/g;
+
+/** 去掉项目名称末尾的状态标记，如「XTS决策链路，已达成」→「XTS决策链路」 */
+export function normalizeProjectName(name: string): string {
+  return name
+    .replace(PROJECT_STATUS_SUFFIX_RE, "")
+    .replace(/\s*(已达成|未达成|已推进|已同步)\s*$/i, "")
+    .trim();
+}
 
 function extractPriority(line: string): string | undefined {
   const match = line.match(/^(P[0-3])/i);
   return match?.[1]?.toUpperCase();
 }
 
-/** 从周报行提取实质工作内容，过滤「已达成」「原计划→」等动态记录 */
-function extractSubstantiveWork(line: string, projectName: string): string[] {
-  let body = line.replace(/^P[0-3](?:【[^】]+】)?\s*/i, "").trim();
-  const escaped = projectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  body = body.replace(new RegExp(`^${escaped}\\s*[。.]?\\s*`), "");
+function stripPriorityPrefix(line: string): string {
+  return line.replace(/^P[0-3](?:【[^】]+】)?\s*/i, "").trim();
+}
+
+function cleanWorkText(text: string): string {
+  return text
+    .replace(STATUS_INLINE_RE, "")
+    .replace(/^原计划[^→。]*→\s*/i, "")
+    .trim();
+}
+
+/** 从项目行正文提取当周实质工作：已达成记状态后内容，未达成取 → 后实际完成 */
+function extractWorkFromBody(body: string): string[] {
+  const arrow = body.match(/→\s*(.+)/);
+  if (arrow) {
+    const actual = cleanWorkText(arrow[1]);
+    if (actual.length >= 4) return [actual];
+  }
+
+  if (/未达成/.test(body)) {
+    const after = body.match(/未达成[，,。.]?\s*(.+)/);
+    if (after) {
+      const actual = cleanWorkText(after[1]);
+      if (actual.length >= 4) return [actual];
+    }
+  }
+
+  const achieved = body.match(
+    new RegExp(`(?:${STATUS_WORDS_RE.source})[，,。.]?\\s*(.+)`, "i")
+  );
+  if (achieved) {
+    const work = cleanWorkText(achieved[1]);
+    if (work.length >= 4) return [work];
+  }
 
   const parts = body.split(/[。.]/).map((p) => p.trim()).filter(Boolean);
   const items: string[] = [];
-
   for (const part of parts) {
     if (STATUS_SEGMENT_RE.test(part)) continue;
     if (/^→/.test(part)) continue;
     if (/^(被动调整|主动调整|新增高优|本周新增|紧急新增)/.test(part)) continue;
 
-    const cleaned = part
-      .replace(/^(已达成|未达成|已推进|已同步)[、，,。\s]*/i, "")
-      .replace(STATUS_INLINE_RE, "")
-      .trim();
-
+    const cleaned = cleanWorkText(
+      part.replace(/^(已达成|未达成|已推进|已同步)[、，,。\s]*/i, "")
+    );
     if (/^原计划/.test(cleaned) && (/→/.test(cleaned) || cleaned.length < 20)) continue;
     if (!cleaned || cleaned.length < 4) continue;
     if (/^(已更新|未调研|调整为|因.+暂停)/.test(cleaned) && cleaned.length < 35) continue;
-
     items.push(cleaned);
   }
-
-  if (items.length === 0 && CONTINUATION_LINE_RE.test(line)) {
-    const cont = line.replace(STATUS_INLINE_RE, "").trim();
-    if (cont.length >= 6 && !STATUS_SEGMENT_RE.test(cont)) items.push(cont);
-  }
-
   return items;
 }
 
+/** 从周报行提取实质工作内容，过滤「已达成」「原计划→」等动态记录 */
+function extractSubstantiveWork(line: string, projectName: string): string[] {
+  let body = stripPriorityPrefix(line);
+  const normalizedName = normalizeProjectName(projectName);
+  const escaped = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  body = body.replace(new RegExp(`^${escaped}\\s*[。.]?\\s*`), "");
+
+  const fromBody = extractWorkFromBody(body);
+  if (fromBody.length) return fromBody;
+
+  if (CONTINUATION_LINE_RE.test(line)) {
+    const cont = cleanWorkText(line.replace(/^——\s*/, ""));
+    if (cont.length >= 6 && !STATUS_SEGMENT_RE.test(cont)) return [cont];
+  }
+
+  return [];
+}
+
+function parseProjectNameAndBody(line: string): { name: string; body: string } | null {
+  const body = stripPriorityPrefix(line);
+  if (!body || body.length < 2) return null;
+
+  const commaStatus = body.match(
+    new RegExp(`^(.+?)[，,]\\s*(${STATUS_WORDS_RE.source})[。.]\\s*(.*)$`, "i")
+  );
+  if (commaStatus) {
+    return {
+      name: normalizeProjectName(commaStatus[1].trim()),
+      body: commaStatus[3].trim() || commaStatus[2],
+    };
+  }
+
+  const periodStatus = body.match(
+    new RegExp(`^(.+?)\\s*[。.]\\s*(${STATUS_WORDS_RE.source})\\s*[。.]\\s*(.+)$`, "i")
+  );
+  if (periodStatus) {
+    return {
+      name: normalizeProjectName(periodStatus[1].trim()),
+      body: periodStatus[3].trim(),
+    };
+  }
+
+  const barePeriod = body.match(/^(.+?)[。.](.+)$/);
+  if (barePeriod) {
+    const name = normalizeProjectName(barePeriod[1].trim());
+    const tail = barePeriod[2].trim();
+    if (STATUS_WORDS_RE.test(tail.split(/[。.]/)[0] ?? "")) {
+      return { name, body: tail };
+    }
+    return { name, body: tail };
+  }
+
+  return { name: normalizeProjectName(body), body: "" };
+}
+
 function buildWeeklyEntry(line: string, projectName: string, priority?: string): WeeklyEntry {
-  const tasks = extractSubstantiveWork(line, projectName);
+  const normalizedName = normalizeProjectName(projectName);
+  const tasks = extractSubstantiveWork(line, normalizedName);
   const tags = priority ? [priority] : [];
-  return { projectName, priority, tags, tasks };
+  return { projectName: normalizedName, priority, tags, tasks };
 }
 
 /** ISO 工作周：周一～周五，如 WK28 2026 = 7.6-7.10 */
@@ -178,23 +266,27 @@ function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
   if (/^P[23]/i.test(line)) return null;
 
   const priority = extractPriority(line);
-  const priorityLine = line.match(/^P[0-3](?:【[^】]+】)?\s*(.+?)[。.](.+)$/);
-  if (priorityLine) {
-    const name = priorityLine[1].trim();
-    if (name.length >= 2 && name.length <= 40) {
-      return buildWeeklyEntry(line, name, priority);
+
+  if (/^P[0-3]/i.test(line)) {
+    const parsed = parseProjectNameAndBody(line);
+    if (parsed && parsed.name.length >= 2 && parsed.name.length <= 40) {
+      const entry = buildWeeklyEntry(line, parsed.name, priority);
+      if (!entry.tasks.length && parsed.body) {
+        entry.tasks = extractWorkFromBody(parsed.body);
+      }
+      return entry;
     }
   }
 
   if (!/^P[0-3]/i.test(line)) {
     const bare = line.match(BARE_PROJECT_LINE_RE);
     if (bare) {
-      const name = bare[1].trim();
+      const name = normalizeProjectName(bare[1].trim());
       if (
         name.length >= 2 &&
         name.length <= 32 &&
-        !/^(做对的|没有做|分类|包括|方法|业务|资源)/.test(name) &&
-        (VERB_RE.test(line) || /已达成|已推进|已同步|原计划|→/.test(line))
+        !/^(做对的|没有做|分类|包括|方法|业务|资源|计划|卡点)/.test(name) &&
+        (VERB_RE.test(line) || STATUS_WORDS_RE.test(line) || /→/.test(line))
       ) {
         return buildWeeklyEntry(line, name);
       }
@@ -205,6 +297,8 @@ function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
 }
 
 function tryParseNameTaskLine(line: string): WeeklyEntry | null {
+  if (/^(计划|卡点)[：:]/.test(line)) return null;
+
   const priority = tryParsePriorityProjectLine(line);
   if (priority) return priority;
 
@@ -213,22 +307,22 @@ function tryParseNameTaskLine(line: string): WeeklyEntry | null {
   const colon = line.match(/^(.{2,30}?)[：:]\s*(.+)$/);
   if (colon && colon[2].length >= 2) {
     const name = colon[1].trim();
-    if (!/^(本周|下周|分类|包括|项目)/.test(name)) {
-      return { projectName: name, tasks: [line] };
+    if (!/^(本周|下周|分类|包括|项目|计划|卡点)/.test(name)) {
+      return { projectName: normalizeProjectName(name), tasks: [line] };
     }
   }
 
   const dash = line.match(/^(.{2,30}?)\s*[-–—]\s*(.+)$/);
   if (dash && dash[2].length >= 4 && VERB_RE.test(line)) {
-    return { projectName: dash[1].trim(), tasks: [line] };
+    return { projectName: normalizeProjectName(dash[1].trim()), tasks: [line] };
   }
 
   const verbSplit = line.match(
     /^(.{2,24}?)(完成|进行|负责|撰写|访谈|投放|整理|交付|推进|清洗|输出|深访|开展|设计|开发|测试|优化).+/
   );
   if (verbSplit && verbSplit[1].length >= 4) {
-    const name = verbSplit[1].trim();
-    if (!/本周|下周|分类|包括|^周[一二三四五六日]$/.test(name)) {
+    const name = normalizeProjectName(verbSplit[1].trim());
+    if (!/本周|下周|分类|包括|^周[一二三四五六日]$|计划|卡点/.test(name)) {
       return { projectName: name, tasks: [line] };
     }
   }
@@ -283,8 +377,12 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
   };
 
   const appendToLast = (line: string) => {
-    const cleaned = line.replace(STATUS_INLINE_RE, "").trim();
+    const cleaned = line
+      .replace(/^——\s*/, "")
+      .replace(STATUS_INLINE_RE, "")
+      .trim();
     if (!cleaned || STATUS_SEGMENT_RE.test(cleaned)) return false;
+    if (/^(计划|卡点)[：:]/.test(cleaned)) return false;
     if (lastPushedIndex >= 0) {
       if (!entries[lastPushedIndex].tasks.includes(cleaned)) {
         entries[lastPushedIndex].tasks.push(cleaned);
@@ -349,6 +447,15 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
     }
 
     if (inProjectSection) {
+      if (/^计划[：:]/.test(line)) {
+        const dashPart = line.match(/——\s*(.+)/);
+        if (dashPart) appendToLast(dashPart[1]);
+        continue;
+      }
+      if (/^卡点[：:]/.test(line)) {
+        continue;
+      }
+
       const priority = tryParsePriorityProjectLine(line);
       if (priority) {
         pushEntry(priority);
@@ -367,7 +474,10 @@ function parseBlockEntries(text: string, week?: { start: string; end: string; la
 
       if (PROJECT_TITLE_ONLY_RE.test(line) && !VERB_RE.test(line)) {
         flushCurrent();
-        currentEntry = withWeekContext({ projectName: line, tasks: [] }, week);
+        currentEntry = withWeekContext(
+          { projectName: normalizeProjectName(line), tasks: [] },
+          week
+        );
         continue;
       }
 
@@ -480,31 +590,71 @@ function extractWeekDates(text: string, entry?: WeeklyEntry): { start?: string; 
 
 function findExistingProject(
   entry: WeeklyEntry,
-  existingProjects: Project[]
+  existingProjects: Project[],
+  updates?: Map<string, Project>
 ): Project | undefined {
-  if (entry.projectId) {
-    const byId = existingProjects.find(
-      (project) =>
-        project.projectId === entry.projectId ||
-        extractProjectId(project) === entry.projectId
-    );
-    if (byId) return byId;
-  }
+  const normalizedName = entry.projectName
+    ? normalizeProjectName(entry.projectName).toLowerCase()
+    : "";
 
-  if (entry.projectName) {
-    const normalized = entry.projectName.toLowerCase();
-    const byName = existingProjects.find((project) => {
-      const name = project.name.toLowerCase();
+  const matchByEntry = (project: Project) => {
+    if (entry.projectId) {
+      const currentId = project.projectId || extractProjectId(project);
+      if (currentId === entry.projectId) return true;
+    }
+    if (normalizedName) {
+      const name = normalizeProjectName(project.name).toLowerCase();
       return (
-        name === normalized ||
-        name.includes(normalized) ||
-        normalized.includes(name)
+        name === normalizedName ||
+        name.includes(normalizedName) ||
+        normalizedName.includes(name)
       );
-    });
-    if (byName) return byName;
+    }
+    return false;
+  };
+
+  if (updates) {
+    for (const project of Array.from(updates.values())) {
+      if (matchByEntry(project)) return project;
+    }
   }
 
-  return undefined;
+  return existingProjects.find(matchByEntry);
+}
+
+function resolveMergeKey(
+  entry: WeeklyEntry,
+  existing: Project | undefined,
+  updates: Map<string, Project>
+): string {
+  if (existing) {
+    for (const [key, project] of Array.from(updates.entries())) {
+      if (project.id === existing.id) return key;
+    }
+    return existing.id;
+  }
+
+  const normalizedName = entry.projectName
+    ? normalizeProjectName(entry.projectName).toLowerCase()
+    : "";
+
+  if (entry.projectId) {
+    for (const [key, project] of Array.from(updates.entries())) {
+      const currentId = project.projectId || extractProjectId(project);
+      if (currentId === entry.projectId) return key;
+    }
+    return `pending-id:${entry.projectId}`;
+  }
+
+  if (normalizedName) {
+    for (const [key, project] of Array.from(updates.entries())) {
+      if (normalizeProjectName(project.name).toLowerCase() === normalizedName) {
+        return key;
+      }
+    }
+  }
+
+  return generateId();
 }
 
 function mergeTags(current: string[] = [], incoming: string[] = []): string[] {
@@ -537,15 +687,20 @@ export function parseWeeklyReportProjects(
 
   for (const entry of entries) {
     const weekDates = extractWeekDates(text, entry);
-    const existing = findExistingProject(entry, existingProjects);
-    const key = existing?.id || entry.projectId || entry.projectName || entry.tasks[0];
+    const existing = findExistingProject(entry, existingProjects, updates);
+    const key = resolveMergeKey(entry, existing, updates);
+    const projectName = entry.projectName
+      ? normalizeProjectName(entry.projectName)
+      : undefined;
 
     if (existing) {
       const current = updates.get(key) || {
         ...existing,
+        name: normalizeProjectName(existing.name),
         highlights: [...(existing.highlights ?? [])],
         tags: [...(existing.tags ?? [])],
       };
+      current.name = normalizeProjectName(current.name);
       current.highlights = mergeHighlights(current.highlights ?? [], entry.tasks);
       current.tags = mergeTags(current.tags, entry.tags);
       current.startDate = minIsoDate(current.startDate, weekDates.start);
@@ -567,7 +722,9 @@ export function parseWeeklyReportProjects(
       : "";
     const created: Project = {
       id: generateId(),
-      name: entry.projectName || (entry.projectId ? `项目 ${entry.projectId}` : entry.tasks[0]?.slice(0, 24) || "未命名项目"),
+      name:
+        projectName ||
+        (entry.projectId ? `项目 ${entry.projectId}` : entry.tasks[0]?.slice(0, 24) || "未命名项目"),
       description: entry.projectId
         ? `项目编号 ${entry.projectId}${weekNote ? `；${weekNote}` : ""}`
         : weekNote,

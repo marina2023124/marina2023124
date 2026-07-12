@@ -335,7 +335,7 @@ export function SmartExperienceImport() {
             <p className="mt-1">PDF、Word（.docx）、Excel（.xlsx/.xls/.csv）、图片（OCR）、纯文本</p>
             <p className="mt-1">
               {importMode === "weekly"
-                ? "周报模式：识别「本周项目」与 WK 周期；P0/P1 记入标签，不录入已达成/调整类动态"
+                ? "周报模式：识别「本周项目」与 WK 周期；P0/P1 记入标签；过滤计划/卡点；跨周同名项目自动合并"
                 : "Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）"}
             </p>
             <div className="mt-2 flex gap-3">

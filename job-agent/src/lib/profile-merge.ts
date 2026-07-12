@@ -1,4 +1,5 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
+import { normalizeProjectName } from "./weekly-report-parser";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
 import { calcDurationDays, maxIsoDate, minIsoDate, getProjectWorkItems, sanitizeProfileProjects, extractProjectId } from "./utils";
@@ -41,7 +42,7 @@ function mergeProjects(
       const incomingId = item.projectId || extractProjectId(item);
       if (incomingId && currentId) return currentId === incomingId;
       if (item.projectId && project.projectId) return project.projectId === item.projectId;
-      return project.name === item.name;
+      return normalizeProjectName(project.name) === normalizeProjectName(item.name);
     });
     if (index < 0) {
       result.push(item);
