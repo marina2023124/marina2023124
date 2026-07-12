@@ -62,6 +62,22 @@ const TASK_CLASSIFIERS: { patterns: RegExp[]; phrase: string; order: number }[] 
   },
 ];
 
+/** Extract short action phrases from weekly task detail lines. */
+const ACTION_PHRASE_RULES: { patterns: RegExp[]; phrase: string; order: number }[] = [
+  { patterns: [/雷达图问卷|更新雷达图/i], phrase: "雷达图问卷迭代", order: 1 },
+  { patterns: [/问卷.*投放|投放问卷|已投放问卷|ABtest问卷/i], phrase: "问卷投放", order: 2 },
+  { patterns: [/更新结果|结果更新/i], phrase: "结果更新", order: 3 },
+  { patterns: [/总结表/i], phrase: "总结表更新", order: 4 },
+  { patterns: [/报告.*打磨|报告待打磨|报告打磨/i], phrase: "报告打磨", order: 5 },
+  { patterns: [/报告.*更新|更新.*报告|差异报告|退货报告/i], phrase: "报告更新", order: 6 },
+  { patterns: [/用户访问|访问\d+个|深访|退货访问/i], phrase: "用户访问", order: 7 },
+  { patterns: [/智能体|大模型搭建|codex|评论爬取/i], phrase: "智能体搭建与分析", order: 8 },
+  { patterns: [/PSM|弹性测试|弹性打磨/i], phrase: "PSM与弹性测试", order: 9 },
+  { patterns: [/思维拓展|AI素养/i], phrase: "思维拓展与AI素养研究", order: 10 },
+  { patterns: [/数据读数|分析/i], phrase: "数据分析", order: 11 },
+  { patterns: [/问卷/i], phrase: "问卷工作", order: 12 },
+];
+
 function buildSummarySentence(phrases: string[]): string {
   if (phrases.length === 1) return `主要负责${phrases[0]}。`;
   if (phrases.length === 2) return `负责${phrases[0]}与${phrases[1]}。`;
@@ -86,22 +102,61 @@ function simplifyTaskLabel(task: string): string {
   return label || task.trim();
 }
 
-function isReadableChineseTask(task: string): boolean {
+function shortenForSummary(task: string): string {
   const label = simplifyTaskLabel(task);
-  return /[\u4e00-\u9fa5]{2,}/.test(label) && label.length <= 20;
+  if (label.length <= 28) return label;
+
+  const first = label.split(/[，,；;。]/)[0]?.trim() ?? label;
+  if (first.length >= 4 && first.length <= 28) return first;
+  return label.slice(0, 24);
+}
+
+function extractActionPhrases(tasks: string[]): string[] {
+  const matched = new Map<number, string>();
+
+  for (const task of tasks) {
+    const simplified = simplifyTaskLabel(task);
+    let found = false;
+
+    for (const rule of ACTION_PHRASE_RULES) {
+      if (rule.patterns.some((pattern) => pattern.test(simplified))) {
+        matched.set(rule.order, rule.phrase);
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      const clause = shortenForSummary(task);
+      if (
+        clause.length >= 4 &&
+        clause.length <= 28 &&
+        /[\u4e00-\u9fa5]{2,}/.test(clause) &&
+        !/^(质量未达|因本周|原计划|调整为|本周主要)/.test(clause)
+      ) {
+        matched.set(100 + matched.size, clause);
+      }
+    }
+  }
+
+  return Array.from(matched.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, phrase]) => phrase)
+    .slice(0, 4);
 }
 
 /** Summarize a few clear Chinese task labels literally. */
 function summarizeLiteralTasks(tasks: string[]): string {
-  const labels = tasks.map(simplifyTaskLabel).filter((t) => t.length >= 2);
+  const labels = tasks.map(shortenForSummary).filter((t) => t.length >= 2);
   if (!labels.length) return "";
 
-  if (labels.length === 1) return `负责${labels[0]}。`;
-  if (labels.length === 2) return `负责${labels[0]}与${labels[1]}。`;
-  if (labels.length <= 5) {
-    return `负责${labels.slice(0, -1).join("、")}及${labels[labels.length - 1]}等工作。`;
+  const unique = Array.from(new Set(labels));
+  if (unique.length === 1) return `负责${unique[0]}。`;
+  if (unique.length === 2) return `负责${unique[0]}与${unique[1]}。`;
+  if (unique.length <= 4) {
+    return `负责${unique.slice(0, -1).join("、")}及${unique[unique.length - 1]}等工作。`;
   }
-  return `负责${labels.slice(0, 3).join("、")}等${labels.length}项研究工作。`;
+  return `负责${unique.slice(0, 3).join("、")}等研究工作。`;
 }
 
 function classifyTaskThemes(tasks: string[]): string[] {
@@ -127,12 +182,9 @@ export function summarizeProjectWork(tasks: string[]): string {
   const items = tasks.map((task) => task.trim()).filter((task) => task.length >= 2);
   if (!items.length) return "";
 
-  const chineseTasks = items.filter(isReadableChineseTask);
-  const mostlyChinese = chineseTasks.length >= items.length * 0.6;
-
-  // Few clear Chinese tasks → use actual task names (most accurate)
-  if (items.length <= 5 && mostlyChinese && chineseTasks.length === items.length) {
-    return summarizeLiteralTasks(items);
+  const actionPhrases = extractActionPhrases(items);
+  if (actionPhrases.length > 0) {
+    return buildSummarySentence(actionPhrases);
   }
 
   const phrases = classifyTaskThemes(items);
@@ -140,8 +192,9 @@ export function summarizeProjectWork(tasks: string[]): string {
     return buildSummarySentence(phrases);
   }
 
-  if (mostlyChinese) {
-    return summarizeLiteralTasks(chineseTasks);
+  const hasChinese = items.some((task) => /[\u4e00-\u9fa5]{2,}/.test(simplifyTaskLabel(task)));
+  if (hasChinese) {
+    return summarizeLiteralTasks(items);
   }
 
   return `负责${items.length}项用户研究任务。`;

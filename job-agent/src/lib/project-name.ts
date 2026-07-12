@@ -98,7 +98,78 @@ export function mergeWeeklyHighlights(current: string[], incoming: string[]): st
     }
   }
 
+  return finalizeWeeklyHighlights(result);
+}
+
+/** 拆分「WK25 A。B」为两条独立明细 */
+export function splitCombinedWeeklyHighlights(highlights: string[]): string[] {
+  const result: string[] = [];
+  for (const raw of highlights) {
+    const h = normalizeTaskHighlight(raw);
+    if (!h) continue;
+    const wkMatch = h.match(/^(WK\d{1,2})\s+(.+)$/i);
+    if (!wkMatch) {
+      result.push(h);
+      continue;
+    }
+    const week = wkMatch[1];
+    const body = wkMatch[2];
+    const parts = body
+      .split(/[。.]/)
+      .map((p) => p.trim())
+      .filter((p) => p.length >= 4 && !isNoiseTaskHighlight(p));
+    if (parts.length <= 1) {
+      result.push(`${week} ${body.replace(/[。.]+$/, "")}`);
+      continue;
+    }
+    for (const part of parts) {
+      result.push(`${week} ${part}`);
+    }
+  }
+  return result;
+}
+
+/** 为缺 WK 前缀的碎片明细补上来源周次，或去掉已被包含的重复项 */
+export function relabelOrphanFragments(highlights: string[]): string[] {
+  const labeled = highlights.filter((h) => /^WK\d{1,2}\b/i.test(h));
+  const orphans = highlights.filter((h) => !/^WK\d{1,2}\b/i.test(h));
+  const result = [...labeled];
+
+  for (const orphan of orphans) {
+    const bare = orphan.trim();
+    if (!bare || bare.length < 4) continue;
+
+    const contained = labeled.some((item) => {
+      const body = stripWeekPrefix(item);
+      return body.includes(bare) || bare.includes(body);
+    });
+    if (contained) continue;
+
+    const host = labeled.find((item) => {
+      const body = stripWeekPrefix(item);
+      return (
+        body.includes(bare.slice(0, Math.min(6, bare.length))) ||
+        bare.includes(body.slice(0, Math.min(6, body.length)))
+      );
+    });
+    if (host) {
+      const week = host.match(/^(WK\d{1,2})\b/i)?.[1];
+      if (week) {
+        result.push(`${week} ${bare}`);
+        continue;
+      }
+    }
+    result.push(bare);
+  }
+
   return dedupeWeeklyHighlights(result);
+}
+
+/** 规范化任务明细：拆分、去重、补全 WK 标记 */
+export function finalizeWeeklyHighlights(highlights: string[]): string[] {
+  return relabelOrphanFragments(
+    dedupeWeeklyHighlights(splitCombinedWeeklyHighlights(highlights))
+  );
 }
 
 /** 去掉内容相同但缺 WK 前缀的重复明细 */

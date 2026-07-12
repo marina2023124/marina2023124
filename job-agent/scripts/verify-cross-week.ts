@@ -1,8 +1,10 @@
 import mammoth from "mammoth";
 import {
   dedupeWeeklyHighlights,
+  finalizeWeeklyHighlights,
   normalizeProjectName,
 } from "../src/lib/project-name";
+import { summarizeProjectWork } from "../src/lib/project-work-summary";
 import { mergeWeeklyReportProjects } from "../src/lib/profile-merge";
 import { sanitizeProfileProjects } from "../src/lib/utils";
 import { parseWeeklyReportProjects } from "../src/lib/weekly-report-parser";
@@ -11,8 +13,84 @@ import type { Project } from "../src/lib/types";
 const DOC =
   "/home/ubuntu/.cursor/projects/workspace/uploads/_________2026-07-11__c62c.docx";
 
+const AI_FIXTURE = `
+周报（2026-06-26）
+WK26
+本周项目
+P0AI功能需求。已更新雷达图问卷。
+下周目标
+P3项目
+
+WK25
+本周项目
+P0AI功能需求。总结表更新后已投放问卷&更新结果。报告待打磨
+下周目标
+P0AI功能需求。报告打磨。
+
+WK24
+本周项目
+P1AI功能需求，未达成。质量未达预期，原计划完成报告更新&汇报&问卷，实际已更新一版但未达汇报水准
+下周目标
+`;
+
+function assertNoGenericSummary(name: string, summary?: string) {
+  if (!summary || /负责\d+项用户研究任务/.test(summary)) {
+    console.error(`FAIL: ${name} should have concrete workSummary`, summary);
+    process.exit(1);
+  }
+}
+
 async function main() {
-  const { value } = await mammoth.extractRawText({ path: DOC });
+  const aiProjects = parseWeeklyReportProjects(AI_FIXTURE, []);
+  const ai = aiProjects.find((p) => p.name === "AI功能需求");
+  if (!ai) {
+    console.error("FAIL: AI功能需求 not found in fixture");
+    process.exit(1);
+  }
+  if ((ai.highlights ?? []).length < 4) {
+    console.error("FAIL: AI功能需求 should have WK24-26 highlights + report polish", ai.highlights);
+    process.exit(1);
+  }
+  if (!(ai.highlights ?? []).every((h) => /^WK\d{1,2}\b/.test(h))) {
+    console.error("FAIL: AI highlights should all have WK prefix", ai.highlights);
+    process.exit(1);
+  }
+  if (!(ai.highlights ?? []).some((h) => /报告打磨|报告待打磨/.test(h))) {
+    console.error("FAIL: AI should include report polishing from next-goal carryover", ai.highlights);
+    process.exit(1);
+  }
+  if (ai.startDate !== "2026-06-08" || ai.endDate !== "2026-06-26") {
+    console.error("FAIL: AI date span", ai.startDate, ai.endDate);
+    process.exit(1);
+  }
+  assertNoGenericSummary("AI功能需求", ai.workSummary);
+
+  const split = finalizeWeeklyHighlights([
+    "WK25 总结表更新后已投放问卷&更新结果。报告待打磨",
+  ]);
+  if (split.length !== 2 || !split.every((h) => /^WK25\b/.test(h))) {
+    console.error("FAIL: split combined WK25 highlights", split);
+    process.exit(1);
+  }
+
+  const xtsSummary = summarizeProjectWork([
+    "WK26 因本周优先S6退货访问，调整为周一二每天新增5个，共10个",
+    "WK28 本周主要安排实习生参与分析&大模型搭建工作；共访问10个",
+    "WK27 调整为3天访问，2天分析XTS差异；共访问15个",
+    "WK25 实际达成8个，因为工作时间访问通过率低于全时段访问",
+    "WK24 收尾访问，并基于20*3个用户访问结果更新种草-比选-决策链路报告",
+  ]);
+  assertNoGenericSummary("XTS决策链路", xtsSummary);
+
+  let value = "";
+  try {
+    const extracted = await mammoth.extractRawText({ path: DOC });
+    value = extracted.value;
+  } catch {
+    console.log("SKIP: docx fixture unavailable, synthetic AI tests passed");
+    console.log("OK: AI fixture + summary extraction verified");
+    return;
+  }
   const wk24 = value.indexOf("WK24");
   const wk28 = value.indexOf("WK28");
   const multiWeek = value.slice(wk28, value.indexOf("WK23"));
@@ -39,11 +117,22 @@ async function main() {
     console.error("FAIL: XTS highlights should be labeled with WK prefix", xts.highlights);
     process.exit(1);
   }
+  assertNoGenericSummary("XTS决策链路", xts.workSummary);
 
   const agent = projects.find((p) => p.name === "智能体搭建");
   if (!agent || agent.startDate !== "2026-06-15" || agent.endDate !== "2026-07-10") {
     console.error("FAIL: 智能体搭建 cross-week merge", agent);
     process.exit(1);
+  }
+  assertNoGenericSummary("智能体搭建", agent.workSummary);
+
+  const aiDoc = projects.find((p) => p.name === "AI功能需求");
+  if (aiDoc) {
+    if (!(aiDoc.highlights ?? []).every((h) => /^WK\d{1,2}\b/.test(h))) {
+      console.error("FAIL: doc AI highlights need WK prefix", aiDoc.highlights);
+      process.exit(1);
+    }
+    assertNoGenericSummary("AI功能需求(doc)", aiDoc.workSummary);
   }
 
   if (projects.some((p) => p.name === "计划" || p.name === "卡点")) {
@@ -294,9 +383,9 @@ async function main() {
     console.error("FAIL: R2 variants should merge to one", dupProfile.map((p) => p.name));
     process.exit(1);
   }
-  const ai = dupProfile.find((p) => p.name === "AI功能需求");
-  if (!ai?.tags?.includes("P0") || !ai?.tags?.includes("P1")) {
-    console.error("FAIL: merged AI should keep P0+P1 tags", ai?.tags);
+  const mergedAi = dupProfile.find((p) => p.name === "AI功能需求");
+  if (!mergedAi?.tags?.includes("P0") || !mergedAi?.tags?.includes("P1")) {
+    console.error("FAIL: merged AI should keep P0+P1 tags", mergedAi?.tags);
     process.exit(1);
   }
 

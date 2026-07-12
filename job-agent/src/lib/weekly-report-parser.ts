@@ -136,7 +136,13 @@ function extractWorkFromBody(body: string): string[] {
     );
     if (/^原计划/.test(cleaned) && (/→/.test(cleaned) || cleaned.length < 20)) continue;
     if (!cleaned || cleaned.length < 4) continue;
-    if (/^(已更新|未调研|调整为|因.+暂停)/.test(cleaned) && cleaned.length < 35) continue;
+    if (
+      /^(已更新|未调研|调整为|因.+暂停)/.test(cleaned) &&
+      cleaned.length < 35 &&
+      !/问卷|报告|雷达图|总结表|链接|数据|结果|版本|投放/.test(cleaned)
+    ) {
+      continue;
+    }
     items.push(cleaned);
   }
   return items;
@@ -560,6 +566,32 @@ function extractWeeklyProjectBlock(sectionText: string): string {
   return match?.[1]?.trim() ?? "";
 }
 
+/** 提取「下周目标」中的完整工作条目，用于衔接至下一周本周项目 */
+function extractNextGoalEntries(sectionText: string): WeeklyEntry[] {
+  const block = sectionText.match(
+    /下周目标[：:.]?\s*([\s\S]*?)(?=\n\s*(?:资源支持|P3项目|方法策略|业务价值)|$)/i
+  )?.[1];
+  if (!block?.trim()) return [];
+
+  const entries: WeeklyEntry[] = [];
+  for (const rawLine of block.split("\n")) {
+    const line = cleanTaskLine(rawLine);
+    if (!line || line.length < 2 || SKIP_PROJECT_LINE_RE.test(line)) continue;
+
+    const parsed = tryParsePriorityProjectLine(line);
+    if (parsed?.projectName && !/^(每个工作日|计划|卡点)$/i.test(parsed.projectName)) {
+      entries.push(parsed);
+      continue;
+    }
+
+    const nameTask = tryParseNameTaskLine(line);
+    if (nameTask?.projectName) {
+      entries.push(nameTask);
+    }
+  }
+  return entries;
+}
+
 /** 提取「下周目标」中的项目名称，用于理解跨周衔接（上周目标 → 本周项目） */
 function extractNextGoalProjectNames(sectionText: string): string[] {
   const block = sectionText.match(
@@ -590,10 +622,25 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
       const week = workWeekRange(year, section.week);
       const block = extractWeeklyProjectBlock(section.content);
       const body = block ? `本周项目\n${block}` : section.content;
-      const priorWeekGoalNames = sections[i + 1]
-        ? extractNextGoalProjectNames(sections[i + 1].content)
+      const priorSection = sections[i + 1];
+      const priorWeekGoalNames = priorSection
+        ? extractNextGoalProjectNames(priorSection.content)
         : [];
       all.push(...parseBlockEntries(body, week, priorWeekGoalNames));
+
+      if (priorSection) {
+        const priorGoals = extractNextGoalEntries(priorSection.content);
+        for (const goal of priorGoals) {
+          const labeled = withWeekContext(
+            {
+              ...goal,
+              tasks: labelWeeklyTasks(goal.tasks, week.label),
+            },
+            week
+          );
+          all.push(labeled);
+        }
+      }
     }
     if (all.length) return all;
   }
