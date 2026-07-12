@@ -66,8 +66,13 @@ async function main() {
     console.error("FAIL: AI功能需求 not found in fixture");
     process.exit(1);
   }
-  if ((ai.highlights ?? []).length < 4) {
-    console.error("FAIL: AI功能需求 should have WK24-26 highlights + report polish", ai.highlights);
+  if ((ai.highlights ?? []).length < 3) {
+    console.error("FAIL: AI功能需求 should have grouped WK24-26 highlights", ai.highlights);
+    process.exit(1);
+  }
+  const aiWeeks = (ai.highlights ?? []).map((h) => Number(h.match(/^WK(\d{1,2})\b/i)?.[1] ?? 0));
+  if (aiWeeks.some((w, i) => i > 0 && w < aiWeeks[i - 1])) {
+    console.error("FAIL: AI highlights should be sorted by week ascending", ai.highlights);
     process.exit(1);
   }
   if (!(ai.highlights ?? []).every((h) => /^WK\d{1,2}\b/.test(h))) {
@@ -97,8 +102,34 @@ async function main() {
   const split = finalizeWeeklyHighlights([
     "WK25 总结表更新后已投放问卷&更新结果。报告待打磨",
   ]);
-  if (split.length !== 2 || !split.every((h) => /^WK25\b/.test(h))) {
-    console.error("FAIL: split combined WK25 highlights", split);
+  if (split.length !== 1 || !/^WK25\b/.test(split[0]) || !/报告待打磨/.test(split[0])) {
+    console.error("FAIL: same-week highlights should merge into one WK25 line", split);
+    process.exit(1);
+  }
+
+  const aiGrouped = finalizeWeeklyHighlights([
+    "WK26 已更新雷达图问卷",
+    "WK25 总结表更新后已投放问卷&更新结果",
+    "WK25 报告待打磨",
+    "WK24 质量未达预期，原计划完成报告更新&汇报&问卷",
+    "WK26 报告打磨",
+    "WK23 周四内完成报告更新&汇报后投放问卷",
+    "WK22 周四根据最终3*50个维度更新报告&问卷并投放问卷",
+    "WK21 周内更新10个+更新对应需求表",
+    "WK21 周五和黄黎明对齐后更新MARS上AI需求问卷v3",
+  ]);
+  if (aiGrouped.length !== 6) {
+    console.error("FAIL: AI WK21-26 should group to 6 weekly lines", aiGrouped);
+    process.exit(1);
+  }
+  if (aiGrouped[0].startsWith("WK21") && aiGrouped[5].startsWith("WK26")) {
+    // sorted ascending
+  } else {
+    console.error("FAIL: grouped highlights should run WK21→WK26", aiGrouped);
+    process.exit(1);
+  }
+  if (!aiGrouped[4].includes("；") || !aiGrouped[5].includes("；")) {
+    console.error("FAIL: multi-entry weeks should join bodies with ；", aiGrouped);
     process.exit(1);
   }
 

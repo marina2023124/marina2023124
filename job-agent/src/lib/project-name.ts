@@ -165,13 +165,6 @@ export function relabelOrphanFragments(highlights: string[]): string[] {
   return dedupeWeeklyHighlights(result);
 }
 
-/** 规范化任务明细：拆分、去重、补全 WK 标记 */
-export function finalizeWeeklyHighlights(highlights: string[]): string[] {
-  return relabelOrphanFragments(
-    dedupeWeeklyHighlights(splitCombinedWeeklyHighlights(highlights))
-  );
-}
-
 /** 去掉内容相同但缺 WK 前缀的重复明细 */
 export function dedupeWeeklyHighlights(highlights: string[]): string[] {
   const cleaned = highlights
@@ -204,4 +197,58 @@ export function dedupeWeeklyHighlights(highlights: string[]): string[] {
         tasksEquivalent(other, item)
     );
   });
+}
+
+function parseWeekHighlight(item: string): { week?: string; weekNum?: number; body: string } {
+  const match = item.match(/^(WK\d{1,2})\s+(.+)$/i);
+  if (!match) return { body: item.trim() };
+  return {
+    week: match[1],
+    weekNum: Number(match[1].replace(/^WK/i, "")),
+    body: match[2].trim(),
+  };
+}
+
+function bodyAlreadyListed(bodies: string[], body: string): boolean {
+  return bodies.some((existing) => tasksEquivalent(existing, body) || existing === body);
+}
+
+/** 同周明细合并为一条，整体按 WK 升序排列 */
+export function groupAndSortWeeklyHighlights(highlights: string[]): string[] {
+  const byWeek = new Map<number, { label: string; bodies: string[] }>();
+  const unlabeled: string[] = [];
+
+  for (const raw of highlights) {
+    const item = normalizeTaskHighlight(raw);
+    if (!item || isNoiseTaskHighlight(item)) continue;
+
+    const parsed = parseWeekHighlight(item);
+    if (parsed.weekNum == null || !parsed.week) {
+      if (!unlabeled.some((entry) => tasksEquivalent(entry, item))) {
+        unlabeled.push(item);
+      }
+      continue;
+    }
+
+    const entry = byWeek.get(parsed.weekNum) ?? { label: parsed.week, bodies: [] };
+    if (parsed.body && !bodyAlreadyListed(entry.bodies, parsed.body)) {
+      entry.bodies.push(parsed.body);
+    }
+    byWeek.set(parsed.weekNum, entry);
+  }
+
+  const grouped = Array.from(byWeek.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, { label, bodies }]) => `${label} ${bodies.join("；")}`);
+
+  return [...grouped, ...unlabeled];
+}
+
+/** 规范化任务明细：拆分、去重、补全 WK 标记、按周合并排序 */
+export function finalizeWeeklyHighlights(highlights: string[]): string[] {
+  return groupAndSortWeeklyHighlights(
+    relabelOrphanFragments(
+      dedupeWeeklyHighlights(splitCombinedWeeklyHighlights(highlights))
+    )
+  );
 }
