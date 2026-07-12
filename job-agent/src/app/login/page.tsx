@@ -9,9 +9,34 @@ import { Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { enableCloudMode } from "@/lib/local-storage";
 
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
+function formatAuthError(err: unknown): string {
+  const message = err instanceof Error ? err.message : "操作失败";
+  if (/fetch failed|Failed to fetch|NetworkError|timeout|超时/i.test(message)) {
+    return "无法连接 Supabase，请开启 VPN 后重试";
+  }
+  if (/Invalid login credentials/i.test(message)) {
+    return "邮箱或密码错误，请检查后重试";
+  }
+  if (/Email not confirmed/i.test(message)) {
+    return "邮箱尚未验证，请先到邮箱点击验证链接";
+  }
+  return message;
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { enterLocalMode } = useApp();
+  const { enterLocalMode, user, authReady } = useApp();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,6 +47,12 @@ export default function LoginPage() {
   useEffect(() => {
     enableCloudMode();
   }, []);
+
+  useEffect(() => {
+    if (authReady && user) {
+      router.replace("/");
+    }
+  }, [authReady, user, router]);
 
   if (!isSupabaseConfigured()) {
     return (
@@ -41,18 +72,24 @@ export default function LoginPage() {
 
     try {
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        const { error: signUpError } = await withTimeout(
+          supabase.auth.signUp({ email, password }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "注册请求超时，请检查 VPN 或网络后重试"
+        );
         if (signUpError) throw signUpError;
         setMessage("注册成功！请查收邮件完成验证，或直接登录。");
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error: signInError } = await withTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "登录请求超时，请检查 VPN 或网络后重试"
+        );
         if (signInError) throw signInError;
+        router.replace("/");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "操作失败");
+      setError(formatAuthError(err));
     } finally {
       setLoading(false);
     }
