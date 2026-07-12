@@ -6,6 +6,7 @@ import {
   isNoiseTaskHighlight,
   normalizeTaskHighlight,
 } from "./project-name";
+import { getReferenceWeekNumber, isProjectStale } from "./project-week";
 import type { WorkExperience } from "./types";
 
 export function generateId(): string {
@@ -371,6 +372,7 @@ export function sanitizeProfileProjects<T extends {
   projectId?: string;
   workSummary?: string;
   workExperienceId?: string;
+  durationDays?: number;
 }>(
   projects: T[],
   workExperiences: WorkExperience[] = []
@@ -395,6 +397,20 @@ export function sanitizeProfileProjects<T extends {
       workSummary: summary || project.workSummary,
     };
   });
-  const linked = linkProjectsToWorkExperiences(enriched, workExperiences);
+
+  const referenceWeek = getReferenceWeekNumber(enriched);
+  const withLifecycle = enriched.map((project) => {
+    if (project.status !== "ongoing" || !isProjectStale(project, referenceWeek)) {
+      return project;
+    }
+    return {
+      ...project,
+      status: "completed" as const,
+      durationDays:
+        calcDurationDays(project.startDate, project.endDate) ?? project.durationDays,
+    };
+  });
+
+  const linked = linkProjectsToWorkExperiences(withLifecycle, workExperiences);
   return sortProjectsByTime(linked);
 }

@@ -62,20 +62,33 @@ const TASK_CLASSIFIERS: { patterns: RegExp[]; phrase: string; order: number }[] 
   },
 ];
 
+/** Status / progress fragments — not deliverable work for resume summaries */
+const STATUS_CLAUSE_RE =
+  /^(已交接|待调研|未调研|暂不投放|暂不|实际达成|已达成|未达成|已推进|已同步|未按时达成|持续推进|待启动|暂停|因本周优先)/i;
+
+const STATUS_ONLY_RE =
+  /^(已交接|待调研|未调研|暂不投放.*|暂不.+|实际达成\d*个?|已达成|未达成|已推进|已同步|未按时达成|持续推进)([，,。.].*)?$/i;
+
 /** Extract short action phrases from weekly task detail lines. */
 const ACTION_PHRASE_RULES: { patterns: RegExp[]; phrase: string; order: number }[] = [
   { patterns: [/雷达图问卷|更新雷达图/i], phrase: "雷达图问卷迭代", order: 1 },
-  { patterns: [/问卷.*投放|投放问卷|已投放问卷|ABtest问卷/i], phrase: "问卷投放", order: 2 },
-  { patterns: [/更新结果|结果更新/i], phrase: "结果更新", order: 3 },
-  { patterns: [/总结表/i], phrase: "总结表更新", order: 4 },
-  { patterns: [/报告.*打磨|报告待打磨|报告打磨/i], phrase: "报告打磨", order: 5 },
-  { patterns: [/报告.*更新|更新.*报告|差异报告|退货报告/i], phrase: "报告更新", order: 6 },
-  { patterns: [/用户访问|访问\d+个|深访|退货访问/i], phrase: "用户访问", order: 7 },
-  { patterns: [/智能体|大模型搭建|codex|评论爬取/i], phrase: "智能体搭建与分析", order: 8 },
-  { patterns: [/PSM|弹性测试|弹性打磨/i], phrase: "PSM与弹性测试", order: 9 },
-  { patterns: [/思维拓展|AI素养/i], phrase: "思维拓展与AI素养研究", order: 10 },
-  { patterns: [/数据读数|分析/i], phrase: "数据分析", order: 11 },
-  { patterns: [/问卷/i], phrase: "问卷工作", order: 12 },
+  { patterns: [/更新WBR|WBR/i], phrase: "WBR更新", order: 2 },
+  { patterns: [/线下调研/i], phrase: "线下调研", order: 3 },
+  {
+    patterns: [/问卷.*投放|投放问卷|已投放问卷|ABtest问卷|周一投放/i],
+    phrase: "问卷投放",
+    order: 4,
+  },
+  { patterns: [/整理初步数据|数据整理/i], phrase: "数据整理", order: 5 },
+  { patterns: [/总结表/i], phrase: "总结表更新", order: 6 },
+  { patterns: [/报告.*打磨|报告待打磨|报告打磨/i], phrase: "报告打磨", order: 7 },
+  { patterns: [/报告.*更新|更新.*报告|差异报告|退货报告|决策链路报告/i], phrase: "报告更新", order: 8 },
+  { patterns: [/用户访问|访问\d+个|深访|退货访问|收尾访问/i], phrase: "用户访问", order: 9 },
+  { patterns: [/智能体|大模型搭建|codex|评论爬取/i], phrase: "智能体搭建与分析", order: 10 },
+  { patterns: [/PSM|弹性测试|弹性打磨/i], phrase: "PSM与弹性测试", order: 11 },
+  { patterns: [/思维拓展|AI素养/i], phrase: "思维拓展与AI素养研究", order: 12 },
+  { patterns: [/数据读数|差异分析/i], phrase: "数据分析", order: 13 },
+  { patterns: [/问卷/i], phrase: "问卷工作", order: 14 },
 ];
 
 function buildSummarySentence(phrases: string[]): string {
@@ -102,12 +115,55 @@ function simplifyTaskLabel(task: string): string {
   return label || task.trim();
 }
 
+function isStatusOnlyContent(text: string): boolean {
+  const bare = simplifyTaskLabel(text).replace(/[。.]+$/g, "").trim();
+  if (!bare || bare.length < 4) return true;
+  if (STATUS_ONLY_RE.test(bare)) return true;
+  if (/^实际达成/.test(bare) && !/报告|问卷|访问|更新|投放|调研|分析|搭建|WBR/i.test(bare)) {
+    return true;
+  }
+  return false;
+}
+
+function isStatusClause(clause: string): boolean {
+  const trimmed = clause.trim();
+  if (!trimmed || trimmed.length < 4) return true;
+  if (STATUS_CLAUSE_RE.test(trimmed)) return true;
+  if (/^实际达成\d*个?/.test(trimmed)) return true;
+  if (/^暂不投放/.test(trimmed)) return true;
+  return false;
+}
+
+/** Split a task line into substantive clauses, dropping status-only fragments */
+function extractWorkClauses(task: string): string[] {
+  const label = simplifyTaskLabel(task);
+  const parts = label
+    .split(/[，,；;]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 4 && !isStatusClause(part));
+
+  if (parts.length) return parts;
+
+  if (!isStatusOnlyContent(label)) return [label];
+  return [];
+}
+
+/** Keep only lines/clauses that describe work done, not weekly status */
+export function filterTasksForSummary(tasks: string[]): string[] {
+  const result: string[] = [];
+  for (const task of tasks) {
+    if (isStatusOnlyContent(task)) continue;
+    result.push(...extractWorkClauses(task));
+  }
+  return result.filter((item) => item.length >= 4 && !isStatusClause(item));
+}
+
 function shortenForSummary(task: string): string {
   const label = simplifyTaskLabel(task);
   if (label.length <= 28) return label;
 
   const first = label.split(/[，,；;。]/)[0]?.trim() ?? label;
-  if (first.length >= 4 && first.length <= 28) return first;
+  if (first.length >= 4 && first.length <= 28 && !isStatusClause(first)) return first;
   return label.slice(0, 24);
 }
 
@@ -132,6 +188,7 @@ function extractActionPhrases(tasks: string[]): string[] {
         clause.length >= 4 &&
         clause.length <= 28 &&
         /[\u4e00-\u9fa5]{2,}/.test(clause) &&
+        !isStatusClause(clause) &&
         !/^(质量未达|因本周|原计划|调整为|本周主要)/.test(clause)
       ) {
         matched.set(100 + matched.size, clause);
@@ -142,12 +199,15 @@ function extractActionPhrases(tasks: string[]): string[] {
   return Array.from(matched.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([, phrase]) => phrase)
+    .filter((phrase) => !isStatusClause(phrase))
     .slice(0, 4);
 }
 
 /** Summarize a few clear Chinese task labels literally. */
 function summarizeLiteralTasks(tasks: string[]): string {
-  const labels = tasks.map(shortenForSummary).filter((t) => t.length >= 2);
+  const labels = tasks
+    .map(shortenForSummary)
+    .filter((t) => t.length >= 4 && !isStatusClause(t));
   if (!labels.length) return "";
 
   const unique = Array.from(new Set(labels));
@@ -179,7 +239,9 @@ function classifyTaskThemes(tasks: string[]): string[] {
 
 /** Turn recorded task rows into one resume-ready sentence. */
 export function summarizeProjectWork(tasks: string[]): string {
-  const items = tasks.map((task) => task.trim()).filter((task) => task.length >= 2);
+  const items = filterTasksForSummary(
+    tasks.map((task) => task.trim()).filter((task) => task.length >= 2)
+  );
   if (!items.length) return "";
 
   const actionPhrases = extractActionPhrases(items);

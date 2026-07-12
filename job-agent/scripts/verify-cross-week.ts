@@ -40,6 +40,16 @@ function assertNoGenericSummary(name: string, summary?: string) {
   }
 }
 
+function assertNoStatusInSummary(name: string, summary?: string) {
+  if (
+    !summary ||
+    /未调研|已交接|暂不投放|实际达成|待调研/.test(summary)
+  ) {
+    console.error(`FAIL: ${name} summary should not contain status phrases`, summary);
+    process.exit(1);
+  }
+}
+
 async function main() {
   const aiProjects = parseWeeklyReportProjects(AI_FIXTURE, []);
   const ai = aiProjects.find((p) => p.name === "AI功能需求");
@@ -81,6 +91,64 @@ async function main() {
     "WK24 收尾访问，并基于20*3个用户访问结果更新种草-比选-决策链路报告",
   ]);
   assertNoGenericSummary("XTS决策链路", xtsSummary);
+  assertNoStatusInSummary("XTS决策链路", xtsSummary);
+
+  const wbrSummary = summarizeProjectWork([
+    "WK28 已更新WBR，未调研",
+    "WK27 已交接，待调研",
+    "WK28 周一二更新WBR，周一下午线下调研",
+  ]);
+  assertNoStatusInSummary("线下WBR", wbrSummary);
+  if (!/WBR/.test(wbrSummary) || !/线下调研/.test(wbrSummary)) {
+    console.error("FAIL: WBR summary should mention WBR and offline research", wbrSummary);
+    process.exit(1);
+  }
+
+  const psmSummary = summarizeProjectWork([
+    "WK27 周一投放，周三整理初步数据/视情况替换链接+投放ABtest问卷-回收100份",
+    "WK28 暂不投放额外测试",
+  ]);
+  assertNoStatusInSummary("硬件PSM", psmSummary);
+  if (!/问卷投放/.test(psmSummary)) {
+    console.error("FAIL: hardware PSM summary should mention questionnaire launch", psmSummary);
+    process.exit(1);
+  }
+
+  const stale = sanitizeProfileProjects(
+    [
+      {
+        id: "old",
+        name: "产品战略分析",
+        description: "WK22",
+        technologies: [],
+        highlights: ["WK22 完成竞品扫描"],
+        startDate: "2026-05-18",
+        endDate: "2026-05-22",
+        status: "ongoing",
+      },
+      {
+        id: "fresh",
+        name: "XTS决策链路",
+        description: "WK28",
+        technologies: [],
+        highlights: ["WK28 共访问10个"],
+        startDate: "2026-07-06",
+        endDate: "2026-07-10",
+        status: "ongoing",
+      },
+    ] as Project[],
+    []
+  );
+  const staleProject = stale.find((p) => p.name === "产品战略分析");
+  if (!staleProject || staleProject.status !== ("completed" as const)) {
+    console.error("FAIL: project 3+ weeks behind reference should be completed", staleProject);
+    process.exit(1);
+  }
+  const freshProject = stale.find((p) => p.name === "XTS决策链路");
+  if (!freshProject || freshProject.status !== "ongoing") {
+    console.error("FAIL: current-week project should stay ongoing", freshProject);
+    process.exit(1);
+  }
 
   let value = "";
   try {
