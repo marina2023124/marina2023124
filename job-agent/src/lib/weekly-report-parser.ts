@@ -3,6 +3,8 @@ import {
   extractBlockerContent,
   extractPlanActualContent,
   findProjectIndexForMetaLine,
+  canonicalProjectName,
+  projectsShouldMerge,
 } from "./project-match";
 import {
   isNoiseTaskHighlight,
@@ -658,13 +660,8 @@ function findExistingProject(
       const currentId = project.projectId || extractProjectId(project);
       if (currentId === entry.projectId) return true;
     }
-    if (normalizedName) {
-      const name = normalizeProjectName(project.name).toLowerCase();
-      return (
-        name === normalizedName ||
-        name.includes(normalizedName) ||
-        normalizedName.includes(name)
-      );
+    if (normalizedName && entry.projectName) {
+      return projectsShouldMerge(project.name, entry.projectName);
     }
     return false;
   };
@@ -702,11 +699,9 @@ function resolveMergeKey(
     return `pending-id:${entry.projectId}`;
   }
 
-  if (normalizedName) {
+  if (normalizedName && entry.projectName) {
     for (const [key, project] of Array.from(updates.entries())) {
-      if (normalizeProjectName(project.name).toLowerCase() === normalizedName) {
-        return key;
-      }
+      if (projectsShouldMerge(project.name, entry.projectName)) return key;
     }
   }
 
@@ -738,7 +733,7 @@ export function parseWeeklyReportProjects(
     const existing = findExistingProject(entry, existingProjects, updates);
     const key = resolveMergeKey(entry, existing, updates);
     const projectName = entry.projectName
-      ? normalizeProjectName(entry.projectName)
+      ? canonicalProjectName(entry.projectName)
       : undefined;
 
     const cleanedTasks = entry.tasks
@@ -749,11 +744,11 @@ export function parseWeeklyReportProjects(
     if (existing) {
       const current = updates.get(key) || {
         ...existing,
-        name: normalizeProjectName(existing.name),
+        name: canonicalProjectName(existing.name),
         highlights: [...(existing.highlights ?? [])],
         tags: [...(existing.tags ?? [])],
       };
-      current.name = normalizeProjectName(current.name);
+      current.name = canonicalProjectName(current.name);
       current.highlights = mergeHighlights(current.highlights ?? [], labeledTasks);
       current.tags = mergeTags(current.tags, entry.tags);
       current.startDate = minIsoDate(current.startDate, weekDates.start);

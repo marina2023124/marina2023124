@@ -1,5 +1,6 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
-import { mergeWeeklyHighlights, normalizeProjectName } from "./project-name";
+import { mergeWeeklyHighlights } from "./project-name";
+import { canonicalProjectName, projectsShouldMerge } from "./project-match";
 import type { ParsedProfileDraft } from "./resume-parser";
 import { sanitizeProfileSkills } from "./skill-tags";
 import { calcDurationDays, maxIsoDate, minIsoDate, getProjectWorkItems, sanitizeProfileProjects, extractProjectId } from "./utils";
@@ -42,7 +43,7 @@ function mergeProjects(
       const incomingId = item.projectId || extractProjectId(item);
       if (incomingId && currentId) return currentId === incomingId;
       if (item.projectId && project.projectId) return project.projectId === item.projectId;
-      return normalizeProjectName(project.name) === normalizeProjectName(item.name);
+      return projectsShouldMerge(project.name, item.name);
     });
     if (index < 0) {
       result.push(item);
@@ -61,7 +62,7 @@ function mergeProjects(
       current.status === "ongoing" || item.status === "ongoing" ? "ongoing" : "completed";
     const mergedProject: Project = {
       ...current,
-      name: normalizeProjectName(current.name || item.name),
+      name: canonicalProjectName(current.name || item.name),
       description: current.description || item.description,
       technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
       tags: Array.from(new Set([...(current.tags ?? []), ...(item.tags ?? [])])),

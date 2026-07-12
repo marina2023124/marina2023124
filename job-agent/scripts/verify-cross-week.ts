@@ -236,6 +236,71 @@ async function main() {
   }
 
   console.log("OK: highlight dedupe on merge verified");
+
+  const dupProfile = sanitizeProfileProjects(
+    [
+      {
+        id: "ai1",
+        name: "AI功能需求",
+        description: "WK25",
+        technologies: [],
+        highlights: ["WK25 总结表更新后已投放问卷&更新结果"],
+        startDate: "2026-06-15",
+        endDate: "2026-06-19",
+        status: "ongoing" as const,
+        tags: ["P0"],
+      },
+      {
+        id: "ai2",
+        name: "AI功能需求",
+        description: "WK24",
+        technologies: [],
+        highlights: ["WK24 质量未达预期，原计划完成报告更新&汇报&问卷"],
+        startDate: "2026-06-08",
+        endDate: "2026-06-12",
+        status: "ongoing" as const,
+        tags: ["P1"],
+      },
+      {
+        id: "r2a",
+        name: "R2新品规划PSM+弹性测试",
+        description: "WK25",
+        technologies: [],
+        highlights: ["WK25 本周已综合AI需求总结表"],
+        startDate: "2026-06-15",
+        endDate: "2026-06-19",
+        status: "ongoing" as const,
+        tags: ["P0"],
+      },
+      {
+        id: "r2b",
+        name: "R2新品规划PSM+弹性",
+        description: "WK26",
+        technologies: [],
+        highlights: [],
+        startDate: "2026-06-22",
+        endDate: "2026-06-26",
+        status: "ongoing" as const,
+        tags: ["P0"],
+      },
+    ],
+    []
+  );
+  if (dupProfile.filter((p) => p.name === "AI功能需求").length !== 1) {
+    console.error("FAIL: duplicate AI功能需求 should merge to one", dupProfile.map((p) => p.name));
+    process.exit(1);
+  }
+  if (dupProfile.filter((p) => p.name === "R2新品规划").length !== 1) {
+    console.error("FAIL: R2 variants should merge to one", dupProfile.map((p) => p.name));
+    process.exit(1);
+  }
+  const ai = dupProfile.find((p) => p.name === "AI功能需求");
+  if (!ai?.tags?.includes("P0") || !ai?.tags?.includes("P1")) {
+    console.error("FAIL: merged AI should keep P0+P1 tags", ai?.tags);
+    process.exit(1);
+  }
+
+  console.log("OK: canonical project merge verified");
 }
 
 main();

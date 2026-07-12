@@ -1,7 +1,7 @@
 import { summarizeProjectFromMeta, summarizeProjectWork } from "./project-work-summary";
 import { linkProjectsToWorkExperiences } from "./project-work-link";
-import { absorbNonProjectMetaCards } from "./project-match";
-import { normalizeProjectName, normalizeTaskHighlight, isNoiseTaskHighlight, dedupeWeeklyHighlights } from "./project-name";
+import { absorbNonProjectMetaCards, canonicalProjectName, mergeDuplicateProjects } from "./project-match";
+import { normalizeTaskHighlight, isNoiseTaskHighlight, dedupeWeeklyHighlights } from "./project-name";
 import type { WorkExperience } from "./types";
 
 export function generateId(): string {
@@ -371,10 +371,10 @@ export function sanitizeProfileProjects<T extends {
   projects: T[],
   workExperiences: WorkExperience[] = []
 ): T[] {
-  const enriched = absorbNonProjectMetaCards(projects).map((project) => {
+  const enriched = mergeDuplicateProjects(absorbNonProjectMetaCards(projects)).map((project) => {
     const normalized = {
       ...project,
-      name: normalizeProjectName(project.name),
+      name: canonicalProjectName(project.name),
       description: project.description || "",
       highlights: dedupeWeeklyHighlights(
         (project.highlights ?? [])
