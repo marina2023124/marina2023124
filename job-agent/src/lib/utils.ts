@@ -195,7 +195,7 @@ export function getProjectWorkSummary(project: {
   technologies?: string[];
 }): string {
   const items = getProjectWorkItems(project);
-  if (items.length) return summarizeProjectWork(items);
+  if (items.length) return summarizeProjectWork(items, project.name);
   if (project.workSummary?.trim()) return project.workSummary.trim();
   return summarizeProjectFromMeta(project);
 }

@@ -74,7 +74,10 @@ function mergeProjects(
       durationDays:
         status === "ongoing" ? undefined : calcDurationDays(startDate, endDate) ?? current.durationDays,
     };
-    mergedProject.workSummary = summarizeProjectWork(getProjectWorkItems(mergedProject));
+    mergedProject.workSummary = summarizeProjectWork(
+      getProjectWorkItems(mergedProject),
+      mergedProject.name
+    );
 
     result[index] = mergedProject;
   }

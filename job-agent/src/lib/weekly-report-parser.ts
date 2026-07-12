@@ -807,7 +807,10 @@ export function parseWeeklyReportProjects(
           ? `${current.description}；${weekNote}`
           : weekNote;
       }
-      current.workSummary = summarizeProjectWork(getProjectWorkItems(current));
+      current.workSummary = summarizeProjectWork(
+        getProjectWorkItems(current),
+        current.name
+      );
       updates.set(key, current);
       continue;
     }
@@ -830,7 +833,10 @@ export function parseWeeklyReportProjects(
       startDate: weekDates.start,
       endDate: weekDates.end,
       status: "ongoing",
-      workSummary: summarizeProjectWork(entry.tasks),
+      workSummary: summarizeProjectWork(
+        entry.tasks,
+        projectName || entry.projectName
+      ),
     };
     updates.set(key, created);
   }

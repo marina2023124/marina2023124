@@ -11,8 +11,8 @@ const TASK_CLASSIFIERS: { patterns: RegExp[]; phrase: string; order: number }[] 
     order: 2,
   },
   {
-    patterns: [/深访|用户访谈|IDI|FGD|座谈会|组前.*沟通|vlog.*沟通|沉浸/i],
-    phrase: "定性访谈",
+    patterns: [/深访|内访|用户访谈|IDI|FGD|座谈会|组前.*沟通|vlog.*沟通|沉浸/i],
+    phrase: "定性深访",
     order: 3,
   },
   {
@@ -60,6 +60,11 @@ const TASK_CLASSIFIERS: { patterns: RegExp[]; phrase: string; order: number }[] 
     phrase: "可视化呈现",
     order: 12,
   },
+  {
+    patterns: [/用户访问|访问|深访/i],
+    phrase: "用户访问",
+    order: 13,
+  },
 ];
 
 /** Status / progress fragments — not deliverable work for resume summaries */
@@ -69,7 +74,11 @@ const STATUS_CLAUSE_RE =
 const STATUS_ONLY_RE =
   /^(已交接|待调研|未调研|暂不投放.*|暂不.+|实际达成\d*个?|已达成|未达成|已推进|已同步|未按时达成|持续推进)([，,。.].*)?$/i;
 
-/** Extract short action phrases from weekly task detail lines. */
+/** Operational detail that should not appear in abstract summaries */
+const GRANULAR_DETAIL_RE =
+  /\d+\s*个|\d+\s*位|周[一二三四五六日天]|每天|周一|周二|周三|周四|周五|周六|周日|WK\d{1,2}\b|共访问|新增\d+|约\d+/i;
+
+/** Extract abstract action phrases from weekly task detail lines. */
 const ACTION_PHRASE_RULES: { patterns: RegExp[]; phrase: string; order: number }[] = [
   { patterns: [/雷达图问卷|更新雷达图/i], phrase: "雷达图问卷迭代", order: 1 },
   { patterns: [/更新WBR|WBR/i], phrase: "WBR更新", order: 2 },
@@ -83,18 +92,44 @@ const ACTION_PHRASE_RULES: { patterns: RegExp[]; phrase: string; order: number }
   { patterns: [/总结表/i], phrase: "总结表更新", order: 6 },
   { patterns: [/报告.*打磨|报告待打磨|报告打磨/i], phrase: "报告打磨", order: 7 },
   { patterns: [/报告.*更新|更新.*报告|差异报告|退货报告|决策链路报告/i], phrase: "报告更新", order: 8 },
-  { patterns: [/用户访问|访问\d+个|深访|退货访问|收尾访问/i], phrase: "用户访问", order: 9 },
-  { patterns: [/智能体|大模型搭建|codex|评论爬取/i], phrase: "智能体搭建与分析", order: 10 },
-  { patterns: [/PSM|弹性测试|弹性打磨/i], phrase: "PSM与弹性测试", order: 11 },
-  { patterns: [/思维拓展|AI素养/i], phrase: "思维拓展与AI素养研究", order: 12 },
-  { patterns: [/数据读数|差异分析/i], phrase: "数据分析", order: 13 },
-  { patterns: [/问卷/i], phrase: "问卷工作", order: 14 },
+  { patterns: [/内访|深访/i], phrase: "用户深访", order: 9 },
+  { patterns: [/用户访问|退货访问|收尾访问|访问/i], phrase: "用户访问", order: 10 },
+  { patterns: [/智能体|大模型搭建|codex|评论爬取/i], phrase: "智能体搭建与分析", order: 11 },
+  { patterns: [/PSM|弹性测试|弹性打磨/i], phrase: "PSM与弹性测试", order: 12 },
+  { patterns: [/思维拓展|AI素养/i], phrase: "思维拓展与AI素养研究", order: 13 },
+  { patterns: [/数据读数|差异分析/i], phrase: "数据分析", order: 14 },
+  { patterns: [/竞品|扫描/i], phrase: "竞品研究", order: 15 },
+  { patterns: [/问卷/i], phrase: "问卷工作", order: 16 },
+];
+
+const PROJECT_NAME_PHRASE_RULES: { patterns: RegExp[]; phrase: string }[] = [
+  { patterns: [/退货/i], phrase: "退货用户研究" },
+  { patterns: [/WBR|线下调研/i], phrase: "线下调研与WBR" },
+  { patterns: [/PSM|弹性/i], phrase: "PSM与弹性测试" },
+  { patterns: [/AI功能|雷达图/i], phrase: "AI功能需求研究" },
+  { patterns: [/XTS|决策链路/i], phrase: "决策链路用户研究" },
+  { patterns: [/智能体|codex/i], phrase: "智能体搭建" },
+  { patterns: [/新品|R2/i], phrase: "新品规划研究" },
 ];
 
 function buildSummarySentence(phrases: string[]): string {
-  if (phrases.length === 1) return `主要负责${phrases[0]}。`;
-  if (phrases.length === 2) return `负责${phrases[0]}与${phrases[1]}。`;
-  return `负责${phrases.slice(0, -1).join("、")}及${phrases[phrases.length - 1]}等工作。`;
+  const unique = dedupePhrases(phrases);
+  if (!unique.length) return "";
+  if (unique.length === 1) return `主要负责${unique[0]}。`;
+  if (unique.length === 2) return `负责${unique[0]}与${unique[1]}。`;
+  return `负责${unique.slice(0, -1).join("、")}及${unique[unique.length - 1]}等工作。`;
+}
+
+function dedupePhrases(phrases: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const phrase of phrases) {
+    const key = phrase.trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(key);
+  }
+  return result;
 }
 
 function simplifyTaskLabel(task: string): string {
@@ -113,6 +148,10 @@ function simplifyTaskLabel(task: string): string {
     .trim();
 
   return label || task.trim();
+}
+
+function isGranularDetail(text: string): boolean {
+  return GRANULAR_DETAIL_RE.test(text);
 }
 
 function isStatusOnlyContent(text: string): boolean {
@@ -158,65 +197,35 @@ export function filterTasksForSummary(tasks: string[]): string[] {
   return result.filter((item) => item.length >= 4 && !isStatusClause(item));
 }
 
-function shortenForSummary(task: string): string {
-  const label = simplifyTaskLabel(task);
-  if (label.length <= 28) return label;
-
-  const first = label.split(/[，,；;。]/)[0]?.trim() ?? label;
-  if (first.length >= 4 && first.length <= 28 && !isStatusClause(first)) return first;
-  return label.slice(0, 24);
-}
-
-function extractActionPhrases(tasks: string[]): string[] {
+function matchActionPhrases(sources: string[]): string[] {
   const matched = new Map<number, string>();
 
-  for (const task of tasks) {
-    const simplified = simplifyTaskLabel(task);
-    let found = false;
-
+  for (const source of sources) {
+    const simplified = simplifyTaskLabel(source);
     for (const rule of ACTION_PHRASE_RULES) {
       if (rule.patterns.some((pattern) => pattern.test(simplified))) {
         matched.set(rule.order, rule.phrase);
-        found = true;
         break;
-      }
-    }
-
-    if (!found) {
-      const clause = shortenForSummary(task);
-      if (
-        clause.length >= 4 &&
-        clause.length <= 28 &&
-        /[\u4e00-\u9fa5]{2,}/.test(clause) &&
-        !isStatusClause(clause) &&
-        !/^(质量未达|因本周|原计划|调整为|本周主要)/.test(clause)
-      ) {
-        matched.set(100 + matched.size, clause);
       }
     }
   }
 
   return Array.from(matched.entries())
     .sort((a, b) => a[0] - b[0])
-    .map(([, phrase]) => phrase)
-    .filter((phrase) => !isStatusClause(phrase))
-    .slice(0, 4);
+    .map(([, phrase]) => phrase);
 }
 
-/** Summarize a few clear Chinese task labels literally. */
-function summarizeLiteralTasks(tasks: string[]): string {
-  const labels = tasks
-    .map(shortenForSummary)
-    .filter((t) => t.length >= 4 && !isStatusClause(t));
-  if (!labels.length) return "";
-
-  const unique = Array.from(new Set(labels));
-  if (unique.length === 1) return `负责${unique[0]}。`;
-  if (unique.length === 2) return `负责${unique[0]}与${unique[1]}。`;
-  if (unique.length <= 4) {
-    return `负责${unique.slice(0, -1).join("、")}及${unique[unique.length - 1]}等工作。`;
+function extractActionPhrases(tasks: string[]): string[] {
+  const sources: string[] = [];
+  for (const task of tasks) {
+    const clauses = extractWorkClauses(task);
+    if (clauses.length) {
+      sources.push(...clauses);
+    } else if (!isStatusOnlyContent(task)) {
+      sources.push(simplifyTaskLabel(task));
+    }
   }
-  return `负责${unique.slice(0, 3).join("、")}等研究工作。`;
+  return matchActionPhrases(sources);
 }
 
 function classifyTaskThemes(tasks: string[]): string[] {
@@ -237,29 +246,48 @@ function classifyTaskThemes(tasks: string[]): string[] {
     .slice(0, 4);
 }
 
+function summarizeFromProjectName(projectName?: string): string[] {
+  if (!projectName?.trim()) return [];
+  const name = projectName.trim();
+  const phrases: string[] = [];
+  for (const rule of PROJECT_NAME_PHRASE_RULES) {
+    if (rule.patterns.some((pattern) => pattern.test(name))) {
+      phrases.push(rule.phrase);
+    }
+  }
+  if (!phrases.length && name.length >= 2 && name.length <= 24) {
+    phrases.push(`${name}相关研究`);
+  }
+  return phrases;
+}
+
 /** Turn recorded task rows into one resume-ready sentence. */
-export function summarizeProjectWork(tasks: string[]): string {
+export function summarizeProjectWork(tasks: string[], projectName?: string): string {
   const items = filterTasksForSummary(
     tasks.map((task) => task.trim()).filter((task) => task.length >= 2)
   );
-  if (!items.length) return "";
 
-  const actionPhrases = extractActionPhrases(items);
-  if (actionPhrases.length > 0) {
-    return buildSummarySentence(actionPhrases);
+  const actionPhrases = items.length ? extractActionPhrases(items) : [];
+  const namePhrases = summarizeFromProjectName(projectName);
+  const combined = dedupePhrases([...namePhrases, ...actionPhrases]).slice(0, 4);
+  if (combined.length > 0) {
+    return buildSummarySentence(combined);
   }
 
-  const phrases = classifyTaskThemes(items);
-  if (phrases.length > 0) {
-    return buildSummarySentence(phrases);
+  const themePhrases = items.length ? classifyTaskThemes(items) : [];
+  if (themePhrases.length > 0) {
+    return buildSummarySentence(themePhrases);
   }
 
-  const hasChinese = items.some((task) => /[\u4e00-\u9fa5]{2,}/.test(simplifyTaskLabel(task)));
-  if (hasChinese) {
-    return summarizeLiteralTasks(items);
+  if (namePhrases.length > 0) {
+    return buildSummarySentence(namePhrases);
   }
 
-  return `负责${items.length}项用户研究任务。`;
+  if (items.length > 0) {
+    return "负责相关用户研究执行与交付。";
+  }
+
+  return "";
 }
 
 const METHOD_PHRASE_RULES: { re: RegExp; phrase: string }[] = [
@@ -291,6 +319,9 @@ export function summarizeProjectFromMeta(project: {
   description?: string;
   technologies?: string[];
 }): string {
+  const fromName = buildSummarySentence(summarizeFromProjectName(project.name));
+  if (fromName) return fromName;
+
   const parts = (project.description || "")
     .split("·")
     .map((part) => part.trim())
@@ -321,4 +352,10 @@ export function summarizeProjectFromMeta(project: {
     return `负责${project.name}的用户研究项目交付。`;
   }
   return "";
+}
+
+/** Whether a summary still copies operational detail instead of abstracting it */
+export function summaryLooksLikeRawDetail(summary: string): boolean {
+  if (!summary.trim()) return false;
+  return isGranularDetail(summary) || /及.{4,}等工作/.test(summary) && GRANULAR_DETAIL_RE.test(summary);
 }

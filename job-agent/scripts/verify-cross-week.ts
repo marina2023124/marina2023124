@@ -4,7 +4,7 @@ import {
   finalizeWeeklyHighlights,
   normalizeProjectName,
 } from "../src/lib/project-name";
-import { summarizeProjectWork } from "../src/lib/project-work-summary";
+import { summarizeProjectWork, summaryLooksLikeRawDetail } from "../src/lib/project-work-summary";
 import { mergeWeeklyReportProjects } from "../src/lib/profile-merge";
 import { sanitizeProfileProjects } from "../src/lib/utils";
 import { parseWeeklyReportProjects } from "../src/lib/weekly-report-parser";
@@ -50,6 +50,15 @@ function assertNoStatusInSummary(name: string, summary?: string) {
   }
 }
 
+function assertAbstractSummary(name: string, summary?: string) {
+  assertNoGenericSummary(name, summary);
+  assertNoStatusInSummary(name, summary);
+  if (summaryLooksLikeRawDetail(summary ?? "")) {
+    console.error(`FAIL: ${name} summary should abstract details, not copy them`, summary);
+    process.exit(1);
+  }
+}
+
 async function main() {
   const aiProjects = parseWeeklyReportProjects(AI_FIXTURE, []);
   const ai = aiProjects.find((p) => p.name === "AI功能需求");
@@ -73,7 +82,17 @@ async function main() {
     console.error("FAIL: AI date span", ai.startDate, ai.endDate);
     process.exit(1);
   }
-  assertNoGenericSummary("AI功能需求", ai.workSummary);
+  assertAbstractSummary("AI功能需求", ai.workSummary);
+
+  const t6Summary = summarizeProjectWork(
+    ["WK21 周三内访26个，周一/二每天访问10个，周三访6个"],
+    "T6退货专项调研"
+  );
+  assertAbstractSummary("T6退货专项调研", t6Summary);
+  if (!/深访|访问|退货/.test(t6Summary)) {
+    console.error("FAIL: T6 summary should abstract visit work", t6Summary);
+    process.exit(1);
+  }
 
   const split = finalizeWeeklyHighlights([
     "WK25 总结表更新后已投放问卷&更新结果。报告待打磨",
@@ -90,15 +109,14 @@ async function main() {
     "WK25 实际达成8个，因为工作时间访问通过率低于全时段访问",
     "WK24 收尾访问，并基于20*3个用户访问结果更新种草-比选-决策链路报告",
   ]);
-  assertNoGenericSummary("XTS决策链路", xtsSummary);
-  assertNoStatusInSummary("XTS决策链路", xtsSummary);
+  assertAbstractSummary("XTS决策链路", xtsSummary);
 
   const wbrSummary = summarizeProjectWork([
     "WK28 已更新WBR，未调研",
     "WK27 已交接，待调研",
     "WK28 周一二更新WBR，周一下午线下调研",
   ]);
-  assertNoStatusInSummary("线下WBR", wbrSummary);
+  assertAbstractSummary("线下WBR", wbrSummary);
   if (!/WBR/.test(wbrSummary) || !/线下调研/.test(wbrSummary)) {
     console.error("FAIL: WBR summary should mention WBR and offline research", wbrSummary);
     process.exit(1);
@@ -108,7 +126,7 @@ async function main() {
     "WK27 周一投放，周三整理初步数据/视情况替换链接+投放ABtest问卷-回收100份",
     "WK28 暂不投放额外测试",
   ]);
-  assertNoStatusInSummary("硬件PSM", psmSummary);
+  assertAbstractSummary("硬件PSM", psmSummary);
   if (!/问卷投放/.test(psmSummary)) {
     console.error("FAIL: hardware PSM summary should mention questionnaire launch", psmSummary);
     process.exit(1);
@@ -185,14 +203,14 @@ async function main() {
     console.error("FAIL: XTS highlights should be labeled with WK prefix", xts.highlights);
     process.exit(1);
   }
-  assertNoGenericSummary("XTS决策链路", xts.workSummary);
+  assertAbstractSummary("XTS决策链路", xts.workSummary);
 
   const agent = projects.find((p) => p.name === "智能体搭建");
   if (!agent || agent.startDate !== "2026-06-15" || agent.endDate !== "2026-07-10") {
     console.error("FAIL: 智能体搭建 cross-week merge", agent);
     process.exit(1);
   }
-  assertNoGenericSummary("智能体搭建", agent.workSummary);
+  assertAbstractSummary("智能体搭建", agent.workSummary);
 
   const aiDoc = projects.find((p) => p.name === "AI功能需求");
   if (aiDoc) {
@@ -200,7 +218,7 @@ async function main() {
       console.error("FAIL: doc AI highlights need WK prefix", aiDoc.highlights);
       process.exit(1);
     }
-    assertNoGenericSummary("AI功能需求(doc)", aiDoc.workSummary);
+    assertAbstractSummary("AI功能需求(doc)", aiDoc.workSummary);
   }
 
   if (projects.some((p) => p.name === "计划" || p.name === "卡点")) {

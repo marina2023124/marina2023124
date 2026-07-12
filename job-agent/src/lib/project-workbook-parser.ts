@@ -122,7 +122,7 @@ function finalizeWorkbookProject(draft: WorkbookDraftProject): Project {
     description: meta,
     technologies: extractMethodSkillTags([draft.method, draft.category].filter(Boolean).join(" ")),
     highlights,
-    workSummary: summarizeProjectWork(workItems),
+    workSummary: summarizeProjectWork(workItems, draft.name),
     projectId: draft.projectId || undefined,
     startDate,
     endDate,
