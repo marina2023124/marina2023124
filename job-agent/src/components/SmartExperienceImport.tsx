@@ -349,7 +349,7 @@ export function SmartExperienceImport() {
             onChange={(e) => setRawInput(e.target.value)}
             placeholder={
               importMode === "weekly"
-                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· 本周项目 / 本周工作 版块\n· 2406303 - 项目名：任务描述\n· 项目名：本周任务（无编号也可）\n· 自动合并到已有项目并补充任务明细"
+                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· WK28 等工作周（自动推算 7.6-7.10 周期）\n· 「本周项目」下 P0/P1 条目\n· 项目名：任务 / 2406303 - 项目名：任务"
                 : "粘贴整份简历、项目任务表格，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· Markdown 表格（行业|项目编号|项目名|任务）\n· 专业技能"
             }
           />

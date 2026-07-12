@@ -17,26 +17,37 @@ const WEEK_RANGE_RE =
   /(\d{4})[./年-](\d{1,2})[./月-]?(\d{1,2})?\s*[-–—~至到]\s*(?:(\d{4})[./年-])?(\d{1,2})[./月-]?(\d{1,2})?/;
 const SINGLE_WEEK_RE =
   /(\d{4})[./年-](\d{1,2})[./月-](\d{1,2})?\s*(?:周报|周工作|Weekly)/i;
+const WK_HEADER_RE = /^WK\s*(\d{1,2})\s*$/i;
+const REPORT_DATE_RE = /周报[（(](\d{4})-(\d{2})-(\d{2})/;
 
 const PROJECT_SECTION_HEADER_RE =
   /^(本周项目|本周工作|本周完成|本周进展|本周任务|进行中项目|项目进展)([：:。.\s]*)$/i;
 const PROJECT_SECTION_INLINE_RE =
   /^(本周项目|本周工作|本周完成|本周进展|本周任务)[：:]\s*(.+)$/i;
 const END_SECTION_RE =
-  /^(下周计划|下周工作|下月计划|下周任务|备注|附件|工作总结|其他事项)([：:。.\s]*)$/i;
+  /^(下周计划|下周工作|下月计划|下周任务|下周目标|方法策略|业务价值|资源支持|备注|附件|工作总结|其他事项|目标达成|团队Token|《.+》读书笔记)([：:。.\s]*)$/i;
 const CATEGORY_LABEL_RE = /^[a-zA-Z][）).、:：]\s*[\u4e00-\u9fa5A-Za-z]{1,16}$/;
-const SKIP_META_RE = /^(姓名|部门|岗位|汇报人|日期|分类包括|LLM支持)/i;
+const SKIP_META_RE =
+  /^(姓名|部门|岗位|汇报人|日期|分类包括|LLM支持|成员|当月用量|todo|愿景|目标。)/i;
 const VERB_RE =
-  /完成|进行|负责|撰写|访谈|问卷|调研|报告|投放|分析|总结|整理|交付|推进|开展|深访|焦点小组|清洗|输出|招募|测试|上线|优化|开发|设计|座谈|纪要|投放|运营|沉淀/;
+  /完成|进行|负责|撰写|访谈|问卷|调研|报告|投放|分析|总结|整理|交付|推进|开展|深访|焦点小组|清洗|输出|招募|测试|上线|优化|开发|设计|座谈|纪要|运营|沉淀|搭建|同步|达成|更新|安排|访问|汇报|推进/;
 const PROJECT_TITLE_ONLY_RE =
   /^[\u4e00-\u9fa5A-Za-z0-9（）()·/&+]{2,30}$/;
+const SKIP_PROJECT_LINE_RE =
+  /每个工作日.*汇报|^P[01]每个工作日|^P3项目[：:]|^P3项目$|^P[23](?:【[^】]+】)?\s*《|^R1已购|^S2\/6|^其他用户访问|^计划[：:]|^方法策略|^业务价值|^资源支持|^目标达成|做对的方面|没有做对的方面|核心观点|接需求|SMARS|【执行待定】$/;
+const CONTINUATION_LINE_RE = /^周[一二三四五六日]|^→|^①|^②|^③|^\d+[、.]/;
+const PRIORITY_PROJECT_RE =
+  /^P[01](?:【[^】]+】)?\s*(.+?)[。.](.+)$/;
+const BARE_PROJECT_LINE_RE =
+  /^([A-Za-z\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5&+／/（）()·\s]{1,30}?)[。.](.+)$/;
 
 export function isWeeklyReportText(text: string): boolean {
-  const sample = text.slice(0, 2000);
+  const sample = text.slice(0, 4000);
   return (
     /周报|本周工作|本周完成|本周进展|本周项目|周工作总结|本周任务|下周计划|Weekly\s*Report/i.test(
       sample
     ) ||
+    /\bWK\s*\d{1,2}\b/i.test(sample) ||
     (/本周|下周/.test(sample) && /\b\d{6,7}\b/.test(sample)) ||
     /本周项目[：:\s]/i.test(sample)
   );
@@ -46,6 +57,37 @@ interface WeeklyEntry {
   projectId?: string;
   projectName?: string;
   tasks: string[];
+  weekStart?: string;
+  weekEnd?: string;
+  weekLabel?: string;
+}
+
+/** ISO 工作周：周一～周五，如 WK28 2026 = 7.6-7.10 */
+export function workWeekRange(
+  year: number,
+  week: number
+): { start: string; end: string; label: string } {
+  const jan4 = new Date(year, 0, 4);
+  const day = jan4.getDay() || 7;
+  const mondayWeek1 = new Date(jan4);
+  mondayWeek1.setDate(jan4.getDate() - day + 1);
+  const monday = new Date(mondayWeek1);
+  monday.setDate(mondayWeek1.getDate() + (week - 1) * 7);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  return {
+    start: toIsoDateString(monday),
+    end: toIsoDateString(friday),
+    label: `WK${week}`,
+  };
+}
+
+function extractReportYear(text: string): number {
+  const titled = text.match(REPORT_DATE_RE);
+  if (titled) return Number(titled[1]);
+  const dated = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (dated) return Number(dated[1]);
+  return new Date().getFullYear();
 }
 
 function cleanTaskLine(line: string): string {
@@ -77,11 +119,46 @@ function tryParseStructuredLine(line: string): WeeklyEntry | null {
   return {
     projectId,
     projectName: extractNameFromTail(tail),
-    tasks: [tail],
+    tasks: [line],
   };
 }
 
+function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
+  if (SKIP_PROJECT_LINE_RE.test(line)) return null;
+  if (/^P[23]/i.test(line)) return null;
+
+  const priority = line.match(PRIORITY_PROJECT_RE);
+  if (priority) {
+    const name = priority[1].trim();
+    if (name.length >= 2 && name.length <= 40) {
+      return { projectName: name, tasks: [line] };
+    }
+  }
+
+  if (!/^P[0-3]/i.test(line)) {
+    const bare = line.match(BARE_PROJECT_LINE_RE);
+    if (bare) {
+      const name = bare[1].trim();
+      if (
+        name.length >= 2 &&
+        name.length <= 32 &&
+        !/^(做对的|没有做|分类|包括|方法|业务|资源)/.test(name) &&
+        (VERB_RE.test(line) || /已达成|已推进|已同步|原计划|→/.test(line))
+      ) {
+        return { projectName: name, tasks: [line] };
+      }
+    }
+  }
+
+  return null;
+}
+
 function tryParseNameTaskLine(line: string): WeeklyEntry | null {
+  const priority = tryParsePriorityProjectLine(line);
+  if (priority) return priority;
+
+  if (/每个工作日|^[周\d]/.test(line)) return null;
+
   const colon = line.match(/^(.{2,30}?)[：:]\s*(.+)$/);
   if (colon && colon[2].length >= 2) {
     const name = colon[1].trim();
@@ -98,9 +175,9 @@ function tryParseNameTaskLine(line: string): WeeklyEntry | null {
   const verbSplit = line.match(
     /^(.{2,24}?)(完成|进行|负责|撰写|访谈|投放|整理|交付|推进|清洗|输出|深访|开展|设计|开发|测试|优化).+/
   );
-  if (verbSplit && verbSplit[1].length >= 2) {
+  if (verbSplit && verbSplit[1].length >= 4) {
     const name = verbSplit[1].trim();
-    if (!/本周|下周|分类|包括|用研|算法|智能体/.test(name) || name.length >= 4) {
+    if (!/本周|下周|分类|包括|^周[一二三四五六日]$/.test(name)) {
       return { projectName: name, tasks: [line] };
     }
   }
@@ -110,10 +187,7 @@ function tryParseNameTaskLine(line: string): WeeklyEntry | null {
 
 function tryParseInlineIdLine(line: string): WeeklyEntry | null {
   const inlineId = line.match(/\b(\d{6,7}|proposal)\b/i);
-  if (
-    inlineId &&
-    VERB_RE.test(line)
-  ) {
+  if (inlineId && VERB_RE.test(line)) {
     const projectId =
       inlineId[1].toLowerCase() === "proposal" ? "proposal" : inlineId[1];
     return {
@@ -124,21 +198,49 @@ function tryParseInlineIdLine(line: string): WeeklyEntry | null {
   return null;
 }
 
-function parseWeeklyEntries(text: string): WeeklyEntry[] {
+function withWeekContext(
+  entry: WeeklyEntry,
+  week?: { start: string; end: string; label: string }
+): WeeklyEntry {
+  if (!week) return entry;
+  return {
+    ...entry,
+    weekStart: week.start,
+    weekEnd: week.end,
+    weekLabel: week.label,
+  };
+}
+
+function parseBlockEntries(text: string, week?: { start: string; end: string; label: string }): WeeklyEntry[] {
   const entries: WeeklyEntry[] = [];
   let inProjectSection = false;
   let currentEntry: WeeklyEntry | null = null;
+  let lastPushedIndex = -1;
 
   const flushCurrent = () => {
     if (currentEntry && currentEntry.tasks.length > 0) {
-      entries.push(currentEntry);
+      entries.push(withWeekContext(currentEntry, week));
+      lastPushedIndex = entries.length - 1;
     }
     currentEntry = null;
   };
 
   const pushEntry = (entry: WeeklyEntry) => {
     flushCurrent();
-    entries.push(entry);
+    entries.push(withWeekContext(entry, week));
+    lastPushedIndex = entries.length - 1;
+  };
+
+  const appendToLast = (line: string) => {
+    if (lastPushedIndex >= 0) {
+      entries[lastPushedIndex].tasks.push(line);
+      return true;
+    }
+    if (currentEntry) {
+      currentEntry.tasks.push(line);
+      return true;
+    }
+    return false;
   };
 
   for (const rawLine of text.split("\n")) {
@@ -152,6 +254,7 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
       flushCurrent();
       continue;
     }
+    if (WK_HEADER_RE.test(line)) continue;
 
     if (END_SECTION_RE.test(line)) {
       flushCurrent();
@@ -189,6 +292,16 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
     }
 
     if (inProjectSection) {
+      const priority = tryParsePriorityProjectLine(line);
+      if (priority) {
+        pushEntry(priority);
+        continue;
+      }
+
+      if (CONTINUATION_LINE_RE.test(line) && appendToLast(line)) {
+        continue;
+      }
+
       const nameTask = tryParseNameTaskLine(line);
       if (nameTask) {
         pushEntry(nameTask);
@@ -197,7 +310,7 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
 
       if (PROJECT_TITLE_ONLY_RE.test(line) && !VERB_RE.test(line)) {
         flushCurrent();
-        currentEntry = { projectName: line, tasks: [] };
+        currentEntry = withWeekContext({ projectName: line, tasks: [] }, week);
         continue;
       }
 
@@ -206,11 +319,6 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
           currentEntry.tasks.push(line);
           continue;
         }
-      }
-
-      if (VERB_RE.test(line) && line.length >= 6 && line.length <= 160) {
-        pushEntry({ tasks: [line] });
-        continue;
       }
 
       continue;
@@ -226,7 +334,53 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
   return entries;
 }
 
-function extractWeekDates(text: string): { start?: string; end?: string } {
+function splitWeekSections(text: string): Array<{ week: number; content: string }> {
+  const sections: Array<{ week: number; content: string }> = [];
+  const re = /(?:^|\n)WK\s*(\d{1,2})\s*(?:\n|$)/gi;
+  const hits: Array<{ week: number; index: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    const index = match[0].startsWith("\n") ? match.index + 1 : match.index;
+    hits.push({ week: Number(match[1]), index });
+  }
+  if (!hits.length) return sections;
+
+  for (let i = 0; i < hits.length; i++) {
+    const start = hits[i].index;
+    const end = i + 1 < hits.length ? hits[i + 1].index - 1 : text.length;
+    sections.push({ week: hits[i].week, content: text.slice(start, end) });
+  }
+  return sections;
+}
+
+function extractWeeklyProjectBlock(sectionText: string): string {
+  const match = sectionText.match(
+    /本周项目[：:.]?\s*([\s\S]*?)(?=\n\s*(?:P3项目|方法策略|业务价值|下周目标|下周计划|资源支持)|$)/i
+  );
+  return match?.[1]?.trim() ?? "";
+}
+
+function parseWeeklyEntries(text: string): WeeklyEntry[] {
+  if (/\bWK\s*\d{1,2}\b/i.test(text)) {
+    const year = extractReportYear(text);
+    const all: WeeklyEntry[] = [];
+    for (const section of splitWeekSections(text)) {
+      const week = workWeekRange(year, section.week);
+      const block = extractWeeklyProjectBlock(section.content);
+      const body = block ? `本周项目\n${block}` : section.content;
+      all.push(...parseBlockEntries(body, week));
+    }
+    if (all.length) return all;
+  }
+
+  return parseBlockEntries(text);
+}
+
+function extractWeekDates(text: string, entry?: WeeklyEntry): { start?: string; end?: string } {
+  if (entry?.weekStart || entry?.weekEnd) {
+    return { start: entry.weekStart, end: entry.weekEnd };
+  }
+
   const range = text.match(WEEK_RANGE_RE);
   if (range) {
     const startYear = Number(range[1]);
@@ -240,6 +394,13 @@ function extractWeekDates(text: string): { start?: string; end?: string } {
     if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
       return { start: toIsoDateString(start), end: toIsoDateString(end) };
     }
+  }
+
+  const wk = text.match(/\bWK\s*(\d{1,2})\b/i);
+  if (wk) {
+    const year = extractReportYear(text);
+    const week = workWeekRange(year, Number(wk[1]));
+    return { start: week.start, end: week.end };
   }
 
   const single = text.match(SINGLE_WEEK_RE);
@@ -274,12 +435,15 @@ function findExistingProject(
   }
 
   if (entry.projectName) {
-    const byName = existingProjects.find(
-      (project) =>
-        project.name === entry.projectName ||
-        project.name.includes(entry.projectName!) ||
-        entry.projectName!.includes(project.name)
-    );
+    const normalized = entry.projectName.toLowerCase();
+    const byName = existingProjects.find((project) => {
+      const name = project.name.toLowerCase();
+      return (
+        name === normalized ||
+        name.includes(normalized) ||
+        normalized.includes(name)
+      );
+    });
     if (byName) return byName;
   }
 
@@ -308,10 +472,10 @@ export function parseWeeklyReportProjects(
   const entries = parseWeeklyEntries(text);
   if (!entries.length) return [];
 
-  const weekDates = extractWeekDates(text);
   const updates = new Map<string, Project>();
 
   for (const entry of entries) {
+    const weekDates = extractWeekDates(text, entry);
     const existing = findExistingProject(entry, existingProjects);
     const key = existing?.id || entry.projectId || entry.projectName || entry.tasks[0];
 
@@ -324,15 +488,26 @@ export function parseWeeklyReportProjects(
       current.startDate = minIsoDate(current.startDate, weekDates.start);
       current.endDate = maxIsoDate(current.endDate, weekDates.end);
       current.status = "ongoing";
+      if (entry.weekLabel && !current.description?.includes(entry.weekLabel)) {
+        const weekNote = `${entry.weekLabel}（${weekDates.start ?? ""}～${weekDates.end ?? ""}）`;
+        current.description = current.description
+          ? `${current.description}；${weekNote}`
+          : weekNote;
+      }
       current.workSummary = summarizeProjectWork(getProjectWorkItems(current));
       updates.set(key, current);
       continue;
     }
 
+    const weekNote = entry.weekLabel
+      ? `${entry.weekLabel}（${weekDates.start ?? ""}～${weekDates.end ?? ""}）`
+      : "";
     const created: Project = {
       id: generateId(),
       name: entry.projectName || (entry.projectId ? `项目 ${entry.projectId}` : entry.tasks[0].slice(0, 24)),
-      description: entry.projectId ? `项目编号 ${entry.projectId}` : "",
+      description: entry.projectId
+        ? `项目编号 ${entry.projectId}${weekNote ? `；${weekNote}` : ""}`
+        : weekNote,
       projectId: entry.projectId,
       technologies: [],
       highlights: entry.tasks,
@@ -349,11 +524,16 @@ export function parseWeeklyReportProjects(
 
 export function summarizeWeeklyReportParse(projects: Project[], sourceText: string): string {
   const entryCount = parseWeeklyEntries(sourceText).length;
+  const wkMatch = sourceText.match(/\bWK\s*(\d{1,2})\b/i);
+  const weekHint = wkMatch
+    ? ` · ${workWeekRange(extractReportYear(sourceText), Number(wkMatch[1])).label}`
+    : "";
+
   if (!projects.length) {
     if (/本周项目/i.test(sourceText) && entryCount === 0) {
-      return "未识别到项目：请把具体项目写在「本周项目」标题下方（项目名：本周任务）";
+      return "未识别到项目：请确认「本周项目」下有 P0/P1 条目或「项目名。任务」格式";
     }
     return `未从周报中识别到项目条目（扫描 ${entryCount} 行）`;
   }
-  return `识别 ${entryCount} 条工作记录 · 更新/新增 ${projects.length} 个项目`;
+  return `识别 ${entryCount} 条工作记录 · 更新/新增 ${projects.length} 个项目${weekHint}`;
 }
