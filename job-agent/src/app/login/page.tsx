@@ -40,6 +40,7 @@ export default function LoginPage() {
   const [pinging, setPinging] = useState(false);
   const [pingLines, setPingLines] = useState<PingLine[]>([]);
   const [serverReachable, setServerReachable] = useState<boolean | null>(null);
+  const [proxyHint, setProxyHint] = useState<string | null>(null);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
@@ -65,6 +66,7 @@ export default function LoginPage() {
     setPinging(true);
     setPingLines([]);
     setServerReachable(null);
+    setProxyHint(null);
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -80,13 +82,25 @@ export default function LoginPage() {
 
     try {
       const res = await fetch("/api/setup/ping");
-      const serverResult = (await res.json()) as { ok: boolean; message: string };
+      const serverResult = (await res.json()) as {
+        ok: boolean;
+        message: string;
+        proxy?: { configured: boolean; url?: string };
+      };
       lines.push({
         label: "本机服务 → 项目 API",
         ok: serverResult.ok,
         message: serverResult.message,
       });
       setServerReachable(serverResult.ok);
+
+      if (serverResult.proxy?.configured) {
+        setProxyHint(`本机服务已启用代理：${serverResult.proxy.url}`);
+      } else if (!serverResult.ok) {
+        setProxyHint(
+          "Clash 用户：在 .env.local 添加 HTTPS_PROXY=http://127.0.0.1:7890，然后重新运行 bash fix-and-start.sh"
+        );
+      }
     } catch {
       lines.push({
         label: "本机服务 → 项目 API",
@@ -199,18 +213,21 @@ export default function LoginPage() {
                   <span className="font-mono">{maskSupabaseUrl(supabaseUrl)}</span>
                 </p>
                 {serverReachable === false && (
-                  <p className="text-xs text-red-500">
-                    本机服务也无法连接 Supabase。可换 VPN 全局节点，或改用{" "}
-                    <a
-                      href="https://marina2023124.vercel.app/login"
-                      className="underline"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      线上版
-                    </a>{" "}
-                    （服务器在海外，通常更易连上）
-                  </p>
+                  <div className="space-y-1 text-xs text-red-500">
+                    <p>
+                      本机服务也无法连接 Supabase。可尝试：① Clash 开「系统代理」或「TUN 模式」；② 在
+                      .env.local 加 <span className="font-mono">HTTPS_PROXY=http://127.0.0.1:7890</span>{" "}
+                      后重启；③ 改用{" "}
+                      <a
+                        href="https://marina2023124.vercel.app/login"
+                        className="underline"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        线上版
+                      </a>
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -226,6 +243,9 @@ export default function LoginPage() {
                   <p className="text-xs text-emerald-700">
                     浏览器直连失败不影响登录，本机服务可转发请求，请直接点「登录」重试。
                   </p>
+                )}
+                {proxyHint && (
+                  <p className="text-xs text-slate-600">{proxyHint}</p>
                 )}
               </div>
             )}

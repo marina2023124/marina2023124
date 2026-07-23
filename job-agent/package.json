@@ -21,6 +21,7 @@
     "react": "^18",
     "react-dom": "^18",
     "tesseract.js": "^7.0.0",
+    "undici": "^6.27.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

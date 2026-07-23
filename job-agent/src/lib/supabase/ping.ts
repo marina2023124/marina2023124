@@ -1,16 +1,24 @@
 const PING_TIMEOUT_MS = 8000;
 
+export interface PingResult {
+  ok: boolean;
+  message: string;
+  proxy?: { configured: boolean; url?: string };
+}
+
 /** Quick reachability check for the configured Supabase project (browser or server). */
 export async function pingSupabaseProject(
   url: string,
-  anonKey: string
-): Promise<{ ok: boolean; message: string }> {
+  anonKey: string,
+  customFetch?: typeof fetch
+): Promise<PingResult> {
   const base = url.replace(/\/$/, "");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
+  const doFetch = customFetch ?? fetch;
 
   try {
-    const res = await fetch(`${base}/auth/v1/health`, {
+    const res = await doFetch(`${base}/auth/v1/health`, {
       method: "GET",
       headers: {
         apikey: anonKey,
