@@ -61,13 +61,18 @@ const urProfile: Profile = {
   ],
   projects: Array.from({ length: 12 }, (_, i) => ({
     id: `proj-${i}`,
-    name: `用户研究项目 ${i + 1}`,
-    description: "定性访谈与定量问卷调研",
+    name: i === 0 ? "快手商业化广告效果调研" : `商业化用户研究项目 ${i + 1}`,
+    description: "商业化 · 定性+定量",
     technologies: ["深度访谈", "问卷设计", "定性分析", "定量调研"],
-    highlights: ["完成用户深访", "设计并投放问卷"],
+    highlights: [
+      "WK28 完成广告主深访了解投放诉求",
+      "WK29 商业化问卷投放与营销效果读数",
+      "WK30 输出商业化洞察报告",
+    ],
     startDate: `2024-${String((i % 12) + 1).padStart(2, "0")}-01`,
     endDate: `2024-${String((i % 12) + 1).padStart(2, "0")}-28`,
     status: "completed" as const,
+    workSummary: "负责商业化广告效果调研，完成深访与问卷，评估营销效果并输出洞察",
   })),
   skills: [
     { id: "s1", name: "用户研究", level: "advanced" },
