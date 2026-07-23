@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Loader2, WifiOff } from "lucide-react";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { formatAuthError } from "@/lib/supabase/auth-errors";
 import { maskSupabaseUrl, pingSupabaseProject } from "@/lib/supabase/ping";
 import { SetupWizard } from "@/components/SetupWizard";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { enableCloudMode } from "@/lib/local-storage";
 
-const AUTH_REQUEST_TIMEOUT_MS = 15000;
+const AUTH_REQUEST_TIMEOUT_MS = 20000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -21,18 +22,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   ]);
 }
 
-function formatAuthError(err: unknown): string {
-  const message = err instanceof Error ? err.message : "操作失败";
-  if (/fetch failed|Failed to fetch|NetworkError|timeout|超时/i.test(message)) {
-    return "无法连接项目 API（*.supabase.co），请确认 VPN 为全局模式后点「测试云端连接」";
-  }
-  if (/Invalid login credentials/i.test(message)) {
-    return "邮箱或密码错误，请检查后重试";
-  }
-  if (/Email not confirmed/i.test(message)) {
-    return "邮箱尚未验证，请先到邮箱点击验证链接";
-  }
-  return message;
+interface PingLine {
+  label: string;
+  ok: boolean;
+  message: string;
 }
 
 export default function LoginPage() {
@@ -45,8 +38,8 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pinging, setPinging] = useState(false);
-  const [pingResult, setPingResult] = useState<string | null>(null);
-  const [pingOk, setPingOk] = useState<boolean | null>(null);
+  const [pingLines, setPingLines] = useState<PingLine[]>([]);
+  const [serverReachable, setServerReachable] = useState<boolean | null>(null);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
@@ -70,13 +63,40 @@ export default function LoginPage() {
 
   const handlePing = async () => {
     setPinging(true);
-    setPingResult(null);
-    setPingOk(null);
+    setPingLines([]);
+    setServerReachable(null);
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-    const result = await pingSupabaseProject(url, key);
-    setPingOk(result.ok);
-    setPingResult(result.message);
+
+    const browserResult = await pingSupabaseProject(url, key);
+    const lines: PingLine[] = [
+      {
+        label: "浏览器 → 项目 API",
+        ok: browserResult.ok,
+        message: browserResult.message,
+      },
+    ];
+
+    try {
+      const res = await fetch("/api/setup/ping");
+      const serverResult = (await res.json()) as { ok: boolean; message: string };
+      lines.push({
+        label: "本机服务 → 项目 API",
+        ok: serverResult.ok,
+        message: serverResult.message,
+      });
+      setServerReachable(serverResult.ok);
+    } catch {
+      lines.push({
+        label: "本机服务 → 项目 API",
+        ok: false,
+        message: "无法访问本机 API，请确认 dev 服务已启动",
+      });
+      setServerReachable(false);
+    }
+
+    setPingLines(lines);
     setPinging(false);
   };
 
@@ -86,25 +106,29 @@ export default function LoginPage() {
     setError(null);
     setMessage(null);
 
-    const supabase = createClient();
+    const endpoint = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
 
     try {
+      const res = await withTimeout(
+        fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        "请求超时：本机服务无法连接 Supabase，请换 VPN 节点或改用线上地址"
+      );
+
+      const body = (await res.json()) as { ok?: boolean; error?: string };
+
+      if (!res.ok || body.error) {
+        throw new Error(body.error ?? "操作失败");
+      }
+
       if (mode === "signup") {
-        const { error: signUpError } = await withTimeout(
-          supabase.auth.signUp({ email, password }),
-          AUTH_REQUEST_TIMEOUT_MS,
-          "注册请求超时，请检查 VPN 或网络后重试"
-        );
-        if (signUpError) throw signUpError;
         setMessage("注册成功！请查收邮件完成验证，或直接登录。");
       } else {
-        const { error: signInError } = await withTimeout(
-          supabase.auth.signInWithPassword({ email, password }),
-          AUTH_REQUEST_TIMEOUT_MS,
-          "登录请求超时，请检查 VPN 或网络后重试"
-        );
-        if (signInError) throw signInError;
-        router.replace("/");
+        window.location.href = "/";
       }
     } catch (err) {
       setError(formatAuthError(err));
@@ -171,18 +195,38 @@ export default function LoginPage() {
               <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
                 <p>{error}</p>
                 <p className="text-xs text-red-500">
-                  能打开 supabase.com 不代表项目 API 可达。登录实际访问的是{" "}
+                  能打开 supabase.com 不代表项目 API 可达。登录经本机服务转发，实际访问的是{" "}
                   <span className="font-mono">{maskSupabaseUrl(supabaseUrl)}</span>
                 </p>
+                {serverReachable === false && (
+                  <p className="text-xs text-red-500">
+                    本机服务也无法连接 Supabase。可换 VPN 全局节点，或改用{" "}
+                    <a
+                      href="https://marina2023124.vercel.app/login"
+                      className="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      线上版
+                    </a>{" "}
+                    （服务器在海外，通常更易连上）
+                  </p>
+                )}
               </div>
             )}
-            {pingResult && (
-              <div
-                className={`rounded-lg px-3 py-2 text-sm ${
-                  pingOk ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
-                }`}
-              >
-                {pingResult}
+            {pingLines.length > 0 && (
+              <div className="space-y-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {pingLines.map((line) => (
+                  <div key={line.label} className={line.ok ? "text-emerald-700" : "text-amber-800"}>
+                    <span className="font-medium">{line.label}：</span>
+                    {line.message}
+                  </div>
+                ))}
+                {serverReachable && pingLines.some((l) => !l.ok) && (
+                  <p className="text-xs text-emerald-700">
+                    浏览器直连失败不影响登录，本机服务可转发请求，请直接点「登录」重试。
+                  </p>
+                )}
               </div>
             )}
             {message && (
@@ -212,16 +256,16 @@ export default function LoginPage() {
               {pinging ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  正在测试项目 API…
+                  正在测试连接…
                 </>
               ) : (
-                "测试云端连接（项目 API）"
+                "测试云端连接（浏览器 + 本机服务）"
               )}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-xs text-slate-400">
-            所有求职资料加密存储在 Supabase 云端，不会写入浏览器 localStorage
+            登录与同步经本机 Next.js 服务转发，浏览器无需直连 *.supabase.co
           </p>
 
           <div className="mt-4 border-t border-slate-100 pt-4">
