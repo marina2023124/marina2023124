@@ -189,9 +189,11 @@ export default function DashboardPage() {
                           <p className="text-xs font-medium text-slate-500">相关项目</p>
                           <ul className="mt-1 space-y-1">
                             {topMatch.matchedProjects.slice(0, 3).map((p) => (
-                              <li key={p.id} className="truncate text-xs text-emerald-700">
-                                {p.name}
-                                <span className="text-slate-400"> · {p.reasons.slice(0, 2).join("、")}</span>
+                              <li key={p.id} className="text-xs text-emerald-700">
+                                <span className="font-medium text-slate-700">{p.name}</span>
+                                {p.summary && (
+                                  <span className="block truncate text-slate-500">{p.summary}</span>
+                                )}
                               </li>
                             ))}
                           </ul>

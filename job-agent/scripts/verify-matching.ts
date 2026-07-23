@@ -110,6 +110,14 @@ if (result.matchedProjects.length === 0) {
   console.error("FAIL: no matched projects");
   process.exit(1);
 }
+if (!result.matchedProjects[0]?.summary) {
+  console.error("FAIL: matched project missing summary");
+  process.exit(1);
+}
+if (!result.matchedProjects[0]?.reasons.some((r) => r.length > 8)) {
+  console.error("FAIL: matched project reasons too coarse", result.matchedProjects[0]?.reasons);
+  process.exit(1);
+}
 
 console.log("Recommendation:", result.recommendation);
 

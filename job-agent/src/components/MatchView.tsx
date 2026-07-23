@@ -10,21 +10,33 @@ import { Button } from "./ui";
 function MatchedProjectsList({
   projects,
 }: {
-  projects: { id: string; name: string; reasons: string[] }[];
+  projects: { id: string; name: string; summary: string; reasons: string[] }[];
 }) {
   if (projects.length === 0) return null;
 
   return (
     <div className="mt-4">
       <p className="mb-2 text-xs font-medium uppercase text-slate-400">匹配项目经历</p>
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {projects.map((project) => (
           <li
             key={project.id}
-            className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2"
+            className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5"
           >
             <p className="text-sm font-medium text-slate-800">{project.name}</p>
-            <p className="mt-0.5 text-xs text-emerald-700">{project.reasons.join(" · ")}</p>
+            {project.summary && (
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">{project.summary}</p>
+            )}
+            {project.reasons.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {project.reasons.map((reason) => (
+                  <li key={reason} className="flex gap-1.5 text-xs leading-relaxed text-emerald-800">
+                    <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-500" />
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         ))}
       </ul>

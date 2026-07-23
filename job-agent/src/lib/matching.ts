@@ -1,4 +1,4 @@
-import type { JobPosting, MatchResult, MatchedProject, Profile, Project, WorkExperience } from "./types";
+import type { JobPosting, MatchResult, Profile, Project, WorkExperience } from "./types";
 import { calcTotalExperienceYears, calcYearsBetween, normalizeSkill } from "./utils";
 import { extractSkillTagsFromExperience } from "./skill-tags";
 import {
@@ -6,6 +6,8 @@ import {
   findMatchingEducationLabel,
   type JobCriterion,
 } from "./job-criteria";
+import { findMatchedProjectsDetailed } from "./project-job-match";
+import { contextHasSkillKey as sharedContextHasSkillKey } from "./matching-shared";
 
 const SKILL_ALIASES: Record<string, string[]> = {
   javascript: ["js", "javascript", "ecmascript"],
@@ -38,9 +40,6 @@ const UR_ROLE_RE =
   /用户研究|用研|UX研究|User\s*Research|UR\b|研究员|研究分析师|研究专员/i;
 const UR_CONTENT_RE =
   /用户研究|用研|定性|定量|访谈|问卷|调研|深访|焦点小组|可用性测试|概念测试|JTBD|用户画像/;
-const QUAL_RE = /定性|深访|访谈|焦点小组|可用性|日记研究|定性分析|定性研究/;
-const QUANT_RE = /定量|问卷|调研|统计分析|数据分析|SPSS|Stata|大样本/;
-const TOB_RE = /to\s*b|tob|ToB|B端|企业端|商业客户|企业服务|SaaS|2B/i;
 
 function expandSkill(skill: string): Set<string> {
   const normalized = normalizeSkill(skill);
@@ -142,146 +141,9 @@ function calcUserResearchYears(profile: Profile): number {
   return 0;
 }
 
-function contextHasQualQuant(skills: Set<string>, blob: string): { qual: boolean; quant: boolean } {
-  const skillText = Array.from(skills).join(" ");
-
-  const qual =
-    QUAL_RE.test(blob) ||
-    QUAL_RE.test(skillText) ||
-    skills.has("定性分析") ||
-    skills.has("深度访谈") ||
-    skills.has("用户访谈");
-
-  const quant =
-    QUANT_RE.test(blob) ||
-    QUANT_RE.test(skillText) ||
-    skills.has("定量调研") ||
-    skills.has("问卷设计") ||
-    skills.has("数据分析");
-
-  return { qual, quant };
-}
-
-function contextHasSkillKey(skills: Set<string>, blob: string, skillKey: string): boolean {
-  switch (skillKey) {
-    case "qual-quant": {
-      const { qual, quant } = contextHasQualQuant(skills, blob);
-      return qual && quant;
-    }
-    case "qualitative":
-      return contextHasQualQuant(skills, blob).qual;
-    case "quantitative":
-      return contextHasQualQuant(skills, blob).quant;
-    case "user-research":
-      return UR_CONTENT_RE.test(blob) || skills.has("用户研究");
-    case "sql":
-      return skills.has("sql") || /\bsql\b/i.test(blob);
-    case "tob":
-      return TOB_RE.test(blob);
-    case "excel":
-      return skills.has("excel") || /excel/i.test(blob);
-    case "spss":
-      return skills.has("spss") || /spss/i.test(blob);
-    case "tableau":
-      return skills.has("tableau") || /tableau/i.test(blob);
-    case "python":
-      return skills.has("python") || /python/i.test(blob);
-    case "r":
-      return skills.has("r语言") || skills.has("r") || /r语言/i.test(blob);
-    case "stata":
-      return skills.has("stata") || /stata/i.test(blob);
-    case "powerbi":
-      return /power\s*bi/i.test(blob);
-    default:
-      return skills.has(skillKey);
-  }
-}
-
 function profileHasSkillKey(profile: Profile, skillKey: string): boolean {
   if (skillKey === "user-research" && calcUserResearchYears(profile) > 0) return true;
-  return contextHasSkillKey(getProfileSkillSet(profile), getProfileTextBlob(profile), skillKey);
-}
-
-function getProjectTextBlob(project: Project): string {
-  return [
-    project.name,
-    project.description,
-    project.workSummary ?? "",
-    ...(project.highlights ?? []),
-    ...(project.technologies ?? []),
-  ].join(" ");
-}
-
-function getProjectSkillSet(project: Project): Set<string> {
-  const skills = new Set<string>();
-  (project.technologies ?? []).forEach((t) => expandSkill(t).forEach((a) => skills.add(a)));
-  const text = getProjectTextBlob(project);
-  extractSkillTagsFromExperience({
-    company: "",
-    title: project.name,
-    description: text,
-    achievements: project.highlights ?? [],
-    skills: project.technologies ?? [],
-  } as WorkExperience).forEach((s) => expandSkill(s).forEach((a) => skills.add(a)));
-  return skills;
-}
-
-function findMatchedProjects(
-  profile: Profile,
-  job: JobPosting,
-  criteria: JobCriterion[]
-): MatchedProject[] {
-  const jobText = [
-    job.title,
-    job.description,
-    ...(job.requirements ?? []),
-    ...(job.responsibilities ?? []),
-    ...(job.preferredSkills ?? []),
-  ].join(" ");
-  const jobKeywords = extractSkillsFromJobDescription(jobText);
-  const hasUrCriterion = criteria.some((c) => c.type === "experience" && c.domain === "用户研究");
-  const results: MatchedProject[] = [];
-
-  for (const project of profile.projects) {
-    const reasons: string[] = [];
-    const blob = getProjectTextBlob(project);
-    const skills = getProjectSkillSet(project);
-
-    for (const criterion of criteria) {
-      if (criterion.type === "skill" && criterion.skillKey) {
-        if (contextHasSkillKey(skills, blob, criterion.skillKey)) {
-          reasons.push(criterion.label.replace(/（优先）$/, ""));
-        }
-      }
-    }
-
-    if (hasUrCriterion && isUserResearchProject(project)) {
-      reasons.push("用户研究项目经历");
-    }
-
-    for (const kw of jobKeywords) {
-      if (
-        blob.toLowerCase().includes(kw.toLowerCase()) ||
-        project.name.toLowerCase().includes(kw.toLowerCase())
-      ) {
-        const tag = `涉及 ${kw}`;
-        if (!reasons.includes(tag)) reasons.push(tag);
-      }
-    }
-
-    if (/商业化|广告|电商|变现|B端|toB/i.test(jobText) && /商业化|广告|电商|变现|B端|toB/i.test(blob)) {
-      if (!reasons.includes("商业化相关项目")) reasons.push("商业化相关项目");
-    }
-
-    const uniqueReasons = Array.from(new Set(reasons)).slice(0, 4);
-    if (uniqueReasons.length > 0) {
-      results.push({ id: project.id, name: project.name, reasons: uniqueReasons });
-    }
-  }
-
-  return results
-    .sort((a, b) => b.reasons.length - a.reasons.length || a.name.localeCompare(b.name, "zh-CN"))
-    .slice(0, 8);
+  return sharedContextHasSkillKey(getProfileSkillSet(profile), getProfileTextBlob(profile), skillKey);
 }
 
 function evaluateCriterion(
@@ -475,7 +337,7 @@ export function matchJob(profile: Profile, job: JobPosting): MatchResult {
     ...preferredMissing.slice(0, Math.max(0, 6 - requiredMissing.length)),
   ].slice(0, 8);
 
-  const matchedProjects = findMatchedProjects(profile, job, criteria);
+  const matchedProjects = findMatchedProjectsDetailed(profile, job, criteria);
 
   return {
     jobId: job.id,

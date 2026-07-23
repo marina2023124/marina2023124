@@ -107,6 +107,9 @@ export interface MatchResult {
 export interface MatchedProject {
   id: string;
   name: string;
+  /** 项目成果一句话描述 */
+  summary: string;
+  /** 具体匹配原因（完整句子） */
   reasons: string[];
 }
 
