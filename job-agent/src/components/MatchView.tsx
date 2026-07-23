@@ -2,44 +2,66 @@
 
 import { useApp } from "@/context/AppContext";
 import { matchAllJobs, getScoreLabel } from "@/lib/matching";
+import type { MatchedProject } from "@/lib/types";
 import { Card, ScoreRing, Badge, EmptyState } from "./ui";
 import { Target } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui";
 
-function MatchedProjectsList({
-  projects,
-}: {
-  projects: { id: string; name: string; summary: string; reasons: string[] }[];
-}) {
+function groupMatchedProjects(projects: MatchedProject[]): { label: string; projects: MatchedProject[] }[] {
+  const order: string[] = [];
+  const buckets = new Map<string, MatchedProject[]>();
+
+  for (const project of projects) {
+    const label = project.workExperienceLabel;
+    if (!buckets.has(label)) {
+      buckets.set(label, []);
+      order.push(label);
+    }
+    buckets.get(label)!.push(project);
+  }
+
+  return order.map((label) => ({ label, projects: buckets.get(label)! }));
+}
+
+function MatchedProjectsList({ projects }: { projects: MatchedProject[] }) {
   if (projects.length === 0) return null;
+
+  const groups = groupMatchedProjects(projects);
 
   return (
     <div className="mt-4">
       <p className="mb-2 text-xs font-medium uppercase text-slate-400">匹配项目经历</p>
-      <ul className="space-y-3">
-        {projects.map((project) => (
-          <li
-            key={project.id}
-            className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5"
-          >
-            <p className="text-sm font-medium text-slate-800">{project.name}</p>
-            {project.summary && (
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">{project.summary}</p>
-            )}
-            {project.reasons.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {project.reasons.map((reason) => (
-                  <li key={reason} className="flex gap-1.5 text-xs leading-relaxed text-emerald-800">
-                    <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-500" />
-                    <span>{reason}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
+      <div className="space-y-4">
+        {groups.map(({ label, projects: groupProjects }) => (
+          <div key={label}>
+            <p className="mb-2 text-xs font-medium text-indigo-700">{label}</p>
+            <ul className="space-y-3">
+              {groupProjects.map((project) => (
+                <li
+                  key={project.id}
+                  className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5"
+                >
+                  <p className="text-sm font-medium text-slate-800">{project.name}</p>
+                  {project.summary && (
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">{project.summary}</p>
+                  )}
+                  {project.reasons.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {project.reasons.map((reason) => (
+                        <li key={reason} className="flex gap-1.5 text-xs leading-relaxed text-emerald-800">
+                          <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-500" />
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

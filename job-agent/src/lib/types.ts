@@ -111,6 +111,9 @@ export interface MatchedProject {
   summary: string;
   /** 具体匹配原因（完整句子） */
   reasons: string[];
+  /** 所属工作经历，如「数说故事 · 商业分析师」 */
+  workExperienceLabel: string;
+  workExperienceId?: string;
 }
 
 export interface ChatMessage {

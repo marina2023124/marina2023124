@@ -126,7 +126,7 @@ function buildJobRecommend(data: AppData): string {
     if (match.matchedProjects.length > 0) {
       const projectLines = match.matchedProjects
         .slice(0, 3)
-        .map((p) => `${p.name}：${p.summary || p.reasons[0] || ""}`)
+        .map((p) => `${p.workExperienceLabel}｜${p.name}：${p.summary || p.reasons[0] || ""}`)
         .join("；");
       result += `   ✓ 相关项目：${projectLines}\n`;
     }

@@ -2,6 +2,11 @@ import type { JobPosting, MatchedProject, Profile, Project } from "./types";
 import type { JobCriterion } from "./job-criteria";
 import { getProjectWorkItems, getProjectWorkSummary } from "./utils";
 import { getProjectTextBlob } from "./matching-shared";
+import {
+  findWorkExperienceForProject,
+  formatWorkExperienceTag,
+  getWorkExperienceLabel,
+} from "./project-work-link";
 
 /** 几乎所有用研项目都会出现的词 —— 不能作为匹配理由 */
 const GENERIC_UR_TERMS = new Set([
@@ -542,6 +547,28 @@ function scoreProjectForJob(
   };
 }
 
+function resolveWorkExperience(
+  project: Project,
+  profile: Profile
+): { workExperienceId?: string; workExperienceLabel: string } {
+  if (project.workExperienceId) {
+    const label = getWorkExperienceLabel(project.workExperienceId, profile.workExperiences);
+    if (label) {
+      return { workExperienceId: project.workExperienceId, workExperienceLabel: label };
+    }
+  }
+
+  const matched = findWorkExperienceForProject(project, profile.workExperiences);
+  if (matched) {
+    return {
+      workExperienceId: matched.id,
+      workExperienceLabel: formatWorkExperienceTag(matched),
+    };
+  }
+
+  return { workExperienceLabel: "未关联工作" };
+}
+
 export function findMatchedProjectsDetailed(
   profile: Profile,
   job: JobPosting,
@@ -558,11 +585,15 @@ export function findMatchedProjectsDetailed(
     const scored = scoreProjectForJob(project, projectCtx, jobCtx, termFreq, totalProjects);
     if (!scored) continue;
 
+    const work = resolveWorkExperience(project, profile);
+
     results.push({
       id: project.id,
       name: project.name,
       summary: projectCtx.summary,
       reasons: scored.reasons,
+      workExperienceLabel: work.workExperienceLabel,
+      workExperienceId: work.workExperienceId,
       specificity: scored.specificity,
     });
   }

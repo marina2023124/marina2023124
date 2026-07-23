@@ -191,6 +191,7 @@ export default function DashboardPage() {
                             {topMatch.matchedProjects.slice(0, 3).map((p) => (
                               <li key={p.id} className="text-xs text-emerald-700">
                                 <span className="font-medium text-slate-700">{p.name}</span>
+                                <span className="text-indigo-600"> · {p.workExperienceLabel}</span>
                                 {p.summary && (
                                   <span className="block truncate text-slate-500">{p.summary}</span>
                                 )}

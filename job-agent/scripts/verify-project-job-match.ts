@@ -53,6 +53,16 @@ const profile: Profile = {
       achievements: [],
       skills: [],
     },
+    {
+      id: "w2",
+      company: "某咨询公司",
+      title: "研究顾问",
+      startDate: "2021-07",
+      endDate: "2023-03",
+      description: "",
+      achievements: [],
+      skills: [],
+    },
   ],
   projects: [
     {
@@ -62,6 +72,8 @@ const profile: Profile = {
       technologies: ["深度访谈", "问卷设计"],
       highlights: ["WK28 品牌健康度问卷更新", "WK29 完成 6 组品牌认知深访", "WK30 输出 Q3 品牌洞察报告"],
       workSummary: "负责品牌健康度调研，完成问卷更新与深访，输出 Q3 品牌洞察报告",
+      workExperienceId: "w1",
+      startDate: "2024-08-01",
     },
     {
       id: "p2",
@@ -70,6 +82,8 @@ const profile: Profile = {
       technologies: ["深度访谈"],
       highlights: ["WK22 端午营销概念组前沟通", "WK23 完成 4 组 FG 了解礼盒偏好"],
       workSummary: "负责伊利端午营销概念测试，完成 FG 与概念评估",
+      workExperienceId: "w2",
+      startDate: "2024-05-01",
     },
     {
       id: "p3",
@@ -78,6 +92,8 @@ const profile: Profile = {
       technologies: ["问卷设计"],
       highlights: ["WK25 用 Agent 辅助问卷迭代", "WK26 AI 功能可用性问卷投放"],
       workSummary: "负责 AI 功能需求调研，使用 Agent 辅助问卷设计与迭代",
+      workExperienceId: "w1",
+      startDate: "2024-09-01",
     },
     {
       id: "p4",
@@ -86,6 +102,8 @@ const profile: Profile = {
       technologies: ["深度访谈", "问卷设计"],
       highlights: ["WK20 新品概念测试问卷", "WK21 完成 8 组目标用户深访"],
       workSummary: "负责 R2 新品概念测试与用户需求研究",
+      workExperienceId: "w2",
+      startDate: "2024-04-01",
     },
     {
       id: "p5",
@@ -142,6 +160,15 @@ if (internal) {
 
 if (matched.length > 5) {
   console.error("FAIL: too many matches", matched.length);
+  process.exit(1);
+}
+
+if (!brandProject.workExperienceLabel.includes("数说故事")) {
+  console.error("FAIL: brand project should link to 数说故事", brandProject.workExperienceLabel);
+  process.exit(1);
+}
+if (!fmcgProject.workExperienceLabel.includes("咨询公司")) {
+  console.error("FAIL: fmcg project should link to 咨询公司", fmcgProject.workExperienceLabel);
   process.exit(1);
 }
 
