@@ -14,6 +14,28 @@ import { matchAllJobs, getScoreLabel } from "@/lib/matching";
 import { calcTotalExperienceYears } from "@/lib/utils";
 import { Card, Button, Badge, ScoreRing } from "@/components/ui";
 
+function StatCard({
+  href,
+  label,
+  value,
+  sub,
+}: {
+  href: string;
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+}) {
+  return (
+    <Link href={href} className="group block">
+      <Card className="!p-5 transition-all group-hover:border-indigo-200 group-hover:shadow-md">
+        <p className="text-sm text-slate-500 group-hover:text-indigo-600">{label}</p>
+        <div className="mt-1">{value}</div>
+        {sub && <div className="mt-1">{sub}</div>}
+      </Card>
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const { data } = useApp();
   const { profile, jobs } = data;
@@ -52,28 +74,46 @@ export default function DashboardPage() {
             <div className="h-2 rounded-full bg-indigo-500 transition-all" style={{ width: `${completeness}%` }} />
           </div>
         </Card>
-        <Card className="!p-5">
-          <p className="text-sm text-slate-500">工作经验</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{totalYears}<span className="text-lg font-normal text-slate-400">年</span></p>
-          <p className="mt-1 text-xs text-slate-400">
-            {profile.workExperiences.length} 段经历
-            {totalYears > 0 && " · 已合并重叠区间"}
-          </p>
-        </Card>
-        <Card className="!p-5">
-          <p className="text-sm text-slate-500">技能数量</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{profile.skills.length}</p>
-          <p className="mt-1 text-xs text-slate-400">{profile.projects.length} 个项目</p>
-        </Card>
-        <Card className="!p-5">
-          <p className="text-sm text-slate-500">关注岗位</p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">{jobs.length}</p>
-          {topMatch && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600">
-              <TrendingUp className="h-3 w-3" /> 最高匹配 {topMatch.score}%
+        <StatCard
+          href="/experience"
+          label="工作经验"
+          value={
+            <p className="text-3xl font-bold text-slate-900 group-hover:text-indigo-600">
+              {totalYears}
+              <span className="text-lg font-normal text-slate-400">年</span>
             </p>
-          )}
-        </Card>
+          }
+          sub={
+            <p className="text-xs text-slate-400">
+              {profile.workExperiences.length} 段经历
+              {totalYears > 0 && " · 已合并重叠区间"}
+            </p>
+          }
+        />
+        <StatCard
+          href="/experience"
+          label="技能数量"
+          value={
+            <p className="text-3xl font-bold text-slate-900 group-hover:text-indigo-600">
+              {profile.skills.length}
+            </p>
+          }
+          sub={<p className="text-xs text-slate-400">{profile.projects.length} 个项目</p>}
+        />
+        <StatCard
+          href="/jobs"
+          label="关注岗位"
+          value={
+            <p className="text-3xl font-bold text-slate-900 group-hover:text-indigo-600">{jobs.length}</p>
+          }
+          sub={
+            topMatch ? (
+              <p className="flex items-center gap-1 text-xs text-emerald-600">
+                <TrendingUp className="h-3 w-3" /> 最高匹配 {topMatch.score}%
+              </p>
+            ) : undefined
+          }
+        />
       </div>
 
       <div className="mb-8 grid grid-cols-4 gap-4">
@@ -129,20 +169,33 @@ export default function DashboardPage() {
           }
         >
           {topMatch ? (
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-4">
               <ScoreRing score={topMatch.score} size={72} />
-              <div>
+              <div className="min-w-0 flex-1">
                 {(() => {
                   const job = jobs.find((j) => j.id === topMatch.jobId)!;
                   return (
                     <>
                       <h4 className="font-semibold text-slate-900">{job.title}</h4>
                       <p className="text-sm text-indigo-600">{job.company}</p>
-                      <Badge color="green" >{getScoreLabel(topMatch.score)}</Badge>
+                      <Badge color="green">{getScoreLabel(topMatch.score)}</Badge>
                       {topMatch.matchedSkills.length > 0 && (
                         <p className="mt-2 text-xs text-slate-500">
                           匹配：{topMatch.matchedSkills.slice(0, 4).join("、")}
                         </p>
+                      )}
+                      {topMatch.matchedProjects.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-slate-500">相关项目</p>
+                          <ul className="mt-1 space-y-1">
+                            {topMatch.matchedProjects.slice(0, 3).map((p) => (
+                              <li key={p.id} className="truncate text-xs text-emerald-700">
+                                {p.name}
+                                <span className="text-slate-400"> · {p.reasons.slice(0, 2).join("、")}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </>
                   );

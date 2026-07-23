@@ -82,7 +82,7 @@ const result = matchJob(urProfile, kuaishouJob);
 console.log("Score:", result.score, result.skillMatch, result.experienceMatch);
 console.log("Matched:", result.matchedSkills);
 console.log("Missing:", result.missingSkills);
-console.log("Recommendation:", result.recommendation);
+console.log("Matched projects:", result.matchedProjects.slice(0, 3).map((p) => p.name));
 
 const hasNoise = result.missingSkills.some((s) =>
   /岗位职责|围绕商业化/.test(s)
@@ -106,5 +106,11 @@ if (!hasEduMatched) {
   console.error("FAIL: communication major not matched");
   process.exit(1);
 }
+if (result.matchedProjects.length === 0) {
+  console.error("FAIL: no matched projects");
+  process.exit(1);
+}
+
+console.log("Recommendation:", result.recommendation);
 
 console.log("OK: matching logic verified");

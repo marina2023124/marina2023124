@@ -7,6 +7,31 @@ import { Target } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui";
 
+function MatchedProjectsList({
+  projects,
+}: {
+  projects: { id: string; name: string; reasons: string[] }[];
+}) {
+  if (projects.length === 0) return null;
+
+  return (
+    <div className="mt-4">
+      <p className="mb-2 text-xs font-medium uppercase text-slate-400">匹配项目经历</p>
+      <ul className="space-y-2">
+        {projects.map((project) => (
+          <li
+            key={project.id}
+            className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2"
+          >
+            <p className="text-sm font-medium text-slate-800">{project.name}</p>
+            <p className="mt-0.5 text-xs text-emerald-700">{project.reasons.join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function MatchView() {
   const { data } = useApp();
   const matches = matchAllJobs(data.profile, data.jobs);
@@ -46,8 +71,19 @@ export function MatchView() {
       <div className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
         <h2 className="text-xl font-bold">智能匹配结果</h2>
         <p className="mt-1 text-indigo-100">
-          基于你的 {data.profile.skills.length} 项技能和 {data.profile.workExperiences.length} 段工作经历，
-          分析了 {data.jobs.length} 个岗位的匹配度
+          基于你的{" "}
+          <Link href="/experience" className="underline underline-offset-2 hover:text-white">
+            {data.profile.skills.length} 项技能
+          </Link>{" "}
+          和{" "}
+          <Link href="/experience" className="underline underline-offset-2 hover:text-white">
+            {data.profile.workExperiences.length} 段工作经历
+          </Link>
+          ，分析了{" "}
+          <Link href="/jobs" className="underline underline-offset-2 hover:text-white">
+            {data.jobs.length} 个岗位
+          </Link>{" "}
+          的匹配度
         </p>
       </div>
 
@@ -99,6 +135,8 @@ export function MatchView() {
                       </div>
                     </div>
                   </div>
+
+                  <MatchedProjectsList projects={match.matchedProjects} />
 
                   <div className="mt-4 rounded-lg bg-slate-50 p-3">
                     <p className="text-sm text-slate-700">{match.recommendation}</p>

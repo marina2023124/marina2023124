@@ -97,9 +97,17 @@ export interface MatchResult {
   experienceMatch: number;
   matchedSkills: string[];
   missingSkills: string[];
+  /** 与岗位相关的项目经历及匹配原因 */
+  matchedProjects: MatchedProject[];
   strengths: string[];
   gaps: string[];
   recommendation: string;
+}
+
+export interface MatchedProject {
+  id: string;
+  name: string;
+  reasons: string[];
 }
 
 export interface ChatMessage {

@@ -123,6 +123,13 @@ function buildJobRecommend(data: AppData): string {
     if (match.matchedSkills.length > 0) {
       result += `   ✓ 匹配技能：${match.matchedSkills.slice(0, 4).join("、")}\n`;
     }
+    if (match.matchedProjects.length > 0) {
+      const projectLines = match.matchedProjects
+        .slice(0, 3)
+        .map((p) => `${p.name}（${p.reasons.slice(0, 2).join("、")}）`)
+        .join("；");
+      result += `   ✓ 相关项目：${projectLines}\n`;
+    }
     if (match.missingSkills.length > 0) {
       result += `   ✗ 待补充：${match.missingSkills.slice(0, 3).join("、")}\n`;
     }
