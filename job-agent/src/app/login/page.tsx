@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Loader2, WifiOff } from "lucide-react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { maskSupabaseUrl, pingSupabaseProject } from "@/lib/supabase/ping";
 import { SetupWizard } from "@/components/SetupWizard";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
@@ -23,7 +24,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 function formatAuthError(err: unknown): string {
   const message = err instanceof Error ? err.message : "操作失败";
   if (/fetch failed|Failed to fetch|NetworkError|timeout|超时/i.test(message)) {
-    return "无法连接 Supabase，请开启 VPN 后重试";
+    return "无法连接项目 API（*.supabase.co），请确认 VPN 为全局模式后点「测试云端连接」";
   }
   if (/Invalid login credentials/i.test(message)) {
     return "邮箱或密码错误，请检查后重试";
@@ -43,6 +44,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pinging, setPinging] = useState(false);
+  const [pingResult, setPingResult] = useState<string | null>(null);
+  const [pingOk, setPingOk] = useState<boolean | null>(null);
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
   useEffect(() => {
     enableCloudMode();
@@ -61,6 +67,18 @@ export default function LoginPage() {
       </div>
     );
   }
+
+  const handlePing = async () => {
+    setPinging(true);
+    setPingResult(null);
+    setPingOk(null);
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+    const result = await pingSupabaseProject(url, key);
+    setPingOk(result.ok);
+    setPingResult(result.message);
+    setPinging(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +168,22 @@ export default function LoginPage() {
             />
 
             {error && (
-              <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+              <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                <p>{error}</p>
+                <p className="text-xs text-red-500">
+                  能打开 supabase.com 不代表项目 API 可达。登录实际访问的是{" "}
+                  <span className="font-mono">{maskSupabaseUrl(supabaseUrl)}</span>
+                </p>
+              </div>
+            )}
+            {pingResult && (
+              <div
+                className={`rounded-lg px-3 py-2 text-sm ${
+                  pingOk ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
+                }`}
+              >
+                {pingResult}
+              </div>
             )}
             {message && (
               <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div>
@@ -166,6 +199,23 @@ export default function LoginPage() {
                 "登录"
               ) : (
                 "注册"
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-sm"
+              disabled={pinging}
+              onClick={handlePing}
+            >
+              {pinging ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  正在测试项目 API…
+                </>
+              ) : (
+                "测试云端连接（项目 API）"
               )}
             </Button>
           </form>
