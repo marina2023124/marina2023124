@@ -525,9 +525,20 @@ function scoreProjectForJob(
 
   if (specificity < minSpecificity) return null;
 
+  const uniqueReasons: string[] = [];
+  const usedSnippets = new Set<string>();
+  for (const e of allEvidence) {
+    const snips = e.reason.match(/「([^」]+)」/g) ?? [];
+    const anchor = snips.length > 0 ? snips[snips.length - 1]! : e.reason.slice(0, 30);
+    if (usedSnippets.has(anchor)) continue;
+    usedSnippets.add(anchor);
+    uniqueReasons.push(e.reason);
+    if (uniqueReasons.length >= 2) break;
+  }
+
   return {
     specificity,
-    reasons: allEvidence.slice(0, 2).map((e) => e.reason),
+    reasons: uniqueReasons,
   };
 }
 
