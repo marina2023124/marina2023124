@@ -7,6 +7,7 @@ import { Card, ScoreRing, Badge, EmptyState } from "./ui";
 import { Target } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui";
+import { LlmMatchPanel } from "./LlmMatchPanel";
 
 function groupMatchedProjects(projects: MatchedProject[]): { label: string; projects: MatchedProject[] }[] {
   const order: string[] = [];
@@ -171,6 +172,8 @@ export function MatchView() {
                   </div>
 
                   <MatchedProjectsList projects={match.matchedProjects} />
+
+                  <LlmMatchPanel profile={data.profile} job={job} ruleMatch={match} />
 
                   <div className="mt-4 rounded-lg bg-slate-50 p-3">
                     <p className="text-sm text-slate-700">{match.recommendation}</p>

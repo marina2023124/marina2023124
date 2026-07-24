@@ -108,7 +108,7 @@ export function AgentChat() {
     const startUsage = estimateContextChars({ ...data, chatHistory: historyWithUser }, text.trim());
     setLoadingPercent(startUsage.percent);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const prepared = prepareContextForReply(
         { ...data, chatHistory: historyWithUser },
         text.trim()
@@ -121,16 +121,35 @@ export function AgentChat() {
 
       setLoadingPercent(prepared.usage.percent);
 
-      const response = generateAgentResponse(text.trim(), prepared.data);
+      let response: string;
+      try {
+        const statusRes = await fetch("/api/llm/status");
+        const status = (await statusRes.json()) as { configured: boolean };
+        if (status.configured) {
+          const chatRes = await fetch("/api/llm/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: prepared.data, message: text.trim() }),
+          });
+          const chatBody = (await chatRes.json()) as { ok?: boolean; content?: string; error?: string };
+          if (chatRes.ok && chatBody.ok && chatBody.content) {
+            response = chatBody.content;
+          } else {
+            response = generateAgentResponse(text.trim(), prepared.data);
+          }
+        } else {
+          response = generateAgentResponse(text.trim(), prepared.data);
+        }
+      } catch {
+        response = generateAgentResponse(text.trim(), prepared.data);
+      }
 
-      setTimeout(() => {
-        replaceChatHistory([
-          ...prepared.data.chatHistory,
-          createChatMessage("assistant", response),
-        ]);
-        setThinking(false);
-        setLoadingPercent(null);
-      }, 300);
+      replaceChatHistory([
+        ...prepared.data.chatHistory,
+        createChatMessage("assistant", response),
+      ]);
+      setThinking(false);
+      setLoadingPercent(null);
     }, 500);
   };
 
@@ -145,7 +164,7 @@ export function AgentChat() {
           </div>
           <div>
             <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
-            <p className="text-xs text-slate-500">帮你梳理经历、分析技能、匹配岗位</p>
+            <p className="text-xs text-slate-500">帮你梳理经历、分析技能、匹配岗位（支持 DeepSeek）</p>
           </div>
         </div>
         {data.chatHistory.length > 1 && (
