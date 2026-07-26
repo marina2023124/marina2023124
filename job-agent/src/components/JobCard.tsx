@@ -6,8 +6,10 @@ import type { JobPosting, JobStatus } from "@/lib/types";
 import { CommuteInfo } from "@/components/CommuteInfo";
 import { JobDetailSections } from "@/components/JobDetailSections";
 import { JobInterestRating } from "@/components/JobInterestRating";
+import { JobSourceBadge } from "@/components/JobSourceBadge";
 import { assembleJobDescription } from "@/lib/job-sections";
 import { getJobIndustry } from "@/lib/job-list";
+import { JOB_SOURCE_LABELS, resolveJobSource, type JobSource } from "@/lib/job-source";
 import { Badge, Button, Card, Input, Select, Textarea } from "./ui";
 
 const statusOptions: { value: JobStatus; label: string }[] = [
@@ -34,6 +36,10 @@ function cloneJob(job: JobPosting): JobPosting {
     preferredSkills: [...(job.preferredSkills ?? [])],
   };
 }
+
+const sourceOptions = (Object.entries(JOB_SOURCE_LABELS) as [JobSource, string][]).map(
+  ([value, label]) => ({ value, label })
+);
 
 function JobCardEditor({
   draft,
@@ -86,6 +92,12 @@ function JobCardEditor({
           options={statusOptions}
           value={draft.status}
           onChange={(e) => onChange({ status: e.target.value as JobStatus })}
+        />
+        <Select
+          label="信息来源"
+          options={sourceOptions}
+          value={draft.source || "manual"}
+          onChange={(e) => onChange({ source: e.target.value as JobSource })}
         />
       </div>
 
@@ -179,6 +191,7 @@ export function JobCard({
       jobIntro: draft.jobIntro?.trim() || undefined,
       responsibilities: draft.responsibilities ?? [],
       requirements: draft.requirements ?? [],
+      source: draft.source || resolveJobSource({ url: draft.url }),
       description: assembleJobDescription(draft) || draft.description,
     });
   };
@@ -202,6 +215,7 @@ export function JobCard({
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
+            <JobSourceBadge source={job.source} url={job.url} />
             <Badge color={statusColor[job.status]}>{statusLabel}</Badge>
             {industry !== "未分类" && <Badge color="slate">{industry}</Badge>}
           </div>

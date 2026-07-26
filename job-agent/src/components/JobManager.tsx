@@ -11,6 +11,7 @@ import {
   ArrowDownAZ,
   ArrowUpAZ,
   SlidersHorizontal,
+  Link2,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { JobPosting, JobStatus } from "@/lib/types";
@@ -19,6 +20,7 @@ import { parseJobDescription } from "@/lib/jd-parser";
 import { jobToEditableText, mergeParsedJob } from "@/lib/job-merge";
 import { extractTextFromImage, isImageFile } from "@/lib/ocr";
 import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
+import { JobSourceBadge } from "@/components/JobSourceBadge";
 import { CommuteInfo } from "@/components/CommuteInfo";
 import { JobCard } from "@/components/JobCard";
 import { JobDetailSections } from "@/components/JobDetailSections";
@@ -32,6 +34,8 @@ import {
   type JobListPrefs,
   type JobSortField,
 } from "@/lib/job-list";
+import { importedDraftToText, type ImportedJobDraft } from "@/lib/job-importers";
+import { JOB_SOURCE_LABELS, resolveJobSource, type JobSource } from "@/lib/job-source";
 import { Button, Card, Input, Textarea, Select, Badge, EmptyState } from "./ui";
 
 const sortFieldOptions: { value: JobSortField; label: string }[] = [
@@ -176,7 +180,12 @@ function SmartJobInput({
   const [ocrProgress, setOcrProgress] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(!!initial);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [importUrl, setImportUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const sourceOptions = (Object.entries(JOB_SOURCE_LABELS) as [JobSource, string][]).map(
+    ([value, label]) => ({ value, label })
+  );
 
   const runParse = useCallback((text: string) => {
     const parsed = parseJobDescription(text);
@@ -191,6 +200,7 @@ function SmartJobInput({
         status: prev?.status || initial?.status || "saved",
         createdAt: prev?.createdAt || initial?.createdAt || new Date().toISOString(),
         industry: prev?.industry ?? initial?.industry,
+        source: merged.source ?? prev?.source ?? initial?.source,
         interestRating: prev?.interestRating ?? initial?.interestRating,
         preferredSkills: merged.preferredSkills || prev?.preferredSkills || initial?.preferredSkills || [],
         requirements: merged.requirements || [],
@@ -199,6 +209,51 @@ function SmartJobInput({
       } as JobPosting;
     });
   }, [initial]);
+
+  const handleUrlImport = async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+    setParsing(true);
+    try {
+      const res = await fetch("/api/jobs/import-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const body = (await res.json()) as { draft?: ImportedJobDraft; error?: string };
+      if (!res.ok || !body.draft) {
+        throw new Error(body.error || "链接导入失败");
+      }
+      const draft = body.draft;
+      const text = importedDraftToText(draft);
+      setRawInput(text);
+      setPreview({
+        id: initial?.id || generateId(),
+        title: draft.title || "",
+        company: draft.company || "",
+        location: draft.location,
+        workAddress: draft.workAddress,
+        salary: draft.salary,
+        experienceYears: draft.experienceYears,
+        industry: draft.industry,
+        source: draft.source,
+        url: draft.url,
+        jobIntro: draft.jobIntro,
+        responsibilities: draft.responsibilities ?? [],
+        requirements: draft.requirements ?? [],
+        description: draft.description || "",
+        preferredSkills: draft.preferredSkills ?? [],
+        status: initial?.status || "saved",
+        createdAt: initial?.createdAt || new Date().toISOString(),
+        interestRating: initial?.interestRating,
+      });
+      setShowDetails(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "链接导入失败");
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleSmartParse = async () => {
     if (!rawInput.trim()) return;
@@ -250,6 +305,7 @@ function SmartJobInput({
       jobIntro: preview.jobIntro?.trim() || undefined,
       responsibilities: preview.responsibilities ?? [],
       requirements: preview.requirements ?? [],
+      source: preview.source || resolveJobSource({ url: preview.url }),
       description: assembleJobDescription(preview) || rawInput.trim(),
     });
   };
@@ -281,6 +337,27 @@ function SmartJobInput({
           setRawInput(BOSS_DEMO_TEXT);
         }}
       />
+
+      <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-violet-600" />
+          <p className="text-sm font-semibold text-slate-900">从链接导入（企业官网 / 小红书招聘等）</p>
+        </div>
+        <p className="mb-3 text-xs text-slate-600">
+          粘贴岗位详情页链接，系统自动识别渠道并抓取 JD。已支持小红书招聘；BOSS 请继续用书签导入。
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            placeholder="https://job.xiaohongshu.com/social/position/18746"
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+          />
+          <Button onClick={handleUrlImport} disabled={!importUrl.trim() || parsing} className="shrink-0">
+            {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+            从链接导入
+          </Button>
+        </div>
+      </div>
 
       {/* 文字输入 */}
       <Textarea
@@ -344,8 +421,11 @@ function SmartJobInput({
       {/* 识别结果预览 */}
       {preview && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h4 className="font-semibold text-emerald-900">识别结果</h4>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="font-semibold text-emerald-900">识别结果</h4>
+              {preview.source && <JobSourceBadge source={preview.source} url={preview.url} />}
+            </div>
             <button
               type="button"
               onClick={() => setShowDetails(!showDetails)}
@@ -391,7 +471,13 @@ function SmartJobInput({
                 <Input label="薪资" value={preview.salary || ""} onChange={(e) => updatePreview({ salary: e.target.value })} />
                 <Input label="经验（年）" type="number" value={preview.experienceYears ?? ""} onChange={(e) => updatePreview({ experienceYears: e.target.value ? Number(e.target.value) : undefined })} />
                 <Input label="行业" value={preview.industry || ""} onChange={(e) => updatePreview({ industry: e.target.value })} />
-                <Input label="链接" value={preview.url || ""} onChange={(e) => updatePreview({ url: e.target.value })} />
+                <Select
+                  label="信息来源"
+                  options={sourceOptions}
+                  value={preview.source || "manual"}
+                  onChange={(e) => updatePreview({ source: e.target.value as JobSource })}
+                />
+                <Input label="链接" value={preview.url || ""} onChange={(e) => updatePreview({ url: e.target.value })} className="sm:col-span-2" />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">个人意愿度</label>

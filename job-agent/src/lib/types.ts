@@ -70,6 +70,9 @@ export interface Profile {
 
 export type JobStatus = "saved" | "applied" | "interview" | "rejected" | "offer";
 
+import type { JobSource } from "./job-source";
+export type { JobSource } from "./job-source";
+
 export interface JobPosting {
   id: string;
   title: string;
@@ -89,6 +92,8 @@ export interface JobPosting {
   industry?: string;
   /** 个人意愿度 1-5 星，0 或未设置表示未标记 */
   interestRating?: number;
+  /** 岗位信息来源渠道 */
+  source?: JobSource;
   url?: string;
   status: JobStatus;
   createdAt: string;
