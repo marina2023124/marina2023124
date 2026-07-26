@@ -12,6 +12,7 @@ import {
   mergeWeeklyHighlights,
   normalizeProjectName,
   normalizeTaskHighlight,
+  PROJECT_STATUS_TAG_RE,
 } from "./project-name";
 import {
   extractProjectId,
@@ -96,6 +97,7 @@ function stripPriorityPrefix(line: string): string {
   return normalizePriorityLine(line)
     .replace(/^P-\d(?:【[^】]+】)?\s*/i, "")
     .replace(/^P[0-3](?:【[^】]+】)?\s*/i, "")
+    .replace(PROJECT_STATUS_TAG_RE, "")
     .trim();
 }
 

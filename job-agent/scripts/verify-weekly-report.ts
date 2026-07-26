@@ -137,3 +137,40 @@ if (fwProjects.length < 3) {
 }
 
 console.log("OK: fullwidth numbered list verified");
+
+const statusTags = `WK29
+P0【新增高优】产品战略分析。已达成。问卷200份
+P1【被动调整】评论智能体搭建。已达成。雷达图问卷迭代
+内容：课程内容&呈现分析。已达成`;
+
+const statusProjects = parseWeeklyReportProjects(statusTags, profile.projects);
+const strategic = statusProjects.find((p) => p.name === "产品战略分析");
+const agent = statusProjects.find((p) => p.name.includes("智能体"));
+const contentStandalone = statusProjects.find((p) => p.name === "内容");
+
+if (!strategic) {
+  console.error("FAIL: 产品战略分析 should exist", statusProjects.map((p) => p.name));
+  process.exit(1);
+}
+if (!(strategic.highlights ?? []).some((h) => /问卷|200/.test(h))) {
+  console.error("FAIL: 产品战略分析应含问卷任务", strategic.highlights);
+  process.exit(1);
+}
+if (!(strategic.highlights ?? []).some((h) => /课程内容|呈现分析|内容/.test(h))) {
+  console.error("FAIL: 内容分支应合并进产品战略分析", strategic.highlights);
+  process.exit(1);
+}
+if (contentStandalone) {
+  console.error("FAIL: 内容不应作为独立项目");
+  process.exit(1);
+}
+if (agent?.name.includes("被动调整") || agent?.name.includes("新增高优")) {
+  console.error("FAIL: 项目名不应含状态标签", agent?.name);
+  process.exit(1);
+}
+if (strategic.name.includes("新增高优")) {
+  console.error("FAIL: 产品战略分析名不应含状态标签");
+  process.exit(1);
+}
+
+console.log("OK: status tags stripped and 内容 merged into 产品战略分析");

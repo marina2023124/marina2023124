@@ -1,11 +1,16 @@
 const PROJECT_STATUS_SUFFIX_RE =
   /[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进|实际达成)\s*$/i;
 const PRIORITY_PREFIX_RE = /^P[0-3](?:【[^】]+】)?\s*/i;
+/** 周报项目状态标签（非项目名称的一部分） */
+export const PROJECT_STATUS_TAG_RE =
+  /【(?:被动调整|主动调整|新增高优|本周新增|紧急新增|执行待定)】\s*/g;
 
 /** 去掉项目名称中的优先级与状态标记 */
 export function normalizeProjectName(name: string): string {
   return name
     .replace(PRIORITY_PREFIX_RE, "")
+    .replace(PROJECT_STATUS_TAG_RE, "")
+    .replace(/^[。.]+|[。.]+$/g, "")
     .replace(/[，,]\s*(已达成|未达成|已推进|已同步|未按时达成|EOD达成|持续推进|实际达成)/gi, "")
     .replace(PROJECT_STATUS_SUFFIX_RE, "")
     .replace(/\s*(已达成|未达成|已推进|已同步|实际达成)\s*$/i, "")

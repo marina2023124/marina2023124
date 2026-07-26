@@ -10,9 +10,13 @@ const PROJECT_KEYWORDS: Record<string, string[]> = {
   "内容PSM": ["内容PSM", "价格段"],
   "智能体搭建": ["智能体", "agent", "codex", "cursor", "评论"],
   "线下WBR": ["线下WBR", "线下调研", "WBR"],
-  "产品战略分析": ["产品战略", "学而思", "讯飞", "作业帮"],
+  "产品战略分析": ["产品战略", "学而思", "讯飞", "作业帮", "课程内容", "呈现分析"],
   "AI功能需求": ["AI功能", "雷达图问卷", "总结表"],
   "高价品WBR": ["高价品", "WBR"],
+};
+
+const PROJECT_BRANCH_ALIASES: Record<string, string> = {
+  内容: "产品战略分析",
 };
 
 const CANONICAL_PROJECT_RULES: Array<{ pattern: RegExp; name: string }> = [
@@ -33,6 +37,9 @@ const CANONICAL_PROJECT_RULES: Array<{ pattern: RegExp; name: string }> = [
 /** 将「R2新品规划PSM+弹性测试」等变体统一为 canonical 项目名 */
 export function canonicalProjectName(name: string): string {
   const normalized = normalizeProjectName(name);
+  if (PROJECT_BRANCH_ALIASES[normalized]) {
+    return PROJECT_BRANCH_ALIASES[normalized];
+  }
   for (const rule of CANONICAL_PROJECT_RULES) {
     if (rule.pattern.test(normalized)) return rule.name;
   }
