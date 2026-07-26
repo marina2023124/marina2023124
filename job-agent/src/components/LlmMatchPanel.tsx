@@ -45,9 +45,24 @@ export function LlmMatchPanel({
     }
 
     const statusRes = await fetch("/api/llm/status");
-    const statusBody = (await statusRes.json()) as { formatValid?: boolean; hint?: string };
+    const statusBody = (await statusRes.json()) as {
+      formatValid?: boolean;
+      liveValid?: boolean;
+      hint?: string;
+      vercelEnv?: string;
+    };
     if (statusBody.formatValid === false) {
       setError(statusBody.hint ?? "DeepSeek Key 格式不对，应以 sk- 开头");
+      setLoading(false);
+      return;
+    }
+    if (statusBody.liveValid === false) {
+      setError(
+        statusBody.hint ??
+          (statusBody.vercelEnv === "preview"
+            ? "Preview 部署未生效 DeepSeek Key：请在 Vercel 环境变量勾选 Preview 并 Redeploy"
+            : "DeepSeek Key 无效，请到 platform.deepseek.com 新建 Key 并更新 Vercel")
+      );
       setLoading(false);
       return;
     }

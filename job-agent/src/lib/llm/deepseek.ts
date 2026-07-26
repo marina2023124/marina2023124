@@ -79,3 +79,51 @@ export function parseJsonFromLlm<T>(text: string): T {
   const raw = fenced ? fenced[1].trim() : text.trim();
   return JSON.parse(raw) as T;
 }
+
+/** Minimal live call to verify the configured key works with DeepSeek. */
+export async function verifyDeepSeekKey(): Promise<{
+  liveValid: boolean;
+  httpStatus?: number;
+  reason?: string;
+}> {
+  if (!isDeepSeekConfigured()) {
+    return { liveValid: false, reason: "not_configured" };
+  }
+
+  const { apiKey, baseUrl, model } = getDeepSeekConfig();
+
+  if (!apiKey.startsWith("sk-")) {
+    return { liveValid: false, reason: "format_invalid" };
+  }
+
+  try {
+    const res = await serverFetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+      }),
+    });
+
+    if (res.ok) {
+      return { liveValid: true, httpStatus: res.status };
+    }
+
+    const body = await res.text().catch(() => "");
+    if (res.status === 402 || body.includes("Insufficient Balance")) {
+      return { liveValid: false, httpStatus: res.status, reason: "insufficient_balance" };
+    }
+    if (res.status === 401 || body.includes("invalid") || body.includes("Authentication")) {
+      return { liveValid: false, httpStatus: res.status, reason: "invalid_key" };
+    }
+
+    return { liveValid: false, httpStatus: res.status, reason: "request_failed" };
+  } catch {
+    return { liveValid: false, reason: "network_error" };
+  }
+}
