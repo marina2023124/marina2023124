@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import type { JobPosting, MatchedProject, MatchResult, Profile } from "@/lib/types";
 import type { LlmMatchAnalysis } from "@/lib/llm/prompts";
@@ -97,6 +97,23 @@ function MatchedProjectsSection({
   );
 }
 
+function MatchedProjectsLoading() {
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-xs font-medium uppercase text-slate-400">匹配项目经历</p>
+        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+          AI 分析中…
+        </span>
+      </div>
+      <div className="flex items-center gap-2 rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-4 text-sm text-violet-800">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        DeepSeek 正在结合 JD 全文筛选匹配项目…
+      </div>
+    </div>
+  );
+}
+
 export function LlmMatchPanel({
   profile,
   job,
@@ -107,15 +124,23 @@ export function LlmMatchPanel({
   ruleMatch: MatchResult;
 }) {
   const [loading, setLoading] = useState(false);
+  const [autoPending, setAutoPending] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<LlmMatchAnalysis | null>(null);
   const [llmMatchedProjects, setLlmMatchedProjects] = useState<MatchedProject[] | null>(null);
   const [llmReady, setLlmReady] = useState<boolean | null>(null);
+  const autoStartedRef = useRef(false);
 
-  const displayProjects = llmMatchedProjects ?? ruleMatch.matchedProjects;
-  const projectSource = llmMatchedProjects ? "ai" : "rule";
+  const hasLlmProjects = Boolean(llmMatchedProjects?.length);
+  const displayProjects = hasLlmProjects
+    ? llmMatchedProjects!
+    : autoPending && loading
+      ? []
+      : ruleMatch.matchedProjects;
+  const projectSource = hasLlmProjects ? "ai" : "rule";
+  const showProjectsLoading = autoPending && loading && !hasLlmProjects;
 
-  const checkStatus = async () => {
+  const checkStatus = useCallback(async () => {
     if (llmReady !== null) return llmReady;
     try {
       const res = await fetch("/api/llm/status");
@@ -126,15 +151,18 @@ export function LlmMatchPanel({
       setLlmReady(false);
       return false;
     }
-  };
+  }, [llmReady]);
 
-  const runAnalysis = async () => {
+  const runAnalysis = useCallback(async (options?: { silent?: boolean }) => {
     setLoading(true);
-    setError(null);
+    if (!options?.silent) setError(null);
 
     const configured = await checkStatus();
     if (!configured) {
-      setError("未配置 DeepSeek。请在 Vercel Environment Variables 添加 DEEPSEEK_API_KEY 后 Redeploy");
+      setAutoPending(false);
+      if (!options?.silent) {
+        setError("未配置 DeepSeek。请在 Vercel Environment Variables 添加 DEEPSEEK_API_KEY 后 Redeploy");
+      }
       setLoading(false);
       return;
     }
@@ -147,17 +175,23 @@ export function LlmMatchPanel({
       vercelEnv?: string;
     };
     if (statusBody.formatValid === false) {
-      setError(statusBody.hint ?? "DeepSeek Key 格式不对，应以 sk- 开头");
+      setAutoPending(false);
+      if (!options?.silent) {
+        setError(statusBody.hint ?? "DeepSeek Key 格式不对，应以 sk- 开头");
+      }
       setLoading(false);
       return;
     }
     if (statusBody.liveValid === false) {
-      setError(
-        statusBody.hint ??
-          (statusBody.vercelEnv === "preview"
-            ? "Preview 部署未生效 DeepSeek Key：请在 Vercel 环境变量勾选 Preview 并 Redeploy"
-            : "DeepSeek Key 无效，请到 platform.deepseek.com 新建 Key 并更新 Vercel")
-      );
+      setAutoPending(false);
+      if (!options?.silent) {
+        setError(
+          statusBody.hint ??
+            (statusBody.vercelEnv === "preview"
+              ? "Preview 部署未生效 DeepSeek Key：请在 Vercel 环境变量勾选 Preview 并 Redeploy"
+              : "DeepSeek Key 无效，请到 platform.deepseek.com 新建 Key 并更新 Vercel")
+        );
+      }
       setLoading(false);
       return;
     }
@@ -182,21 +216,47 @@ export function LlmMatchPanel({
       setAnalysis(body.analysis);
       if (body.matchedProjects?.length) {
         setLlmMatchedProjects(body.matchedProjects);
+      } else {
+        setLlmMatchedProjects(null);
       }
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "AI 分析失败");
+      setAutoPending(false);
+      const message = err instanceof Error ? err.message : "AI 分析失败";
+      if (!options?.silent) setError(message);
     } finally {
+      setAutoPending(false);
       setLoading(false);
     }
-  };
+  }, [checkStatus, job, profile]);
+
+  useEffect(() => {
+    autoStartedRef.current = false;
+    setAutoPending(true);
+    setLlmMatchedProjects(null);
+    setAnalysis(null);
+    setError(null);
+  }, [job.id]);
+
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void runAnalysis({ silent: true });
+  }, [runAnalysis, job.id]);
 
   return (
     <>
-      <MatchedProjectsSection projects={displayProjects} source={projectSource} />
+      {showProjectsLoading ? (
+        <MatchedProjectsLoading />
+      ) : (
+        <MatchedProjectsSection projects={displayProjects} source={projectSource} />
+      )}
 
-      {!llmMatchedProjects && ruleMatch.matchedProjects.length <= 2 && (
+      {!llmMatchedProjects && !autoPending && !loading && ruleMatch.matchedProjects.length <= 2 && (
         <p className="mt-2 text-xs text-amber-700">
-          规则初筛仅 {ruleMatch.matchedProjects.length} 个项目，可能偏少。点击「智能匹配分析」由 AI 结合 JD 全文补充更多相关经历。
+          {error
+            ? `AI 分析不可用，已展示规则初筛（${ruleMatch.matchedProjects.length} 个项目）`
+            : `规则初筛仅 ${ruleMatch.matchedProjects.length} 个项目，可能偏少。点击「重新分析」重试 AI 匹配。`}
         </p>
       )}
 
@@ -205,13 +265,16 @@ export function LlmMatchPanel({
           <div className="flex items-center gap-2 text-sm font-medium text-violet-900">
             <Sparkles className="h-4 w-4" />
             AI 深度匹配（DeepSeek）
+            {loading && (
+              <span className="text-xs font-normal text-violet-600">分析中…</span>
+            )}
           </div>
           <Button
             type="button"
             variant="secondary"
             size="sm"
             disabled={loading}
-            onClick={runAnalysis}
+            onClick={() => void runAnalysis()}
           >
             {loading ? (
               <>
@@ -221,7 +284,7 @@ export function LlmMatchPanel({
             ) : analysis ? (
               "重新分析"
             ) : (
-              "智能匹配分析"
+              "重新分析"
             )}
           </Button>
         </div>
@@ -289,9 +352,15 @@ export function LlmMatchPanel({
           </div>
         )}
 
-        {!analysis && !error && !loading && (
+        {!analysis && !error && loading && (
           <p className="mt-2 text-xs text-violet-700/80">
-            规则初筛 {ruleMatch.score}% · 点击「智能匹配分析」由 DeepSeek 更新匹配项目并生成简历向推荐
+            正在由 DeepSeek 分析匹配项目与简历建议…
+          </p>
+        )}
+
+        {!analysis && !error && !loading && !llmMatchedProjects && (
+          <p className="mt-2 text-xs text-violet-700/80">
+            规则初筛 {ruleMatch.score}% · 已展示规则匹配结果，配置 DeepSeek 后将自动 AI 分析
           </p>
         )}
       </div>

@@ -47,7 +47,7 @@ export function MatchView() {
       <div className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
         <h2 className="text-xl font-bold">智能匹配结果</h2>
         <p className="mt-1 text-indigo-100">
-          基于你的{" "}
+          打开页面即由 DeepSeek 分析匹配项目；亦会基于你的{" "}
           <Link href="/experience" className="underline underline-offset-2 hover:text-white">
             {data.profile.skills.length} 项技能
           </Link>{" "}
