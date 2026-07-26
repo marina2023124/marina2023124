@@ -35,7 +35,16 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
   }
   function bodyFromApi(job,brand){
     var b=[];
-    if(job.postDescription)b.push('职位描述\\n'+job.postDescription);
+    var tagParts=[];
+    if(job.showSkills&&job.showSkills.length)tagParts=tagParts.concat(job.showSkills);
+    if(job.jobLabels&&job.jobLabels.length)tagParts=tagParts.concat(job.jobLabels);
+    var tagLine=tagParts.filter(Boolean).join(' ');
+    if(job.postDescription){
+      var intro=tagLine?tagLine+'\\n\\n'+job.postDescription:job.postDescription;
+      b.push('职位描述\\n'+intro);
+    }else if(tagLine){
+      b.push('职位描述\\n'+tagLine);
+    }
     if(brand.brandName){
       b.push('公司基本信息\\n'+brand.brandName);
       if(brand.stageName)b.push(brand.stageName);

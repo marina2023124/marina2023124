@@ -258,6 +258,9 @@ function SmartJobInput({
       ...preview,
       company: preview.company || "未知公司",
       title: preview.title || "未知岗位",
+      jobIntro: preview.jobIntro?.trim() || undefined,
+      responsibilities: preview.responsibilities ?? [],
+      requirements: preview.requirements ?? [],
       description: assembleJobDescription(preview) || rawInput.trim(),
     });
   };
