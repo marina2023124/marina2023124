@@ -194,6 +194,12 @@ export function LlmMatchPanel({
     <>
       <MatchedProjectsSection projects={displayProjects} source={projectSource} />
 
+      {!llmMatchedProjects && ruleMatch.matchedProjects.length <= 2 && (
+        <p className="mt-2 text-xs text-amber-700">
+          规则初筛仅 {ruleMatch.matchedProjects.length} 个项目，可能偏少。点击「智能匹配分析」由 AI 结合 JD 全文补充更多相关经历。
+        </p>
+      )}
+
       <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-medium text-violet-900">

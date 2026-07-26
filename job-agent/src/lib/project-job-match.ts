@@ -125,6 +125,11 @@ const DIRECTION_SIGNALS: Record<string, { label: string; keywords: RegExp; resum
     keywords: /电商|购物|交易|退货|履约|GMV|SKU/i,
     resumeHint: "电商交易研究",
   },
+  主站: {
+    label: "主站产品研究",
+    keywords: /主站|内容社区|短视频|创作|消费体验|推荐|feed|社交|社区/i,
+    resumeHint: "主站/内容产品研究",
+  },
 };
 
 interface JobSignals {
@@ -245,7 +250,7 @@ const INDUSTRY_FROM_PROJECT: { label: string; keywords: RegExp }[] = [
   { label: "AI产品", keywords: /AI|智能体|agent|大模型|算法|功能需求|XTS/i },
   { label: "汽车出行", keywords: /汽车|出行|车联网|新能源|驾驶/i },
   { label: "3C数码", keywords: /手机|数码|3C|硬件|电子/i },
-  { label: "美妆护肤", keywords: /美妆|护肤|化妆品|欧莱雅|兰蔻/i },
+  { label: "美妆护肤", keywords: /美妆|护肤|化妆品|欧莱雅|兰蔻|医美/i },
 ];
 
 function inferClientOrBrand(project: Project): string | null {
@@ -426,6 +431,54 @@ function matchResponsibilitySpecificity(
   return evidence;
 }
 
+function isUserResearchJob(job: JobPosting): boolean {
+  const text = [job.title, job.description, ...(job.requirements ?? [])].join("\n");
+  return /用户研究|用研|UX研究|User\s*Research|研究员/i.test(text);
+}
+
+/** 用研岗位：从 JD 方法论要求 ↔ 项目具体交付 做二次匹配（避免只剩工具类命中） */
+function matchUrMethodologyAlignment(
+  jobSignals: JobSignals,
+  project: ProjectSignals
+): MatchEvidence[] {
+  const evidence: MatchEvidence[] = [];
+  const pairs: { jd: RegExp; label: string; project: RegExp }[] = [
+    { jd: /定性|深访|访谈|焦点小组|\bFG\b/i, label: "定性研究", project: /深访|访谈|FG|焦点|定性|可用性|走查/i },
+    { jd: /定量|问卷|样本|调研/i, label: "定量研究", project: /问卷|定量|投放|回收|读数|统计/i },
+    { jd: /报告|洞察|汇报|输出|落地|推动/i, label: "研究交付", project: /报告|洞察|汇报|输出|结论|提案/i },
+    { jd: /独立|全流程|设计.*执行|端到端/i, label: "独立项目", project: /负责|独立|全流程|设计|执行|主导/i },
+    { jd: /用户研究|用研|用户体验/i, label: "用户研究", project: /用户|用研|需求|体验|测试|画像/i },
+  ];
+
+  for (const pair of pairs) {
+    if (!pair.jd.test(jobSignals.blob)) continue;
+    const snippet = findWorkItemEvidence(project.workItems, pair.project);
+    if (!snippet || snippet.length < 4) continue;
+    evidence.push({
+      specificity: 26,
+      reason: `JD 要求${pair.label}，项目中「${snippet}」为同类交付，可写进简历`,
+    });
+  }
+
+  return evidence;
+}
+
+function matchTargetCompany(job: JobPosting, project: ProjectSignals): MatchEvidence[] {
+  const company = job.company?.trim();
+  if (!company || company.length < 2) return [];
+  if (!project.blob.includes(company) && !project.name.includes(company)) return [];
+
+  const snippet =
+    findWorkItemEvidence(project.workItems, new RegExp(company)) ??
+    shorten(project.name, 24);
+  return [
+    {
+      specificity: 34,
+      reason: `目标公司「${company}」，项目「${snippet}」直接相关，建议重点写入`,
+    },
+  ];
+}
+
 function matchRequiredTools(
   jobSignals: JobSignals,
   project: ProjectSignals
@@ -512,21 +565,28 @@ function scoreProjectForJob(
   project: Project,
   projectCtx: ProjectSignals,
   jobCtx: JobSignals,
+  job: JobPosting,
   termFreq: Map<string, number>,
-  totalProjects: number
+  totalProjects: number,
+  options?: { relaxed?: boolean }
 ): { specificity: number; reasons: string[] } | null {
+  const urExtra = isUserResearchJob(job)
+    ? [...matchUrMethodologyAlignment(jobCtx, projectCtx), ...matchTargetCompany(job, projectCtx)]
+    : [];
+
   const allEvidence = dedupeEvidence([
     ...matchJobSignals(jobCtx, projectCtx),
     ...matchIndustryAndClient(jobCtx, projectCtx),
     ...matchResponsibilitySpecificity(jobCtx, projectCtx, termFreq, totalProjects),
     ...matchRequiredTools(jobCtx, projectCtx),
     ...matchRoleTitleAlignment(jobCtx, projectCtx),
+    ...urExtra,
   ]).filter((e) => !isGenericReason(e.reason));
 
   if (allEvidence.length === 0) return null;
 
   const specificity = allEvidence.reduce((sum, e) => sum + e.specificity, 0);
-  const minSpecificity = 22;
+  const minSpecificity = options?.relaxed ? 18 : 22;
 
   if (specificity < minSpecificity) return null;
 
@@ -571,6 +631,51 @@ function resolveWorkExperience(
 
 const PER_WORK_MATCH_LIMIT = 4;
 const GLOBAL_MATCH_LIMIT = 12;
+const MIN_TOTAL_MATCHES = 4;
+
+function isLowValueInternalProject(project: Project): boolean {
+  return /内部|流程优化|模板|提纲|日常维护|行政/i.test(project.name);
+}
+
+function scoreAllProjectsForJob(
+  profile: Profile,
+  job: JobPosting,
+  jobCtx: JobSignals,
+  termFreq: Map<string, number>,
+  totalProjects: number,
+  options?: { relaxed?: boolean }
+): (MatchedProject & { specificity: number })[] {
+  const results: (MatchedProject & { specificity: number })[] = [];
+
+  for (const project of profile.projects) {
+    if (isLowValueInternalProject(project)) continue;
+    const projectCtx = buildProjectSignals(project);
+    const scored = scoreProjectForJob(
+      project,
+      projectCtx,
+      jobCtx,
+      job,
+      termFreq,
+      totalProjects,
+      options
+    );
+    if (!scored) continue;
+
+    const work = resolveWorkExperience(project, profile);
+
+    results.push({
+      id: project.id,
+      name: project.name,
+      summary: projectCtx.summary,
+      reasons: scored.reasons,
+      workExperienceLabel: work.workExperienceLabel,
+      workExperienceId: work.workExperienceId,
+      specificity: scored.specificity,
+    });
+  }
+
+  return results;
+}
 
 /** 按工作经历分组取 Top 项目，避免最近一份工作占满全部名额 */
 export function selectMatchedProjectsByWorkExperience(
@@ -582,6 +687,16 @@ export function selectMatchedProjectsByWorkExperience(
   for (const item of scored) {
     const label = item.workExperienceLabel || "未关联工作";
     const list = byWork.get(label) ?? [];
+    const existing = list.find((p) => p.id === item.id);
+    if (existing) {
+      if (item.specificity > existing.specificity) {
+        byWork.set(
+          label,
+          list.map((p) => (p.id === item.id ? item : p))
+        );
+      }
+      continue;
+    }
     list.push(item);
     byWork.set(label, list);
   }
@@ -625,25 +740,23 @@ export function findMatchedProjectsDetailed(
   const jobCtx = buildJobSignals(job);
   const termFreq = computeTermFrequency(profile);
   const totalProjects = profile.projects.length || 1;
-  const results: (MatchedProject & { specificity: number })[] = [];
 
-  for (const project of profile.projects) {
-    const projectCtx = buildProjectSignals(project);
-    const scored = scoreProjectForJob(project, projectCtx, jobCtx, termFreq, totalProjects);
-    if (!scored) continue;
+  let results = scoreAllProjectsForJob(profile, job, jobCtx, termFreq, totalProjects);
 
-    const work = resolveWorkExperience(project, profile);
+  let selected = selectMatchedProjectsByWorkExperience(results, profile);
 
-    results.push({
-      id: project.id,
-      name: project.name,
-      summary: projectCtx.summary,
-      reasons: scored.reasons,
-      workExperienceLabel: work.workExperienceLabel,
-      workExperienceId: work.workExperienceId,
-      specificity: scored.specificity,
-    });
+  const minTarget = Math.max(MIN_TOTAL_MATCHES, profile.workExperiences.length * 2);
+  if (selected.length < minTarget && isUserResearchJob(job)) {
+    const coveredIds = new Set(results.map((p) => p.id));
+    const relaxed = scoreAllProjectsForJob(profile, job, jobCtx, termFreq, totalProjects, {
+      relaxed: true,
+    }).filter((p) => !coveredIds.has(p.id));
+
+    if (relaxed.length > 0) {
+      results = [...results, ...relaxed];
+      selected = selectMatchedProjectsByWorkExperience(results, profile);
+    }
   }
 
-  return selectMatchedProjectsByWorkExperience(results, profile);
+  return selected;
 }
