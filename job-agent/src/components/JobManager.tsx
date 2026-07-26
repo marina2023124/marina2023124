@@ -530,6 +530,7 @@ export function JobManager() {
       <div className="grid gap-4">
         {data.jobs.length > 0 && visibleJobs.length === 0 && !showForm && (
           <EmptyState
+            icon={<SlidersHorizontal className="h-8 w-8" />}
             title="没有符合筛选条件的岗位"
             description="试试放宽行业、意愿度或年限筛选，或清空搜索关键词"
           />
