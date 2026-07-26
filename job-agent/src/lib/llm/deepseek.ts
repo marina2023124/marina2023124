@@ -5,7 +5,22 @@ async function deepseekFetch(input: RequestInfo | URL, init?: RequestInit): Prom
   return fetch(input, init);
 }
 
-export interface LlmMessage {
+function isDeepSeekAuthFailure(status: number, body: string): boolean {
+  if (status === 401) return true;
+  if (body.includes("Authentication Fails") || body.includes("authentication_error")) {
+    return true;
+  }
+  return false;
+}
+
+function parseDeepSeekErrorMessage(body: string): string | undefined {
+  try {
+    const data = JSON.parse(body) as { error?: { message?: string } };
+    return data.error?.message;
+  } catch {
+    return undefined;
+  }
+}
   role: "system" | "user" | "assistant";
   content: string;
 }
@@ -52,13 +67,20 @@ export async function deepseekChat(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    if (res.status === 401 || body.includes("invalid") || body.includes("Authentication")) {
+    if (isDeepSeekAuthFailure(res.status, body)) {
       throw new LlmError(
-        "DeepSeek API Key 无效或已过期。请到 platform.deepseek.com 创建以 sk- 开头的新 Key，并确认账户有余额",
+        parseDeepSeekErrorMessage(body) ??
+          "DeepSeek API Key 无效或已过期。请到 platform.deepseek.com 确认 Key 仍有效且账户有余额",
         res.status
       );
     }
-    throw new LlmError(`DeepSeek 请求失败 (${res.status})`, res.status);
+    if (res.status === 402 || body.includes("Insufficient Balance")) {
+      throw new LlmError("DeepSeek 账户余额不足，请到 platform.deepseek.com 充值", res.status);
+    }
+    throw new LlmError(
+      parseDeepSeekErrorMessage(body) ?? `DeepSeek 请求失败 (${res.status})`,
+      res.status
+    );
   }
 
   const data = (await res.json()) as {
@@ -89,6 +111,7 @@ export async function verifyDeepSeekKey(): Promise<{
   liveValid: boolean;
   httpStatus?: number;
   reason?: string;
+  deepseekMessage?: string;
 }> {
   if (!isDeepSeekConfigured()) {
     return { liveValid: false, reason: "not_configured" };
@@ -119,14 +142,15 @@ export async function verifyDeepSeekKey(): Promise<{
     }
 
     const body = await res.text().catch(() => "");
+    const deepseekMessage = parseDeepSeekErrorMessage(body);
     if (res.status === 402 || body.includes("Insufficient Balance")) {
-      return { liveValid: false, httpStatus: res.status, reason: "insufficient_balance" };
+      return { liveValid: false, httpStatus: res.status, reason: "insufficient_balance", deepseekMessage };
     }
-    if (res.status === 401 || body.includes("invalid") || body.includes("Authentication")) {
-      return { liveValid: false, httpStatus: res.status, reason: "invalid_key" };
+    if (isDeepSeekAuthFailure(res.status, body)) {
+      return { liveValid: false, httpStatus: res.status, reason: "invalid_key", deepseekMessage };
     }
 
-    return { liveValid: false, httpStatus: res.status, reason: "request_failed" };
+    return { liveValid: false, httpStatus: res.status, reason: "request_failed", deepseekMessage };
   } catch {
     return { liveValid: false, reason: "network_error" };
   }

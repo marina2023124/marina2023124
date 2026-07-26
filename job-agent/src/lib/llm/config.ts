@@ -20,7 +20,7 @@ export function getDeepSeekConfig() {
   return {
     apiKey,
     baseUrl: (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com").replace(/\/$/, ""),
-    model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+    model: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-flash",
   };
 }
 
