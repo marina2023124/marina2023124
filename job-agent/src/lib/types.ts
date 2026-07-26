@@ -88,6 +88,8 @@ export interface JobPosting {
   requirements: string[];
   preferredSkills: string[];
   experienceYears?: number;
+  /** 平台筛选项经验标签（如小红书 3-5年），非 JD 正文硬性要求 */
+  platformExperienceLabel?: string;
   /** 所属行业（可手动填写或由 JD 推断） */
   industry?: string;
   /** 个人意愿度 1-5 星，0 或未设置表示未标记 */

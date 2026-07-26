@@ -24,6 +24,7 @@ import { JobSourceBadge } from "@/components/JobSourceBadge";
 import { CommuteInfo } from "@/components/CommuteInfo";
 import { JobCard } from "@/components/JobCard";
 import { JobDetailSections } from "@/components/JobDetailSections";
+import { JobExperienceSummary } from "@/components/JobExperienceSummary";
 import { JobInterestRating } from "@/components/JobInterestRating";
 import { assembleJobDescription } from "@/lib/job-sections";
 import {
@@ -235,6 +236,7 @@ function SmartJobInput({
         workAddress: draft.workAddress,
         salary: draft.salary,
         experienceYears: draft.experienceYears,
+        platformExperienceLabel: draft.platformExperienceLabel,
         industry: draft.industry,
         source: draft.source,
         url: draft.url,
@@ -442,7 +444,10 @@ function SmartJobInput({
             <div><span className="text-slate-500">地点：</span><span className="text-slate-800">{preview.location || "—"}</span></div>
             <div className="col-span-2"><span className="text-slate-500">工作地址：</span><span className="text-slate-800">{preview.workAddress || "—"}</span></div>
             <div><span className="text-slate-500">薪资：</span><span className="text-slate-800">{preview.salary || "—"}</span></div>
-            <div><span className="text-slate-500">经验：</span><span className="text-slate-800">{preview.experienceYears != null ? `${preview.experienceYears}年` : "—"}</span></div>
+            <JobExperienceSummary
+              experienceYears={preview.experienceYears}
+              platformExperienceLabel={preview.platformExperienceLabel}
+            />
             <div><span className="text-slate-500">行业：</span><span className="text-slate-800">{preview.industry || "—"}</span></div>
             <div><span className="text-slate-500">技能：</span><span className="text-slate-800">{preview.preferredSkills.length} 项</span></div>
           </div>
@@ -469,7 +474,8 @@ function SmartJobInput({
                 <Input label="城市/区域" value={preview.location || ""} onChange={(e) => updatePreview({ location: e.target.value })} />
                 <Input label="工作地址" value={preview.workAddress || ""} onChange={(e) => updatePreview({ workAddress: e.target.value })} className="col-span-2" />
                 <Input label="薪资" value={preview.salary || ""} onChange={(e) => updatePreview({ salary: e.target.value })} />
-                <Input label="经验（年）" type="number" value={preview.experienceYears ?? ""} onChange={(e) => updatePreview({ experienceYears: e.target.value ? Number(e.target.value) : undefined })} />
+                <Input label="经验要求（JD，年）" type="number" value={preview.experienceYears ?? ""} onChange={(e) => updatePreview({ experienceYears: e.target.value ? Number(e.target.value) : undefined })} />
+                <Input label="平台标签（如 3-5年）" value={preview.platformExperienceLabel || ""} onChange={(e) => updatePreview({ platformExperienceLabel: e.target.value || undefined })} />
                 <Input label="行业" value={preview.industry || ""} onChange={(e) => updatePreview({ industry: e.target.value })} />
                 <Select
                   label="信息来源"

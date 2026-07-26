@@ -76,6 +76,7 @@ export function importedDraftToText(draft: ImportedJobDraft): string {
   if (draft.salary) lines.push(`薪资：${draft.salary}`);
   if (draft.location) lines.push(`地点：${draft.location}`);
   if (draft.experienceYears != null) lines.push(`经验：${draft.experienceYears}年`);
+  if (draft.platformExperienceLabel) lines.push(`平台标签：${draft.platformExperienceLabel}`);
   if (draft.company) lines.push(`公司：${draft.company}`);
   if (draft.industry) lines.push(`行业：${draft.industry}`);
   lines.push(`渠道：${draft.sourceLabel}`);

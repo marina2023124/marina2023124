@@ -45,6 +45,10 @@ async function main() {
     console.error("FAIL: xhs should not infer experienceYears without JD text", draft.experienceYears);
     process.exit(1);
   }
+  if (draft.platformExperienceLabel !== "3-5年") {
+    console.error("FAIL: xhs platform tag", draft.platformExperienceLabel);
+    process.exit(1);
+  }
 
   console.log("OK: job source + xiaohongshu import verified");
 }

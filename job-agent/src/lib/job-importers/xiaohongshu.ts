@@ -1,5 +1,6 @@
 import type { ParsedJobDraft } from "../jd-parser";
 import { extractJobSections, sectionsToDescription } from "../jd-sections";
+import { xhsWorkExperienceToLabel } from "../job-experience";
 
 const API_ROOT = "https://job.xiaohongshu.com";
 
@@ -113,6 +114,7 @@ export async function importXiaohongshuJob(url: string, positionId: string): Pro
   const requirements = splitSectionText(qualification, "requirements");
   const jobIntro = buildIntro(detail);
   const experienceYears = resolveExperienceYears(detail, duty, qualification);
+  const platformExperienceLabel = xhsWorkExperienceToLabel(detail.workExperience);
 
   const sections = {
     jobIntro: jobIntro ?? "",
@@ -126,6 +128,7 @@ export async function importXiaohongshuJob(url: string, positionId: string): Pro
     location: detail.workplace?.split(/[，,]/)[0]?.trim(),
     workAddress: detail.workplace?.replace(/[，,]/g, " / "),
     experienceYears,
+    platformExperienceLabel,
     industry: "互联网",
     url: url.trim(),
     jobIntro,

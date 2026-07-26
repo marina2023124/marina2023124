@@ -5,6 +5,7 @@ import { ExternalLink, Edit2, Trash2, X, Check } from "lucide-react";
 import type { JobPosting, JobStatus } from "@/lib/types";
 import { CommuteInfo } from "@/components/CommuteInfo";
 import { JobDetailSections } from "@/components/JobDetailSections";
+import { JobExperienceSummary } from "@/components/JobExperienceSummary";
 import { JobInterestRating } from "@/components/JobInterestRating";
 import { JobSourceBadge } from "@/components/JobSourceBadge";
 import { assembleJobDescription } from "@/lib/job-sections";
@@ -72,12 +73,17 @@ function JobCardEditor({
         <Input label="城市/区域" value={draft.location || ""} onChange={(e) => onChange({ location: e.target.value })} />
         <Input label="薪资" value={draft.salary || ""} onChange={(e) => onChange({ salary: e.target.value })} />
         <Input
-          label="经验（年）"
+          label="经验要求（JD，年）"
           type="number"
           value={draft.experienceYears ?? ""}
           onChange={(e) =>
             onChange({ experienceYears: e.target.value ? Number(e.target.value) : undefined })
           }
+        />
+        <Input
+          label="平台标签"
+          value={draft.platformExperienceLabel || ""}
+          onChange={(e) => onChange({ platformExperienceLabel: e.target.value || undefined })}
         />
         <Input label="行业" value={draft.industry || ""} onChange={(e) => onChange({ industry: e.target.value })} />
         <Input
@@ -229,9 +235,11 @@ export function JobCard({
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
             {job.location && <span>{job.location}</span>}
             {job.salary && <span>{job.salary}</span>}
-            {job.experienceYears != null && job.experienceYears > 0 && (
-              <span>{job.experienceYears}年经验</span>
-            )}
+            <JobExperienceSummary
+              experienceYears={job.experienceYears}
+              platformExperienceLabel={job.platformExperienceLabel}
+              compact
+            />
           </div>
           <CommuteInfo workAddress={job.workAddress} />
           <JobDetailSections job={job} compact />

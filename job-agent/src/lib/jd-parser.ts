@@ -10,6 +10,7 @@ export interface ParsedJobDraft {
   workAddress?: string;
   salary?: string;
   experienceYears?: number;
+  platformExperienceLabel?: string;
   industry?: string;
   source?: JobSource;
   url?: string;
@@ -153,7 +154,7 @@ function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
       continue;
     }
 
-    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司|工作地址|行业|渠道)[：:]\s*(.+)$/);
+    const m = line.match(/^(岗位|薪资|地点|经验|平台标签|学历|公司|工作地址|行业|渠道)[：:]\s*(.+)$/);
     if (!m) continue;
     const val = m[2].trim();
     switch (m[1]) {
@@ -171,6 +172,9 @@ function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
         break;
       case "经验":
         result.experienceYears = parseExperienceText(val);
+        break;
+      case "平台标签":
+        result.platformExperienceLabel = val;
         break;
       case "公司":
         result.company = val;
@@ -502,6 +506,7 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
 
   const isBoss = isBossZhipinContent(text);
   const bossPartial = isBoss ? parseBossFormat(text) : null;
+  const structuredFields = parseStructuredBossFields(text);
   const cleanText = isBoss ? sanitizeBossContent(text) : text;
 
   const title =
@@ -514,7 +519,8 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     extractWorkAddress(cleanText) ||
     (bossPartial?.location && bossPartial.location.length > 20 ? bossPartial.location : undefined);
   const salary = bossPartial?.salary || extractSalary(cleanText);
-  const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(cleanText);
+  const experienceYears = bossPartial?.experienceYears ?? structuredFields.experienceYears ?? extractExperienceYears(cleanText);
+  const platformExperienceLabel = bossPartial?.platformExperienceLabel ?? structuredFields.platformExperienceLabel;
   const url = bossPartial?.url || extractUrl(text);
   const sections = extractJobSections(cleanText);
   const jobIntro = bossPartial?.jobIntro || sections.jobIntro || undefined;
@@ -551,6 +557,7 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     workAddress,
     salary,
     experienceYears,
+    platformExperienceLabel,
     industry,
     source: source || undefined,
     url,
