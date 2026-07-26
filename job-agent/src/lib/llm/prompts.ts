@@ -79,18 +79,6 @@ function formatRuleMatchedByWork(ruleMatch: MatchResult): string {
     .join("\n\n");
 }
 
-function listCoversWorkExp(
-  items: { workExperience: string }[],
-  workLabel: string
-): boolean {
-  const company = workLabel.split(" · ")[0]?.trim();
-  return items.some((item) => {
-    if (item.workExperience === workLabel) return true;
-    if (company && item.workExperience.includes(company)) return true;
-    return false;
-  });
-}
-
 export function normalizeLlmMatchedProjects(
   profile: Profile,
   items: LlmMatchedProjectItem[] | undefined
@@ -123,16 +111,9 @@ export function normalizeLlmMatchedProjects(
   return results;
 }
 
-function backfillMatchedProjects(
-  matched: MatchedProject[],
-  ruleMatch: MatchResult
-): MatchedProject[] {
-  if (!ruleMatch.matchedProjects.length) return matched;
-
-  const result = [...matched];
-  const coveredNames = new Set(result.map((item) => item.name));
-  const order: string[] = [];
+function groupRuleMatchedByWork(ruleMatch: MatchResult): Map<string, MatchedProject[]> {
   const buckets = new Map<string, MatchedProject[]>();
+  const order: string[] = [];
 
   for (const project of ruleMatch.matchedProjects) {
     const label = project.workExperienceLabel || "未关联工作";
@@ -143,17 +124,73 @@ function backfillMatchedProjects(
     buckets.get(label)!.push(project);
   }
 
+  const ordered = new Map<string, MatchedProject[]>();
   for (const label of order) {
-    if (listCoversWorkExp(result.map((item) => ({ workExperience: item.workExperienceLabel })), label)) {
-      continue;
-    }
-    const top = buckets.get(label)!.find((p) => !coveredNames.has(p.name)) ?? buckets.get(label)![0];
-    if (!top || coveredNames.has(top.name)) continue;
-    result.push(top);
-    coveredNames.add(top.name);
+    ordered.set(label, buckets.get(label)!);
+  }
+  return ordered;
+}
+
+function countProjectsForWorkExp(projects: MatchedProject[], workLabel: string): number {
+  const company = workLabel.split(" · ")[0]?.trim();
+  return projects.filter((item) => {
+    if (item.workExperienceLabel === workLabel) return true;
+    return Boolean(company && item.workExperienceLabel.includes(company));
+  }).length;
+}
+
+const MIN_PROJECTS_PER_WORK = 2;
+const MAX_PROJECTS_PER_WORK = 4;
+
+/** 将规则初筛中每段工作下的相关项目合并进 LLM 结果（不只补 1 个） */
+function mergeMatchedProjectsWithRuleEngine(
+  llmMatched: MatchedProject[],
+  ruleMatch: MatchResult,
+  profile: Profile
+): MatchedProject[] {
+  if (!ruleMatch.matchedProjects.length) return llmMatched;
+
+  const result = [...llmMatched];
+  const coveredIds = new Set(result.map((item) => item.id));
+  const ruleByWork = groupRuleMatchedByWork(ruleMatch);
+
+  const workLabels: string[] = profile.workExperiences.map((exp) => `${exp.company} · ${exp.title}`);
+  for (const label of Array.from(ruleByWork.keys())) {
+    if (!workLabels.includes(label)) workLabels.push(label);
   }
 
-  return result;
+  for (const label of workLabels) {
+    const ruleProjects = ruleByWork.get(label);
+    if (!ruleProjects?.length) continue;
+
+    const currentCount = countProjectsForWorkExp(result, label);
+    const targetCount = Math.min(MAX_PROJECTS_PER_WORK, ruleProjects.length);
+    if (currentCount >= targetCount) continue;
+
+    for (const ruleProject of ruleProjects) {
+      if (countProjectsForWorkExp(result, label) >= targetCount) break;
+      if (coveredIds.has(ruleProject.id)) continue;
+      result.push(ruleProject);
+      coveredIds.add(ruleProject.id);
+    }
+  }
+
+  return sortMatchedProjectsByProfileWorkOrder(result, profile);
+}
+
+function sortMatchedProjectsByProfileWorkOrder(
+  projects: MatchedProject[],
+  profile: Profile
+): MatchedProject[] {
+  const order = profile.workExperiences.map((exp) => `${exp.company} · ${exp.title}`);
+  const rank = new Map(order.map((label, index) => [label, index]));
+
+  return [...projects].sort((a, b) => {
+    const aRank = rank.get(a.workExperienceLabel) ?? 999;
+    const bRank = rank.get(b.workExperienceLabel) ?? 999;
+    if (aRank !== bRank) return aRank - bRank;
+    return a.name.localeCompare(b.name, "zh-CN");
+  });
 }
 
 /** 补全 LLM 结果：跨工作经历覆盖 matchedProjects 与 recommendedProjects */
@@ -162,9 +199,10 @@ export function ensureCrossWorkExperienceCoverage(
   profile: Profile,
   ruleMatch: MatchResult
 ): LlmMatchAnalysis & { normalizedMatchedProjects: MatchedProject[] } {
-  const normalizedMatchedProjects = backfillMatchedProjects(
+  const normalizedMatchedProjects = mergeMatchedProjectsWithRuleEngine(
     normalizeLlmMatchedProjects(profile, analysis.matchedProjects),
-    ruleMatch
+    ruleMatch,
+    profile
   );
 
   if (!ruleMatch.matchedProjects.length) {
@@ -177,34 +215,33 @@ export function ensureCrossWorkExperienceCoverage(
 
   const recommended = [...(analysis.recommendedProjects ?? [])];
   const coveredNames = new Set(recommended.map((item) => item.projectName));
+  const ruleByWork = groupRuleMatchedByWork(ruleMatch);
 
-  const order: string[] = [];
-  const buckets = new Map<string, typeof ruleMatch.matchedProjects>();
+  for (const [label, candidates] of Array.from(ruleByWork.entries())) {
+    const company = label.split(" · ")[0]?.trim() ?? "";
+    const currentCount = recommended.filter(
+      (item) => item.workExperience === label || (company && item.workExperience.includes(company))
+    ).length;
+    const targetCount = Math.min(MIN_PROJECTS_PER_WORK, candidates.length);
 
-  for (const project of ruleMatch.matchedProjects) {
-    const label = project.workExperienceLabel || "未关联工作";
-    if (!buckets.has(label)) {
-      buckets.set(label, []);
-      order.push(label);
+    if (currentCount >= targetCount) continue;
+
+    for (const top of candidates) {
+      const count = recommended.filter(
+        (item) => item.workExperience === label || (company && item.workExperience.includes(company))
+      ).length;
+      if (count >= targetCount) break;
+      if (coveredNames.has(top.name)) continue;
+
+      recommended.push({
+        projectName: top.name,
+        workExperience: top.workExperienceLabel,
+        outcomeSentence: top.summary,
+        resumeBullets: top.reasons.slice(0, 2).map((reason) => reason.replace(/^[·•]\s*/, "")),
+        matchReasons: top.reasons.slice(0, 3),
+      });
+      coveredNames.add(top.name);
     }
-    buckets.get(label)!.push(project);
-  }
-
-  for (const label of order) {
-    if (listCoversWorkExp(recommended, label)) continue;
-
-    const candidates = buckets.get(label)!;
-    const top = candidates.find((p) => !coveredNames.has(p.name)) ?? candidates[0];
-    if (!top || coveredNames.has(top.name)) continue;
-
-    recommended.push({
-      projectName: top.name,
-      workExperience: top.workExperienceLabel,
-      outcomeSentence: top.summary,
-      resumeBullets: top.reasons.slice(0, 2).map((reason) => reason.replace(/^[·•]\s*/, "")),
-      matchReasons: top.reasons.slice(0, 3),
-    });
-    coveredNames.add(top.name);
   }
 
   return {
@@ -275,8 +312,8 @@ export function buildMatchAnalysisPrompt(
 
 硬性要求：
 1. 必须审视用户全部 ${workExpCount} 段工作经历及其下所有项目，不可只分析最近一份工作的项目
-2. matchedProjects：列出与 JD 真正相关的全部核心项目（最多 8 个，按相关度排序）。规则初筛结果仅供参考，可能有误（如泛化匹配「商业化」），必须以 JD 语义为准，排除弱相关项目
-3. 当多段工作都有相关项目时，matchedProjects 与 recommendedProjects 均须覆盖每一段（每段至少 1 个）
+2. matchedProjects：列出与 JD 真正相关的全部核心项目（最多 12 个）。规则初筛按工作分组的结果务必重点参考——若某段工作（如瑞拓普）下有多项相关项目，须尽量全部列入，不可只写最近一份工作（如猿辅导）的项目
+3. 当多段工作都有相关项目时，matchedProjects 每段至少 2 个（该段不足 2 个则全写），recommendedProjects 每段至少 1 个
 4. 每条 reason 必须引用 JD 中的具体要求 + 项目中的具体交付/客户/行业/工具，禁止空泛理由（如仅写「用户研究能力」「商业化业务研究」）
 5. recommendedProjects：从 matchedProjects 中精选最值得写进简历的项目（最多 6 个），附 2 条 resume bullet
 6. projectName 必须与上面项目列表中的名称完全一致

@@ -158,8 +158,14 @@ if (internal) {
   process.exit(1);
 }
 
-if (matched.length > 5) {
+if (matched.length > 8) {
   console.error("FAIL: too many matches", matched.length);
+  process.exit(1);
+}
+
+const workExpLabels = new Set(matched.map((m) => m.workExperienceLabel));
+if (!workExpLabels.has("某咨询公司 · 研究顾问")) {
+  console.error("FAIL: should include projects from second work experience");
   process.exit(1);
 }
 

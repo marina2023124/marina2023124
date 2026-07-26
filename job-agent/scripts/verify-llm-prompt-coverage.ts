@@ -129,8 +129,37 @@ const llmOnlyYuanfudao = ensureCrossWorkExperienceCoverage(
     resumeAdvice: "",
   },
   profile,
-  ruleMatch
+  {
+    ...ruleMatch,
+    matchedProjects: [
+      ...ruleMatch.matchedProjects,
+      {
+        id: "p2",
+        name: "高思目标客群下探研究",
+        summary: "客群下探",
+        reasons: ["教育行业研究"],
+        workExperienceLabel: "瑞拓普管理咨询有限公司 · 市场研究员",
+        workExperienceId: "w-rt",
+      },
+      {
+        id: "p3",
+        name: "玉泽医美项目",
+        summary: "医美研究",
+        reasons: ["数据分析"],
+        workExperienceLabel: "瑞拓普管理咨询有限公司 · 市场研究员",
+        workExperienceId: "w-rt",
+      },
+    ],
+  }
 );
+
+const ruituopuCount = llmOnlyYuanfudao.normalizedMatchedProjects.filter((p) =>
+  p.workExperienceLabel.includes("瑞拓普")
+).length;
+if (ruituopuCount < 2) {
+  console.error("FAIL: should merge multiple 瑞拓普 projects, got", ruituopuCount);
+  process.exit(1);
+}
 
 const hasRuituopuMatched = llmOnlyYuanfudao.normalizedMatchedProjects.some(
   (p) => p.workExperienceLabel.includes("瑞拓普") || p.name.includes("高思")

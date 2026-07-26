@@ -569,6 +569,53 @@ function resolveWorkExperience(
   return { workExperienceLabel: "未关联工作" };
 }
 
+const PER_WORK_MATCH_LIMIT = 4;
+const GLOBAL_MATCH_LIMIT = 12;
+
+/** 按工作经历分组取 Top 项目，避免最近一份工作占满全部名额 */
+export function selectMatchedProjectsByWorkExperience(
+  scored: (MatchedProject & { specificity: number })[],
+  profile: Profile
+): MatchedProject[] {
+  const byWork = new Map<string, (MatchedProject & { specificity: number })[]>();
+
+  for (const item of scored) {
+    const label = item.workExperienceLabel || "未关联工作";
+    const list = byWork.get(label) ?? [];
+    list.push(item);
+    byWork.set(label, list);
+  }
+
+  const merged: MatchedProject[] = [];
+  const usedLabels = new Set<string>();
+
+  for (const exp of profile.workExperiences) {
+    const label = formatWorkExperienceTag(exp);
+    usedLabels.add(label);
+    const list = (byWork.get(label) ?? [])
+      .sort((a, b) => b.specificity - a.specificity || a.name.localeCompare(b.name, "zh-CN"))
+      .slice(0, PER_WORK_MATCH_LIMIT);
+
+    for (const { specificity, ...rest } of list) {
+      void specificity;
+      merged.push(rest);
+    }
+  }
+
+  for (const [label, list] of Array.from(byWork.entries())) {
+    if (usedLabels.has(label)) continue;
+    const top = list
+      .sort((a, b) => b.specificity - a.specificity || a.name.localeCompare(b.name, "zh-CN"))
+      .slice(0, PER_WORK_MATCH_LIMIT);
+    for (const { specificity, ...rest } of top) {
+      void specificity;
+      merged.push(rest);
+    }
+  }
+
+  return merged.slice(0, GLOBAL_MATCH_LIMIT);
+}
+
 export function findMatchedProjectsDetailed(
   profile: Profile,
   job: JobPosting,
@@ -598,11 +645,5 @@ export function findMatchedProjectsDetailed(
     });
   }
 
-  return results
-    .sort((a, b) => b.specificity - a.specificity || a.name.localeCompare(b.name, "zh-CN"))
-    .slice(0, 5)
-    .map(({ specificity, ...rest }) => {
-      void specificity;
-      return rest;
-    });
+  return selectMatchedProjectsByWorkExperience(results, profile);
 }
