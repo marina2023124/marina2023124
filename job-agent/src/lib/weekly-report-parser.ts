@@ -85,12 +85,21 @@ const STATUS_INLINE_RE =
   /已达成|未达成|已推进|已同步|【被动调整】|【主动调整】|【新增高优】|【本周新增】|【紧急新增】/g;
 
 function extractPriority(line: string): string | undefined {
+  const pMinus = line.match(/^P-(\d)/i);
+  if (pMinus) return `P-${pMinus[1]}`;
   const match = line.match(/^(P[0-3])/i);
   return match?.[1]?.toUpperCase();
 }
 
 function stripPriorityPrefix(line: string): string {
-  return line.replace(/^P[0-3](?:【[^】]+】)?\s*/i, "").trim();
+  return line
+    .replace(/^P-\d(?:【[^】]+】)?\s*/i, "")
+    .replace(/^P[0-3](?:【[^】]+】)?\s*/i, "")
+    .trim();
+}
+
+function isPriorityProjectLine(line: string): boolean {
+  return /^(P[0-3]|P-\d)/i.test(line);
 }
 
 function cleanWorkText(text: string): string {
@@ -273,22 +282,25 @@ function tryParseStructuredLine(line: string): WeeklyEntry | null {
 
 function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
   if (SKIP_PROJECT_LINE_RE.test(line)) return null;
-  if (/^P[23]/i.test(line)) return null;
+  if (/^P[23](?!-)/i.test(line)) return null;
 
   const priority = extractPriority(line);
 
-  if (/^P[0-3]/i.test(line)) {
+  if (isPriorityProjectLine(line)) {
     const parsed = parseProjectNameAndBody(line);
     if (parsed && parsed.name.length >= 2 && parsed.name.length <= 40) {
       const entry = buildWeeklyEntry(line, parsed.name, priority);
       if (!entry.tasks.length && parsed.body) {
         entry.tasks = extractWorkFromBody(parsed.body);
       }
+      if (!entry.tasks.length && parsed.body.length >= 4) {
+        entry.tasks = [cleanWorkText(parsed.body)];
+      }
       return entry;
     }
   }
 
-  if (!/^P[0-3]/i.test(line)) {
+  if (!isPriorityProjectLine(line)) {
     const bare = line.match(BARE_PROJECT_LINE_RE);
     if (bare) {
       const name = normalizeProjectName(bare[1].trim());
@@ -369,10 +381,11 @@ function withWeekContext(
 function parseBlockEntries(
   text: string,
   week?: { start: string; end: string; label: string },
-  priorWeekGoalNames: string[] = []
+  priorWeekGoalNames: string[] = [],
+  options?: { defaultInProjectSection?: boolean }
 ): WeeklyEntry[] {
   const entries: WeeklyEntry[] = [];
-  let inProjectSection = false;
+  let inProjectSection = options?.defaultInProjectSection ?? false;
   let currentEntry: WeeklyEntry | null = null;
   let lastPushedIndex = -1;
 
@@ -448,7 +461,20 @@ function parseBlockEntries(
       flushCurrent();
       continue;
     }
-    if (WK_HEADER_RE.test(line)) continue;
+    if (WK_HEADER_RE.test(line)) {
+      if (!inProjectSection && options?.defaultInProjectSection) {
+        inProjectSection = true;
+      }
+      continue;
+    }
+
+    if (!inProjectSection && isPriorityProjectLine(line)) {
+      const priority = tryParsePriorityProjectLine(line);
+      if (priority) {
+        pushEntry(priority);
+        continue;
+      }
+    }
 
     if (END_SECTION_RE.test(line)) {
       flushCurrent();
@@ -621,12 +647,17 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
       const section = sections[i];
       const week = workWeekRange(year, section.week);
       const block = extractWeeklyProjectBlock(section.content);
-      const body = block ? `本周项目\n${block}` : section.content;
+      const stripped = section.content.replace(/^\s*WK\s*\d{1,2}\s*\n?/i, "").trim();
+      const body = block ? `本周项目\n${block}` : stripped;
       const priorSection = sections[i + 1];
       const priorWeekGoalNames = priorSection
         ? extractNextGoalProjectNames(priorSection.content)
         : [];
-      all.push(...parseBlockEntries(body, week, priorWeekGoalNames));
+      all.push(
+        ...parseBlockEntries(body, week, priorWeekGoalNames, {
+          defaultInProjectSection: !block,
+        })
+      );
 
       if (priorSection) {
         const priorGoals = extractNextGoalEntries(priorSection.content);
@@ -856,6 +887,9 @@ export function summarizeWeeklyReportParse(projects: Project[], sourceText: stri
   if (!projects.length) {
     if (/本周项目/i.test(sourceText) && entryCount === 0) {
       return "未识别到项目：请确认「本周项目」下有 P0/P1 条目或「项目名。任务」格式";
+    }
+    if (/\bWK\s*\d{1,2}\b/i.test(sourceText) && entryCount === 0) {
+      return "未识别到项目：WK 周报请使用 P0/P1/P-1 项目行，或添加「本周项目」标题";
     }
     return `未从周报中识别到项目条目（扫描 ${entryCount} 行）`;
   }

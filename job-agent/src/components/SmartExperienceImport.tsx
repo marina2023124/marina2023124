@@ -201,6 +201,8 @@ export function SmartExperienceImport() {
   const [preview, setPreview] = useState<ParsedProfileDraft | null>(null);
   const [weeklyPreview, setWeeklyPreview] = useState<Project[] | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summarizeError, setSummarizeError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -252,10 +254,62 @@ export function SmartExperienceImport() {
   const handleSmartParse = () => {
     if (!rawInput.trim()) return;
     setParsing(true);
+    setSummarizeError(null);
     try {
       runParse(rawInput);
     } finally {
       setParsing(false);
+    }
+  };
+
+  const applySummariesToProjects = (projects: Project[], summaries: Record<string, string>): Project[] =>
+    projects.map((project) =>
+      summaries[project.id]
+        ? { ...project, workSummary: summaries[project.id] }
+        : project
+    );
+
+  const runLlmSummarize = async () => {
+    const projects = weeklyPreview ?? preview?.projects;
+    if (!projects?.length) return;
+
+    setSummarizing(true);
+    setSummarizeError(null);
+
+    try {
+      const statusRes = await fetch("/api/llm/status");
+      const statusBody = (await statusRes.json()) as { configured?: boolean; liveValid?: boolean; hint?: string };
+      if (!statusBody.configured || statusBody.liveValid === false) {
+        throw new Error(statusBody.hint ?? "未配置 DeepSeek，请在 Vercel 设置 DEEPSEEK_API_KEY 后 Redeploy");
+      }
+
+      const res = await fetch("/api/llm/summarize-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projects }),
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        summaries?: Record<string, string>;
+      };
+
+      if (!res.ok || !body.ok || !body.summaries) {
+        throw new Error(body.error ?? "AI 总结失败");
+      }
+
+      if (weeklyPreview) {
+        setWeeklyPreview(applySummariesToProjects(weeklyPreview, body.summaries));
+      } else if (preview) {
+        setPreview({
+          ...preview,
+          projects: applySummariesToProjects(preview.projects, body.summaries),
+        });
+      }
+    } catch (err) {
+      setSummarizeError(err instanceof Error ? err.message : "AI 总结失败");
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -302,6 +356,7 @@ export function SmartExperienceImport() {
   const clearPreview = () => {
     setPreview(null);
     setWeeklyPreview(null);
+    setSummarizeError(null);
   };
 
   return (
@@ -349,7 +404,7 @@ export function SmartExperienceImport() {
             <p className="mt-1">PDF、Word（.docx）、Excel（.xlsx/.xls/.csv）、图片（OCR）、纯文本</p>
             <p className="mt-1">
               {importMode === "weekly"
-                ? "周报模式：计划/卡点归入具体项目；P0/P1 仅作标签；任务明细标注 WK"
+                ? "周报模式：计划/卡点归入具体项目；P0/P1/P-1 仅作标签；任务明细标注 WK；可直接粘贴 WK30 工作块"
                 : "Excel 项目列表：支持【个人项目管理】多 Sheet 文件（含启动/完成日期与任务明细）"}
             </p>
             <div className="mt-2 flex gap-3">
@@ -370,7 +425,7 @@ export function SmartExperienceImport() {
             onChange={(e) => setRawInput(e.target.value)}
             placeholder={
               importMode === "weekly"
-                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· WK28 等工作周（自动推算 7.6-7.10 周期）\n· 「本周项目」下 P0/P1 条目\n· 项目名：任务 / 2406303 - 项目名：任务"
+                ? "粘贴周报文字或上传 Word/PDF。\n\n支持识别：\n· WK28 / WK30 等工作周（无需「本周项目」标题）\n· P0/P1/P-1 项目行\n· 「本周项目」下 P0/P1 条目\n· 项目名：任务 / 2406303 - 项目名：任务"
                 : "粘贴整份简历、项目任务表格，或某段经历文字。\n\n支持识别：\n· 基本信息（姓名、邮箱、电话）\n· 工作经历 / 项目经验 / 教育背景\n· Markdown 表格（行业|项目编号|项目名|任务）\n· 专业技能"
             }
           />
@@ -449,16 +504,34 @@ export function SmartExperienceImport() {
               )}
               {showDetails && preview && <PreviewSummary draft={preview} />}
 
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={handleApply}>
                   <Check className="h-4 w-4" />
                   {weeklyPreview ? "更新项目经历" : "合并到我的经历"}
                 </Button>
+                <Button
+                  variant="secondary"
+                  disabled={summarizing}
+                  onClick={runLlmSummarize}
+                >
+                  {summarizing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> 总结中…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" /> AI 智能总结
+                    </>
+                  )}
+                </Button>
                 <Button variant="ghost" onClick={clearPreview}>取消</Button>
               </div>
+              {summarizeError && (
+                <p className="mt-2 text-xs text-red-600">{summarizeError}</p>
+              )}
               <p className="mt-2 text-xs text-slate-500">
                 {weeklyPreview
-                  ? "将把本周任务合并进对应项目，并按项目时间自动标注所属工作"
+                  ? "将把本周任务合并进对应项目，并按项目时间自动标注所属工作。「AI 智能总结」会生成适合写进简历的项目描述"
                   : "合并时会保留已有内容，仅追加不重复的工作/项目/技能条目"}
               </p>
               {preview && preview.projects.length === 0 && countLikelyProjectRows(rawInput) > 0 && (

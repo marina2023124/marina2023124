@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Edit2, X, Check } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Loader2, Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { WorkExperience, Education, Project, Skill, SkillLevel } from "@/lib/types";
 import { generateId, parseSkillsFromText, formatDate, calcYearsBetween, isFutureYearMonth, sanitizeWorkDate, getProjectWorkSummary, getProjectWorkItems, parseWorkLines, formatProjectDateRange, sortProjectsByTime, sanitizeProfileProjects } from "@/lib/utils";
@@ -347,6 +347,48 @@ function ProjectsSection() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<Project>>({});
   const [workInput, setWorkInput] = useState("");
+  const [summarizing, setSummarizing] = useState(false);
+  const [summarizeError, setSummarizeError] = useState<string | null>(null);
+
+  const summarizeAllProjects = async () => {
+    if (!data.profile.projects.length) return;
+    setSummarizing(true);
+    setSummarizeError(null);
+    try {
+      const statusRes = await fetch("/api/llm/status");
+      const statusBody = (await statusRes.json()) as { configured?: boolean; liveValid?: boolean; hint?: string };
+      if (!statusBody.configured || statusBody.liveValid === false) {
+        throw new Error(statusBody.hint ?? "未配置 DeepSeek");
+      }
+
+      const res = await fetch("/api/llm/summarize-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projects: data.profile.projects }),
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        summaries?: Record<string, string>;
+      };
+      if (!res.ok || !body.ok || !body.summaries) {
+        throw new Error(body.error ?? "AI 总结失败");
+      }
+
+      setProfile({
+        ...data.profile,
+        projects: data.profile.projects.map((project) =>
+          body.summaries![project.id]
+            ? { ...project, workSummary: body.summaries![project.id] }
+            : project
+        ),
+      });
+    } catch (err) {
+      setSummarizeError(err instanceof Error ? err.message : "AI 总结失败");
+    } finally {
+      setSummarizing(false);
+    }
+  };
 
   const removeProject = (id: string) => {
     setProfile({
@@ -394,6 +436,22 @@ function ProjectsSection() {
 
   return (
     <Card title="项目经验">
+      {data.profile.projects.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" disabled={summarizing} onClick={summarizeAllProjects}>
+            {summarizing ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> 总结中…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5" /> AI 智能总结全部项目
+              </>
+            )}
+          </Button>
+          {summarizeError && <p className="text-xs text-red-600">{summarizeError}</p>}
+        </div>
+      )}
       {projectGroups.length === 0 && !showForm && (
         <p className="mb-4 text-sm text-slate-500">暂无项目，可手动添加或从周报导入。</p>
       )}

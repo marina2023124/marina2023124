@@ -438,6 +438,46 @@ ${ruleHint}
   return { system, user };
 }
 
+export function buildProjectSummariesPrompt(projects: Project[]): { system: string; user: string } {
+  const projectBlocks = projects
+    .map((project) => {
+      const items = getProjectWorkItems(project).slice(0, 12);
+      return [
+        `【${project.id}】${project.name}`,
+        project.description ? `背景：${project.description}` : "",
+        (project.technologies ?? []).length
+          ? `方法/技能：${(project.technologies ?? []).join("、")}`
+          : "",
+        items.length ? `任务明细：\n${items.map((item) => `  - ${item}`).join("\n")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+
+  const system = `你是资深用户研究/市场研究顾问，帮用户把周报任务明细整理成适合写进简历的「项目经历总结」。
+
+要求：
+1. 每个项目输出 1 句 workSummary（40-80 字），突出行业/客户、研究方法、核心交付与业务价值
+2. 用第三人称或「负责…」句式，不要罗列 WK 编号或「已达成/未达成」等周报状态词
+3. 保留可量化成果（样本量、组数、报告类型等），但合并同类任务，避免流水账
+4. 若任务明细较少，根据项目名称合理推断研究类型，但不要编造具体数字
+5. 仅返回 JSON，不要 markdown 包裹`;
+
+  const user = `请为以下 ${projects.length} 个项目各生成一句 resume-ready 的项目总结：
+
+${projectBlocks}
+
+返回 JSON：
+{
+  "summaries": [
+    { "id": "项目id（必须与上方【】内一致）", "workSummary": "一句话项目总结" }
+  ]
+}`;
+
+  return { system, user };
+}
+
 export function buildAgentChatPrompt(data: AppData, userMessage: string): { system: string; messages: { role: "user" | "assistant"; content: string }[] } {
   const profile = data.profile;
   const system = `你是 JobAgent 职业顾问，基于用户档案回答问题。用中文，结构清晰，给出可执行的简历/求职建议。

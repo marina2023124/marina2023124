@@ -105,3 +105,21 @@ if (!nestleByName || !(nestleByName.highlights ?? []).some((h) => h.includes("8 
 }
 
 console.log("OK: weekly report + 本周项目 section verified");
+
+const wkOnly = `WK30
+
+P-1 小猿AI学练机
+P0 产品战略分析。已达成。访问28人，问卷200份
+P0 小猿AI学练机。已达成。完成深访12组`;
+
+const wkProjects = parseWeeklyReportProjects(wkOnly, profile.projects);
+if (wkProjects.length < 2) {
+  console.error("FAIL: WK30-only weekly should parse >=2 projects", wkProjects.length);
+  process.exit(1);
+}
+if (!wkProjects.some((p) => p.name.includes("产品战略"))) {
+  console.error("FAIL: WK30 should include 产品战略分析");
+  process.exit(1);
+}
+
+console.log("OK: WK30 P0/P-1 direct paste verified");
