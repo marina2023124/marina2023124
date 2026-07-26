@@ -84,9 +84,24 @@ export function buildBossDetailApiUrl(ids: BossPageIds): string | null {
 }
 
 export function resolveBossSalary(job: Record<string, unknown>): string {
-  const candidates = [job.salaryDesc, job.salary, job.salaryMonthText, job.payTypeDesc];
+  const candidates = [
+    job.salaryDesc,
+    job.salary,
+    job.salaryName,
+    job.salaryMonthText,
+    job.payTypeDesc,
+  ];
   for (const value of candidates) {
     if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  const low = Number(job.lowSalary ?? job.lowSalaryDesc);
+  const high = Number(job.highSalary ?? job.highSalaryDesc);
+  if (low > 0 && high > 0) {
+    const l = low > 1000 ? Math.round(low / 1000) : low;
+    const h = high > 1000 ? Math.round(high / 1000) : high;
+    const month = job.salaryMonth;
+    const base = `${l}-${h}K`;
+    return typeof month === "number" && month > 12 ? `${base}·${month}薪` : base;
   }
   return "";
 }

@@ -49,5 +49,6 @@ assert(!!apiUrl && apiUrl.includes("encryptJobId=job999"), "detail api includes 
 
 assert(resolveBossSalary({ salaryDesc: "12-18K" }) === "12-18K", "salary desc");
 assert(resolveBossSalary({ salary: "15K" }) === "15K", "salary fallback");
+assert(resolveBossSalary({ lowSalary: 15000, highSalary: 25000, salaryMonth: 16 }) === "15-25K·16薪", "low/high salary");
 
 console.log("OK: boss bookmarklet resolver verified");

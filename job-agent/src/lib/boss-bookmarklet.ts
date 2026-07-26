@@ -46,7 +46,39 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     return b.join('\\n\\n');
   }
   function pickSalary(job){
-    return job.salaryDesc||job.salary||job.salaryMonthText||job.payTypeDesc||'';
+    var s=job.salaryDesc||job.salary||job.salaryName||job.salaryMonthText||job.payTypeDesc||'';
+    if(s)return s;
+    var low=job.lowSalary||job.lowSalaryDesc;
+    var high=job.highSalary||job.highSalaryDesc;
+    if(low&&high){
+      var l=Number(low),h=Number(high);
+      if(l>1000)l=Math.round(l/1000);
+      if(h>1000)h=Math.round(h/1000);
+      s=l+'-'+h+'K';
+      if(job.salaryMonth)s+='·'+job.salaryMonth+'薪';
+      return s;
+    }
+    return '';
+  }
+  function salaryFromHtml(){
+    var html=document.documentElement.innerHTML;
+    var m=html.match(/"salaryDesc"\\s*:\\s*"([^"]+)"/);
+    if(m&&m[1])return m[1];
+    m=html.match(/"salaryDesc"\\s*:\\s*'([^']+)'/);
+    if(m&&m[1])return m[1];
+    var low=html.match(/"lowSalary"\\s*:\\s*(\\d+)/);
+    var high=html.match(/"highSalary"\\s*:\\s*(\\d+)/);
+    if(low&&high){
+      var l=Math.round(Number(low[1])/1000),h=Math.round(Number(high[1])/1000);
+      if(l>0&&h>0)return l+'-'+h+'K';
+    }
+    return '';
+  }
+  function metaFromPage(){
+    var titleEl=document.querySelector('.job-name,.job-title,[class*="job-title"],h1.name');
+    var title=titleEl?(titleEl.textContent||'').trim():'';
+    var salary=salaryFromHtml();
+    return {title:title,salary:salary};
   }
   function findCachedDetailUrl(){
     var entries=performance.getEntriesByType('resource');
@@ -130,7 +162,8 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
   function handleDetail(d,bodyFallback){
     if(!(d&&d.code===0&&d.zpData&&d.zpData.jobInfo))return false;
     var job=d.zpData.jobInfo,brand=d.zpData.brandComInfo||{};
-    var meta={title:job.jobName,salary:pickSalary(job),location:job.locationName,
+    var salary=pickSalary(job)||salaryFromHtml();
+    var meta={title:job.jobName,salary:salary,location:job.locationName,
       experience:job.experienceName,degree:job.degreeName,company:brand.brandName,
       workAddress:job.address||''};
     var body=bodyFromApi(job,brand)||bodyFallback||domBody();
@@ -138,10 +171,11 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     return true;
   }
   function fallback(){
+    var pageMeta=metaFromPage();
     var body=domBody();
     if(!body||body.length<20)body=(window.getSelection&&window.getSelection().toString())||'';
     if(!body||body.length<20){alert('请先打开 BOSS 岗位详情页，等页面加载完成后再点书签');return;}
-    copyOut(header({})+'\\n\\n'+body,false);
+    copyOut(header(pageMeta)+'\\n\\n'+body,!!pageMeta.salary);
   }
   function fetchDetail(url,bodyFallback){
     fetch(normalizeDetailUrl(url),{credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}})
@@ -157,7 +191,7 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     var ids=resolveIds();
     var built=buildDetailUrl(ids);
     if(built){fetchDetail(built,domBody());return;}
-    if(retry<6){setTimeout(function(){attempt(retry+1);},400);return;}
+    if(retry<12){setTimeout(function(){attempt(retry+1);},500);return;}
     fallback();
   }
   try{attempt(0);}catch(e){alert('提取失败，请刷新页面后重试');}

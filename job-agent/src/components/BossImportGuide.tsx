@@ -90,6 +90,15 @@ export function BossImportGuide({ onPasteDemo }: { onPasteDemo?: () => void }) {
           <p className="mb-3 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
             BOSS 页面上的薪资用了字体反爬，<strong>手动复制无法得到真实薪资</strong>。必须用书签从 BOSS 内部 API 获取明文薪资。
           </p>
+          <div className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+            <p className="font-medium text-slate-800">若提示「未获取薪资」：</p>
+            <ul className="mt-1 list-disc space-y-1 pl-4">
+              <li>等页面<strong>完全加载</strong>（标题下方出现薪资数字后再点书签）</li>
+              <li>从<strong>搜索/推荐列表</strong>点进详情，不要直接粘贴外链打开</li>
+              <li>确认已<strong>登录 BOSS</strong>，刷新页面后重试</li>
+              <li>仍失败可在 JobAgent 里手动补填薪资</li>
+            </ul>
+          </div>
           <a
             href="https://www.zhipin.com/web/geek/recommend"
             target="_blank"
