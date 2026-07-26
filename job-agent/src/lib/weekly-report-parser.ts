@@ -4,6 +4,7 @@ import {
   extractPlanActualContent,
   findProjectIndexForMetaLine,
   canonicalProjectName,
+  isInvalidProjectName,
   projectsShouldMerge,
 } from "./project-match";
 import {
@@ -323,6 +324,7 @@ function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
       if (!entry.tasks.length && parsed.name.length >= 2) {
         entry.tasks = [parsed.name];
       }
+      if (entry.projectName && isInvalidProjectName(entry.projectName)) return null;
       return entry;
     }
   }
@@ -357,7 +359,9 @@ function tryParseNameTaskLine(line: string): WeeklyEntry | null {
   if (colon && colon[2].length >= 2) {
     const name = colon[1].trim();
     if (!/^(本周|下周|分类|包括|项目|计划|卡点)/.test(name)) {
-      return { projectName: normalizeProjectName(name), tasks: [line] };
+      const projectName = normalizeProjectName(name);
+      if (isInvalidProjectName(projectName)) return null;
+      return { projectName, tasks: [line] };
     }
   }
 
@@ -425,6 +429,16 @@ function parseBlockEntries(
   };
 
   const pushEntry = (entry: WeeklyEntry) => {
+    if (entry.projectName && isInvalidProjectName(entry.projectName)) {
+      if (lastPushedIndex >= 0 && entry.tasks.length) {
+        for (const task of entry.tasks) {
+          if (!entries[lastPushedIndex].tasks.includes(task)) {
+            entries[lastPushedIndex].tasks.push(task);
+          }
+        }
+      }
+      return;
+    }
     flushCurrent();
     entries.push(withWeekContext(entry, week));
     lastPushedIndex = entries.length - 1;

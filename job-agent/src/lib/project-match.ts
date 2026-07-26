@@ -1,7 +1,7 @@
 import { mergeWeeklyHighlights, normalizeProjectName, normalizeTaskHighlight } from "./project-name";
 
 /** 不是项目名称的周报元信息标题 */
-export const NON_PROJECT_META_NAMES = new Set(["计划", "卡点"]);
+export const NON_PROJECT_META_NAMES = new Set(["计划", "卡点", "项目"]);
 
 const PROJECT_KEYWORDS: Record<string, string[]> = {
   "R2新品规划": ["PSM", "弹性", "雷达图", "思维拓展", "R2", "新品规划"],
@@ -47,6 +47,31 @@ export function canonicalProjectName(name: string): string {
     if (rule.pattern.test(normalized)) return rule.name;
   }
   return normalized;
+}
+
+/** 是否为无效/元信息项目名（不应单独成卡片） */
+export function isInvalidProjectName(name: string): boolean {
+  const canonical = canonicalProjectName(name);
+  const normalized = normalizeProjectName(name);
+  if (!canonical || canonical.length < 2) return true;
+  if (NON_PROJECT_META_NAMES.has(canonical) || NON_PROJECT_META_NAMES.has(normalized)) {
+    return true;
+  }
+  if (/^(项目|计划|卡点|目标|分类|包括)$/i.test(canonical)) return true;
+  if (PROJECT_BRANCH_ALIASES[normalized] && normalized !== canonical) return false;
+  return false;
+}
+
+/** 云端/本地项目是否需要规范化修复 */
+export function profileProjectsNeedRepair(
+  before: { name: string }[],
+  after: { name: string }[]
+): boolean {
+  return (
+    before.length !== after.length ||
+    before.some((project) => project.name !== canonicalProjectName(project.name)) ||
+    before.some((project) => isInvalidProjectName(project.name))
+  );
 }
 
 /** 判断两个项目名是否应合并为同一项目 */
@@ -212,7 +237,7 @@ export function mergeDuplicateProjects<
 
     result[idx] = {
       ...current,
-      name: canonicalProjectName(current.name),
+      name: canonicalProjectName(current.name || item.name),
       highlights: mergeWeeklyHighlights(current.highlights ?? [], item.highlights ?? []),
       tags: Array.from(new Set([...(current.tags ?? []), ...(item.tags ?? [])])),
       description: uniqueDescriptions.join("；"),

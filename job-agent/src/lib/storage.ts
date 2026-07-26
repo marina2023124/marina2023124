@@ -16,6 +16,7 @@ import {
   shouldStartOffline,
 } from "./local-storage";
 import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
+import { profileProjectsNeedRepair } from "./project-match";
 import { sanitizeProfileProjects } from "./utils";
 
 function normalizeProfile(profile: Profile): Profile {
@@ -188,12 +189,17 @@ export function useAppData() {
       .then((cloudData) => {
         if (!cancelled) {
           clearLocalAppData();
+          const normalizedProfile = normalizeProfile(cloudData.profile);
+          const needsRepair = profileProjectsNeedRepair(
+            cloudData.profile.projects,
+            normalizedProfile.projects
+          );
           setData({
             ...cloudData,
-            profile: normalizeProfile(cloudData.profile),
+            profile: normalizedProfile,
           });
           setLastSyncedAt(new Date().toISOString());
-          skipSaveRef.current = true;
+          skipSaveRef.current = !needsRepair;
         }
       })
       .catch((err: Error) => {

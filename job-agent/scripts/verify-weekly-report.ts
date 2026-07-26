@@ -214,4 +214,37 @@ if (!(agentMerged[0]?.highlights ?? []).some((h) => /评论|雷达图|agent|电�
   process.exit(1);
 }
 
-console.log("OK: 软件归并产品战略分析，智能体项目合并");
+const metaProject = parseWeeklyReportProjects(
+  "WK30\nP0 产品战略分析。已达成\n项目：后续拟安排实习生推进",
+  profile.projects
+);
+if (metaProject.some((p) => p.name === "项目")) {
+  console.error("FAIL: 项目 不应作为独立项目", metaProject.map((p) => p.name));
+  process.exit(1);
+}
+
+const messyClean = sanitizeProfileProjects(
+  [
+    { id: "a", name: "【被动调整】评论智能体搭建", description: "", highlights: ["WK29"], technologies: [], tags: ["P1"] },
+    { id: "b", name: "【新增高优】产品战略分析。", description: "", highlights: ["WK29"], technologies: [], tags: ["P0"] },
+    { id: "c", name: "内容", description: "", highlights: ["WK29 内容:课程"], technologies: [], tags: [] },
+    { id: "d", name: "软件", description: "", highlights: ["WK29 软件:搜索"], technologies: [], tags: [] },
+    { id: "e", name: "项目", description: "", highlights: ["WK30 项目:后续安排"], technologies: [], tags: [] },
+    { id: "f", name: "智能体搭建", description: "", highlights: ["WK28"], technologies: [], tags: ["P1"] },
+  ],
+  []
+);
+if (messyClean.some((p) => /【被动调整|【新增高优】/.test(p.name))) {
+  console.error("FAIL: 清理后不应含状态标签", messyClean.map((p) => p.name));
+  process.exit(1);
+}
+if (messyClean.some((p) => p.name === "内容" || p.name === "软件" || p.name === "项目")) {
+  console.error("FAIL: 清理后不应含 内容/软件/项目 独立卡片", messyClean.map((p) => p.name));
+  process.exit(1);
+}
+if (messyClean.filter((p) => p.name === "智能体搭建").length !== 1) {
+  console.error("FAIL: 智能体应合并为 1 个", messyClean.map((p) => p.name));
+  process.exit(1);
+}
+
+console.log("OK: 软件归并产品战略分析，智能体项目合并，元信息项目已清理");

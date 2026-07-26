@@ -1,6 +1,6 @@
 import { summarizeProjectFromMeta, summarizeProjectWork } from "./project-work-summary";
 import { linkProjectsToWorkExperiences } from "./project-work-link";
-import { absorbNonProjectMetaCards, canonicalProjectName, mergeDuplicateProjects } from "./project-match";
+import { absorbNonProjectMetaCards, canonicalProjectName, isInvalidProjectName, mergeDuplicateProjects } from "./project-match";
 import {
   finalizeWeeklyHighlights,
   isNoiseTaskHighlight,
@@ -377,7 +377,9 @@ export function sanitizeProfileProjects<T extends {
   projects: T[],
   workExperiences: WorkExperience[] = []
 ): T[] {
-  const enriched = mergeDuplicateProjects(absorbNonProjectMetaCards(projects)).map((project) => {
+  const enriched = mergeDuplicateProjects(absorbNonProjectMetaCards(projects))
+    .filter((project) => !isInvalidProjectName(project.name))
+    .map((project) => {
     const normalized = {
       ...project,
       name: canonicalProjectName(project.name),
