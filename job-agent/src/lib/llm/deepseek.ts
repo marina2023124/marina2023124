@@ -1,5 +1,9 @@
 import { getDeepSeekConfig, isDeepSeekConfigured } from "./config";
-import { serverFetch } from "@/lib/supabase/server-fetch";
+
+/** DeepSeek must use direct fetch — never route via HTTPS_PROXY (breaks on Vercel). */
+async function deepseekFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return fetch(input, init);
+}
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
@@ -32,7 +36,7 @@ export async function deepseekChat(
     );
   }
 
-  const res = await serverFetch(`${baseUrl}/chat/completions`, {
+  const res = await deepseekFetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -97,7 +101,7 @@ export async function verifyDeepSeekKey(): Promise<{
   }
 
   try {
-    const res = await serverFetch(`${baseUrl}/chat/completions`, {
+    const res = await deepseekFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

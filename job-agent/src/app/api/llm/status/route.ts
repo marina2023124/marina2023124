@@ -6,6 +6,7 @@ import {
   isDeepSeekKeyFormatValid,
 } from "@/lib/llm/config";
 import { verifyDeepSeekKey } from "@/lib/llm/deepseek";
+import { getServerProxyStatus } from "@/lib/supabase/server-fetch";
 
 function buildHint(opts: {
   configured: boolean;
@@ -13,8 +14,9 @@ function buildHint(opts: {
   liveValid?: boolean;
   reason?: string;
   vercelEnv?: string;
+  keyLength?: number;
 }): string | undefined {
-  const { configured, formatValid, liveValid, reason, vercelEnv } = opts;
+  const { configured, formatValid, liveValid, reason, vercelEnv, keyLength = 0 } = opts;
 
   if (!configured) {
     return "请在 Vercel / .env.local 设置 DEEPSEEK_API_KEY";
@@ -31,7 +33,11 @@ function buildHint(opts: {
         vercelEnv === "preview"
           ? "当前是 Preview 部署，请确认 Vercel 环境变量勾选了 Preview 并 Redeploy。"
           : "";
-      return `DeepSeek 拒绝了当前 Key（401）。请到 platform.deepseek.com 新建 Key，完整粘贴到 Vercel 的 DEEPSEEK_API_KEY，勾选 Production + Preview 后 Redeploy。${previewHint}`;
+      const lengthHint =
+        keyLength > 0 && keyLength < 40
+          ? `当前 Key 长度仅 ${keyLength} 字符，可能复制不完整（请在创建弹窗里全选复制完整 Key）。`
+          : "";
+      return `DeepSeek 拒绝了当前 Key（401）。请用 curl 在本地先验证 Key 是否有效，再粘贴到 Vercel。${lengthHint}${previewHint}`;
     }
     if (reason === "network_error") {
       return "无法连接 DeepSeek 服务器，请稍后重试";
@@ -67,6 +73,7 @@ export async function GET(request: Request) {
     liveValid,
     reason: verifyReason,
     vercelEnv,
+    keyLength: apiKey.length,
   });
 
   return NextResponse.json({
@@ -79,6 +86,9 @@ export async function GET(request: Request) {
     vercelEnv,
     keyLength: apiKey ? apiKey.length : 0,
     keyPrefix: apiKey ? apiKey.slice(0, 7) : undefined,
+    baseUrl: configured ? getDeepSeekConfig().baseUrl : undefined,
+    model: configured ? getDeepSeekConfig().model : undefined,
+    proxyConfigured: getServerProxyStatus().configured,
     hint,
   });
 }
