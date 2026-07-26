@@ -6,6 +6,24 @@ import type { JobPosting, MatchResult, Profile } from "@/lib/types";
 import type { LlmMatchAnalysis } from "@/lib/llm/prompts";
 import { Button } from "./ui";
 
+function groupRecommendedProjects(
+  projects: LlmMatchAnalysis["recommendedProjects"]
+): { label: string; projects: LlmMatchAnalysis["recommendedProjects"] }[] {
+  const order: string[] = [];
+  const buckets = new Map<string, LlmMatchAnalysis["recommendedProjects"]>();
+
+  for (const project of projects) {
+    const label = project.workExperience || "未关联工作";
+    if (!buckets.has(label)) {
+      buckets.set(label, []);
+      order.push(label);
+    }
+    buckets.get(label)!.push(project);
+  }
+
+  return order.map((label) => ({ label, projects: buckets.get(label)! }));
+}
+
 export function LlmMatchPanel({
   profile,
   job,
@@ -127,30 +145,36 @@ export function LlmMatchPanel({
           <p className="leading-relaxed text-slate-700">{analysis.overall}</p>
 
           {analysis.recommendedProjects.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-xs font-medium uppercase text-violet-800">AI 推荐写入简历的项目</p>
-              {analysis.recommendedProjects.map((project) => (
-                <div
-                  key={`${project.workExperience}-${project.projectName}`}
-                  className="rounded-lg border border-violet-100 bg-white px-3 py-2.5"
-                >
-                  <p className="font-medium text-slate-900">{project.projectName}</p>
-                  <p className="text-xs text-indigo-600">{project.workExperience}</p>
-                  <p className="mt-1 text-xs text-slate-600">{project.outcomeSentence}</p>
-                  {project.resumeBullets.length > 0 && (
-                    <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-slate-700">
-                      {project.resumeBullets.map((bullet) => (
-                        <li key={bullet}>{bullet}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {project.matchReasons.length > 0 && (
-                    <ul className="mt-2 space-y-0.5">
-                      {project.matchReasons.map((reason) => (
-                        <li key={reason} className="text-xs text-violet-800">· {reason}</li>
-                      ))}
-                    </ul>
-                  )}
+              {groupRecommendedProjects(analysis.recommendedProjects).map(({ label, projects }) => (
+                <div key={label}>
+                  <p className="mb-2 text-xs font-medium text-indigo-700">{label}</p>
+                  <div className="space-y-3">
+                    {projects.map((project) => (
+                      <div
+                        key={`${project.workExperience}-${project.projectName}`}
+                        className="rounded-lg border border-violet-100 bg-white px-3 py-2.5"
+                      >
+                        <p className="font-medium text-slate-900">{project.projectName}</p>
+                        <p className="mt-1 text-xs text-slate-600">{project.outcomeSentence}</p>
+                        {project.resumeBullets.length > 0 && (
+                          <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-slate-700">
+                            {project.resumeBullets.map((bullet) => (
+                              <li key={bullet}>{bullet}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {project.matchReasons.length > 0 && (
+                          <ul className="mt-2 space-y-0.5">
+                            {project.matchReasons.map((reason) => (
+                              <li key={reason} className="text-xs text-violet-800">· {reason}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

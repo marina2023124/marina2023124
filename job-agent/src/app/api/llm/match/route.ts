@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { deepseekChat, LlmError, parseJsonFromLlm } from "@/lib/llm/deepseek";
-import { buildMatchAnalysisPrompt, type LlmMatchAnalysis } from "@/lib/llm/prompts";
+import { buildMatchAnalysisPrompt, ensureCrossWorkExperienceCoverage, type LlmMatchAnalysis } from "@/lib/llm/prompts";
 import { matchJob } from "@/lib/matching";
+import { linkProjectsToWorkExperiences } from "@/lib/project-work-link";
 import type { JobPosting, Profile } from "@/lib/types";
 
 export async function POST(request: Request) {
@@ -15,18 +16,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "缺少 profile 或 job" }, { status: 400 });
     }
 
-    const ruleMatch = matchJob(profile, job);
-    const { system, user } = buildMatchAnalysisPrompt(profile, job, ruleMatch);
+    const normalizedProfile: Profile = {
+      ...profile,
+      projects: linkProjectsToWorkExperiences(profile.projects, profile.workExperiences),
+    };
+
+    const ruleMatch = matchJob(normalizedProfile, job);
+    const { system, user } = buildMatchAnalysisPrompt(normalizedProfile, job, ruleMatch);
 
     const raw = await deepseekChat(
       [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      { temperature: 0.35, maxTokens: 2500 }
+      { temperature: 0.35, maxTokens: 3500 }
     );
 
-    const analysis = parseJsonFromLlm<LlmMatchAnalysis>(raw);
+    const parsed = parseJsonFromLlm<LlmMatchAnalysis>(raw);
+    const analysis = ensureCrossWorkExperienceCoverage(parsed, ruleMatch);
 
     return NextResponse.json({
       ok: true,
