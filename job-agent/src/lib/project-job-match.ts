@@ -808,6 +808,42 @@ export function selectMatchedProjectsByWorkExperience(
   return merged.slice(0, GLOBAL_MATCH_LIMIT);
 }
 
+const CONTENT_PLATFORM_PROJECT_RE =
+  /小红书|抖音|B站|哔哩|微博|知乎|视频号|种草|笔记|创作者|社媒|内容社区|UGC/i;
+
+/** 项目是否涉及内容平台 / 社媒（用于快手主站等岗位强制保留） */
+export function isContentPlatformProject(project: Project): boolean {
+  const blob = [
+    project.name,
+    project.description,
+    getProjectWorkSummary(project),
+    ...getProjectWorkItems(project),
+  ].join(" ");
+  return CONTENT_PLATFORM_PROJECT_RE.test(blob);
+}
+
+function ensureContentPlatformProjectsIncluded(
+  selected: MatchedProject[],
+  scored: (MatchedProject & { specificity: number })[],
+  job: JobPosting,
+  jobCtx: JobSignals
+): MatchedProject[] {
+  if (!isContentPlatformJob(job, jobCtx)) return selected;
+
+  const hasPlatform = selected.some((item) => CONTENT_PLATFORM_PROJECT_RE.test(item.name));
+  if (hasPlatform) return selected;
+
+  const platformCandidate = scored
+    .filter((item) => CONTENT_PLATFORM_PROJECT_RE.test(item.name))
+    .sort((a, b) => b.specificity - a.specificity)[0];
+
+  if (!platformCandidate) return selected;
+
+  const { specificity, ...rest } = platformCandidate;
+  void specificity;
+  return [rest, ...selected].slice(0, GLOBAL_MATCH_LIMIT);
+}
+
 export function findMatchedProjectsDetailed(
   profile: Profile,
   job: JobPosting,
@@ -835,5 +871,5 @@ export function findMatchedProjectsDetailed(
     }
   }
 
-  return selected;
+  return ensureContentPlatformProjectsIncluded(selected, results, job, jobCtx);
 }

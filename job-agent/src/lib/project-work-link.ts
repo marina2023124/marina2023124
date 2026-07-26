@@ -160,8 +160,8 @@ export function linkProjectsToWorkExperiences<T extends { workExperienceId?: str
   return projects.map((project) => {
     if (project.workExperienceId) {
       const exp = workExperiences.find((item) => item.id === project.workExperienceId);
-      if (exp && workExperienceContainsProject(exp, project)) return project;
-      if (!project.startDate) return project;
+      // 用户在下拉框中明确选择了所属工作时，不因日期区间不符而改绑到其他公司
+      if (exp) return project;
     }
 
     const matched = findWorkExperienceForProject(project, workExperiences);

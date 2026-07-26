@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     );
 
     const parsed = parseJsonFromLlm<LlmMatchAnalysis>(raw);
-    const analysis = ensureCrossWorkExperienceCoverage(parsed, normalizedProfile, ruleMatch);
+    const analysis = ensureCrossWorkExperienceCoverage(parsed, normalizedProfile, ruleMatch, job);
 
     return NextResponse.json({
       ok: true,

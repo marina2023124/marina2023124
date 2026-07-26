@@ -1,5 +1,6 @@
 import type { AppData, JobPosting, MatchResult, MatchedProject, Profile, Project } from "@/lib/types";
 import { getWorkExperienceLabel, groupProjectsByWorkExperience } from "@/lib/project-work-link";
+import { isContentPlatformProject } from "@/lib/project-job-match";
 import { getProjectWorkItems, getProjectWorkSummary } from "@/lib/utils";
 
 export interface LlmMatchedProjectItem {
@@ -178,6 +179,76 @@ function mergeMatchedProjectsWithRuleEngine(
   return sortMatchedProjectsByProfileWorkOrder(result, profile);
 }
 
+function isContentPlatformJobPosting(job: JobPosting): boolean {
+  const text = [job.title, job.company, job.description].join("\n");
+  return /主站|内容社区|短视频|视频|社区|创作|feed|UGC|快手/i.test(text);
+}
+
+/** 内容平台岗位：强制保留小红书/社媒类项目，避免 AI 只写教育行业经历 */
+function injectContentPlatformProjects(
+  matched: MatchedProject[],
+  profile: Profile,
+  job: JobPosting,
+  ruleMatch: MatchResult
+): MatchedProject[] {
+  if (!isContentPlatformJobPosting(job)) return matched;
+
+  const profileById = new Map(profile.projects.map((project) => [project.id, project]));
+  const hasPlatform = matched.some((item) => {
+    const project = profileById.get(item.id);
+    return project ? isContentPlatformProject(project) : /小红书|抖音|社媒|内容社区/i.test(item.name);
+  });
+  if (hasPlatform) return matched;
+
+  const result = [...matched];
+  const coveredIds = new Set(result.map((item) => item.id));
+
+  for (const ruleProject of ruleMatch.matchedProjects) {
+    const project = profileById.get(ruleProject.id);
+    if (!project || !isContentPlatformProject(project) || coveredIds.has(ruleProject.id)) continue;
+    result.unshift(ruleProject);
+    coveredIds.add(ruleProject.id);
+    break;
+  }
+
+  if (
+    result.some((item) => {
+      const project = profileById.get(item.id);
+      return project && isContentPlatformProject(project);
+    })
+  ) {
+    return result.slice(0, 12);
+  }
+
+  for (const project of profile.projects) {
+    if (!isContentPlatformProject(project) || coveredIds.has(project.id)) continue;
+
+    const linkedLabel = project.workExperienceId
+      ? getWorkExperienceLabel(project.workExperienceId, profile.workExperiences)
+      : undefined;
+    const brand = project.name.match(/小红书|抖音|B站|微博|知乎/)?.[0] ?? "内容平台";
+
+    result.unshift({
+      id: project.id,
+      name: project.name,
+      summary: getProjectWorkSummary(project),
+      reasons: [
+        `JD 为内容社区/主站方向，项目服务「${brand}」同类平台，与岗位产品场景高度对标，建议重点写入`,
+      ],
+      workExperienceLabel: linkedLabel ?? "未关联工作",
+      workExperienceId: project.workExperienceId,
+    });
+    break;
+  }
+
+  return result.slice(0, 12);
+}
+
+function filterContradictoryGaps(gaps: string[], profile: Profile): string[] {
+  if (!profile.projects.some(isContentPlatformProject)) return gaps;
+  return gaps.filter((gap) => !/无.*短视频|无.*社交产品|缺少.*(?:短视频|社交|内容平台).*行业/i.test(gap));
+}
+
 function sortMatchedProjectsByProfileWorkOrder(
   projects: MatchedProject[],
   profile: Profile
@@ -197,17 +268,24 @@ function sortMatchedProjectsByProfileWorkOrder(
 export function ensureCrossWorkExperienceCoverage(
   analysis: LlmMatchAnalysis,
   profile: Profile,
-  ruleMatch: MatchResult
+  ruleMatch: MatchResult,
+  job: JobPosting
 ): LlmMatchAnalysis & { normalizedMatchedProjects: MatchedProject[] } {
-  const normalizedMatchedProjects = mergeMatchedProjectsWithRuleEngine(
-    normalizeLlmMatchedProjects(profile, analysis.matchedProjects),
-    ruleMatch,
-    profile
+  const normalizedMatchedProjects = injectContentPlatformProjects(
+    mergeMatchedProjectsWithRuleEngine(
+      normalizeLlmMatchedProjects(profile, analysis.matchedProjects),
+      ruleMatch,
+      profile
+    ),
+    profile,
+    job,
+    ruleMatch
   );
 
   if (!ruleMatch.matchedProjects.length) {
     return {
       ...analysis,
+      gaps: filterContradictoryGaps(analysis.gaps ?? [], profile),
       matchedProjects: analysis.matchedProjects ?? [],
       normalizedMatchedProjects,
     };
@@ -248,6 +326,7 @@ export function ensureCrossWorkExperienceCoverage(
     ...analysis,
     matchedProjects: analysis.matchedProjects ?? [],
     recommendedProjects: recommended,
+    gaps: filterContradictoryGaps(analysis.gaps ?? [], profile),
     normalizedMatchedProjects,
   };
 }

@@ -150,7 +150,8 @@ const llmOnlyYuanfudao = ensureCrossWorkExperienceCoverage(
         workExperienceId: "w-rt",
       },
     ],
-  }
+  },
+  job
 );
 
 const ruituopuCount = llmOnlyYuanfudao.normalizedMatchedProjects.filter((p) =>
