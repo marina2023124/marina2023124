@@ -1,9 +1,18 @@
-import type { AppData, JobPosting, MatchResult, Profile, Project } from "@/lib/types";
-import { groupProjectsByWorkExperience } from "@/lib/project-work-link";
+import type { AppData, JobPosting, MatchResult, MatchedProject, Profile, Project } from "@/lib/types";
+import { getWorkExperienceLabel, groupProjectsByWorkExperience } from "@/lib/project-work-link";
 import { getProjectWorkItems, getProjectWorkSummary } from "@/lib/utils";
+
+export interface LlmMatchedProjectItem {
+  projectName: string;
+  workExperience: string;
+  summary: string;
+  reasons: string[];
+}
 
 export interface LlmMatchAnalysis {
   overall: string;
+  /** AI 精准匹配的项目列表（对应页面「匹配项目经历」） */
+  matchedProjects: LlmMatchedProjectItem[];
   recommendedProjects: {
     projectName: string;
     workExperience: string;
@@ -70,26 +79,103 @@ function formatRuleMatchedByWork(ruleMatch: MatchResult): string {
     .join("\n\n");
 }
 
-function recommendationCoversWorkExp(
-  recommended: LlmMatchAnalysis["recommendedProjects"],
+function listCoversWorkExp(
+  items: { workExperience: string }[],
   workLabel: string
 ): boolean {
   const company = workLabel.split(" · ")[0]?.trim();
-  return recommended.some((item) => {
+  return items.some((item) => {
     if (item.workExperience === workLabel) return true;
     if (company && item.workExperience.includes(company)) return true;
     return false;
   });
 }
 
-/** 若 LLM 只推荐了最近一份工作，用规则初筛结果补全其他工作经历的相关项目 */
+export function normalizeLlmMatchedProjects(
+  profile: Profile,
+  items: LlmMatchedProjectItem[] | undefined
+): MatchedProject[] {
+  if (!items?.length) return [];
+
+  const byName = new Map(profile.projects.map((project) => [project.name, project]));
+  const results: MatchedProject[] = [];
+  const seen = new Set<string>();
+
+  for (const item of items) {
+    const project = byName.get(item.projectName);
+    if (!project || seen.has(project.id)) continue;
+
+    const linkedLabel = project.workExperienceId
+      ? getWorkExperienceLabel(project.workExperienceId, profile.workExperiences)
+      : undefined;
+
+    results.push({
+      id: project.id,
+      name: project.name,
+      summary: item.summary?.trim() || getProjectWorkSummary(project),
+      reasons: item.reasons.map((reason) => reason.replace(/^[·•]\s*/, "").trim()).filter(Boolean).slice(0, 3),
+      workExperienceLabel: item.workExperience || linkedLabel || "未关联工作",
+      workExperienceId: project.workExperienceId,
+    });
+    seen.add(project.id);
+  }
+
+  return results;
+}
+
+function backfillMatchedProjects(
+  matched: MatchedProject[],
+  ruleMatch: MatchResult
+): MatchedProject[] {
+  if (!ruleMatch.matchedProjects.length) return matched;
+
+  const result = [...matched];
+  const coveredNames = new Set(result.map((item) => item.name));
+  const order: string[] = [];
+  const buckets = new Map<string, MatchedProject[]>();
+
+  for (const project of ruleMatch.matchedProjects) {
+    const label = project.workExperienceLabel || "未关联工作";
+    if (!buckets.has(label)) {
+      buckets.set(label, []);
+      order.push(label);
+    }
+    buckets.get(label)!.push(project);
+  }
+
+  for (const label of order) {
+    if (listCoversWorkExp(result.map((item) => ({ workExperience: item.workExperienceLabel })), label)) {
+      continue;
+    }
+    const top = buckets.get(label)!.find((p) => !coveredNames.has(p.name)) ?? buckets.get(label)![0];
+    if (!top || coveredNames.has(top.name)) continue;
+    result.push(top);
+    coveredNames.add(top.name);
+  }
+
+  return result;
+}
+
+/** 补全 LLM 结果：跨工作经历覆盖 matchedProjects 与 recommendedProjects */
 export function ensureCrossWorkExperienceCoverage(
   analysis: LlmMatchAnalysis,
+  profile: Profile,
   ruleMatch: MatchResult
-): LlmMatchAnalysis {
-  if (!ruleMatch.matchedProjects.length) return analysis;
+): LlmMatchAnalysis & { normalizedMatchedProjects: MatchedProject[] } {
+  const normalizedMatchedProjects = backfillMatchedProjects(
+    normalizeLlmMatchedProjects(profile, analysis.matchedProjects),
+    ruleMatch
+  );
 
-  const recommended = [...analysis.recommendedProjects];
+  if (!ruleMatch.matchedProjects.length) {
+    return {
+      ...analysis,
+      matchedProjects: analysis.matchedProjects ?? [],
+      normalizedMatchedProjects,
+    };
+  }
+
+  const recommended = [...(analysis.recommendedProjects ?? [])];
   const coveredNames = new Set(recommended.map((item) => item.projectName));
 
   const order: string[] = [];
@@ -105,7 +191,7 @@ export function ensureCrossWorkExperienceCoverage(
   }
 
   for (const label of order) {
-    if (recommendationCoversWorkExp(recommended, label)) continue;
+    if (listCoversWorkExp(recommended, label)) continue;
 
     const candidates = buckets.get(label)!;
     const top = candidates.find((p) => !coveredNames.has(p.name)) ?? candidates[0];
@@ -123,7 +209,9 @@ export function ensureCrossWorkExperienceCoverage(
 
   return {
     ...analysis,
+    matchedProjects: analysis.matchedProjects ?? [],
     recommendedProjects: recommended,
+    normalizedMatchedProjects,
   };
 }
 
@@ -183,21 +271,16 @@ export function buildMatchAnalysisPrompt(
     .filter(Boolean)
     .join("\n");
 
-  const relevantWorkCount = ruleMatchedByWork
-    ? new Set(ruleMatch.matchedProjects.map((p) => p.workExperienceLabel)).size
-    : projectGroupCount;
-
-  const system = `你是资深职业顾问，帮用户针对特定 JD 挑选最值得写进简历的项目经历。
+  const system = `你是资深职业顾问，帮用户针对特定 JD 分析项目经历匹配度并挑选简历素材。
 
 硬性要求：
-1. 必须审视用户全部 ${workExpCount} 段工作经历及其下所有项目，不可只推荐最近一份工作的项目
-2. 当规则初筛在多个公司/工作下都有命中项目时，recommendedProjects 必须覆盖每一段有相关项目的工作经历（每段至少 1 个）
-3. 只推荐与「该岗位独特要求」高度相关的项目；不要因「问卷/访谈/用户研究」等通用技能而堆砌无关项目
-4. 每个推荐项目必须说明：所属工作（公司 · 职位）、成果一句话、2 条简历 bullet、2–3 条与 JD 细节的对口理由
-5. 理由必须引用 JD 与项目中的具体词（行业、客户、交付物、工具），避免空泛
-6. 最多推荐 6 个项目，按相关度排序；若 ${relevantWorkCount} 段工作都有相关项目，每段至少保留 1 个
-7. projectName 必须与上面项目列表中的名称完全一致
-8. 仅返回 JSON，不要 markdown 包裹`;
+1. 必须审视用户全部 ${workExpCount} 段工作经历及其下所有项目，不可只分析最近一份工作的项目
+2. matchedProjects：列出与 JD 真正相关的全部核心项目（最多 8 个，按相关度排序）。规则初筛结果仅供参考，可能有误（如泛化匹配「商业化」），必须以 JD 语义为准，排除弱相关项目
+3. 当多段工作都有相关项目时，matchedProjects 与 recommendedProjects 均须覆盖每一段（每段至少 1 个）
+4. 每条 reason 必须引用 JD 中的具体要求 + 项目中的具体交付/客户/行业/工具，禁止空泛理由（如仅写「用户研究能力」「商业化业务研究」）
+5. recommendedProjects：从 matchedProjects 中精选最值得写进简历的项目（最多 6 个），附 2 条 resume bullet
+6. projectName 必须与上面项目列表中的名称完全一致
+7. 仅返回 JSON，不要 markdown 包裹`;
 
   const user = `${jdText}
 
@@ -214,6 +297,14 @@ ${ruleHint}
 请输出 JSON：
 {
   "overall": "100字以内整体评价，需提及多段工作中的匹配亮点（若有）",
+  "matchedProjects": [
+    {
+      "projectName": "项目名（必须与上面项目列表一致）",
+      "workExperience": "公司 · 职位",
+      "summary": "成果一句话",
+      "reasons": ["与 JD 具体对口理由 1", "理由 2"]
+    }
+  ],
   "recommendedProjects": [
     {
       "projectName": "项目名（必须与上面项目列表一致）",

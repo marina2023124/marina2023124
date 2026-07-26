@@ -1,4 +1,8 @@
-import { buildMatchAnalysisPrompt, ensureCrossWorkExperienceCoverage } from "../src/lib/llm/prompts";
+import {
+  buildMatchAnalysisPrompt,
+  ensureCrossWorkExperienceCoverage,
+  normalizeLlmMatchedProjects,
+} from "../src/lib/llm/prompts";
 import { matchJob } from "../src/lib/matching";
 import type { JobPosting, Profile } from "../src/lib/types";
 
@@ -79,14 +83,39 @@ if (!prompt.user.includes("高思目标客群下探研究")) {
   console.error("FAIL: prompt missing 瑞拓普 project");
   process.exit(1);
 }
-if (!prompt.system.includes("不可只推荐最近一份工作的项目")) {
-  console.error("FAIL: prompt missing cross-work instruction");
+if (!prompt.system.includes("matchedProjects")) {
+  console.error("FAIL: prompt missing matchedProjects instruction");
+  process.exit(1);
+}
+if (!prompt.user.includes('"matchedProjects"')) {
+  console.error("FAIL: prompt JSON schema missing matchedProjects");
+  process.exit(1);
+}
+
+const normalized = normalizeLlmMatchedProjects(profile, [
+  {
+    projectName: "R2新品规划",
+    workExperience: "猿辅导 · 用户研究员",
+    summary: "新品研究",
+    reasons: ["JD 要求儿童教育相关研究"],
+  },
+]);
+if (normalized.length !== 1 || normalized[0]?.name !== "R2新品规划") {
+  console.error("FAIL: normalizeLlmMatchedProjects");
   process.exit(1);
 }
 
 const llmOnlyYuanfudao = ensureCrossWorkExperienceCoverage(
   {
     overall: "猿辅导经历匹配",
+    matchedProjects: [
+      {
+        projectName: "R2新品规划",
+        workExperience: "猿辅导 · 用户研究员",
+        summary: "新品研究",
+        reasons: ["a"],
+      },
+    ],
     recommendedProjects: [
       {
         projectName: "R2新品规划",
@@ -99,15 +128,31 @@ const llmOnlyYuanfudao = ensureCrossWorkExperienceCoverage(
     gaps: [],
     resumeAdvice: "",
   },
+  profile,
   ruleMatch
 );
 
-const hasRuituopu = llmOnlyYuanfudao.recommendedProjects.some(
+const hasRuituopuMatched = llmOnlyYuanfudao.normalizedMatchedProjects.some(
+  (p) => p.workExperienceLabel.includes("瑞拓普") || p.name.includes("高思")
+);
+const hasRuituopuRecommended = llmOnlyYuanfudao.recommendedProjects.some(
   (p) => p.workExperience.includes("瑞拓普") || p.projectName.includes("高思")
 );
-if (!hasRuituopu && ruleMatch.matchedProjects.some((p) => p.workExperienceLabel.includes("瑞拓普"))) {
-  console.error("FAIL: should backfill 瑞拓普 project from rule match");
+
+if (
+  !hasRuituopuMatched &&
+  ruleMatch.matchedProjects.some((p) => p.workExperienceLabel.includes("瑞拓普"))
+) {
+  console.error("FAIL: should backfill 瑞拓普 in matchedProjects");
   process.exit(1);
 }
 
-console.log("OK: multi-work-experience prompt and coverage");
+if (
+  !hasRuituopuRecommended &&
+  ruleMatch.matchedProjects.some((p) => p.workExperienceLabel.includes("瑞拓普"))
+) {
+  console.error("FAIL: should backfill 瑞拓普 in recommendedProjects");
+  process.exit(1);
+}
+
+console.log("OK: LLM matched projects prompt and coverage");

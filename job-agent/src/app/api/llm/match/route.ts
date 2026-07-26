@@ -29,15 +29,16 @@ export async function POST(request: Request) {
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      { temperature: 0.35, maxTokens: 3500 }
+      { temperature: 0.35, maxTokens: 4500 }
     );
 
     const parsed = parseJsonFromLlm<LlmMatchAnalysis>(raw);
-    const analysis = ensureCrossWorkExperienceCoverage(parsed, ruleMatch);
+    const analysis = ensureCrossWorkExperienceCoverage(parsed, normalizedProfile, ruleMatch);
 
     return NextResponse.json({
       ok: true,
       analysis,
+      matchedProjects: analysis.normalizedMatchedProjects,
       ruleScore: ruleMatch.score,
     });
   } catch (err) {
