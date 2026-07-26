@@ -26,9 +26,9 @@ export async function deepseekChat(
 
   const { apiKey, baseUrl, model } = getDeepSeekConfig();
 
-  if (!apiKey.startsWith("sk-")) {
+  if (!/^sk-[a-zA-Z0-9]/.test(apiKey)) {
     throw new LlmError(
-      "DeepSeek API Key 格式不对：应以 sk- 开头。请到 https://platform.deepseek.com/api_keys 创建新 Key"
+      "DeepSeek API Key 格式不对：应以 sk- 开头（横杠，不是 sk_live_）。请到 https://platform.deepseek.com/api_keys 创建新 Key"
     );
   }
 
@@ -92,7 +92,7 @@ export async function verifyDeepSeekKey(): Promise<{
 
   const { apiKey, baseUrl, model } = getDeepSeekConfig();
 
-  if (!apiKey.startsWith("sk-")) {
+  if (!/^sk-[a-zA-Z0-9]/.test(apiKey)) {
     return { liveValid: false, reason: "format_invalid" };
   }
 

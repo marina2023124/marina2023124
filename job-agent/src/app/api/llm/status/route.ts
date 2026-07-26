@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getDeepSeekConfig,
   getVercelDeployEnv,
   isDeepSeekConfigured,
   isDeepSeekKeyFormatValid,
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
   const configured = isDeepSeekConfigured();
   const formatValid = isDeepSeekKeyFormatValid();
   const vercelEnv = getVercelDeployEnv();
+  const apiKey = configured ? getDeepSeekConfig().apiKey : "";
 
   const url = new URL(request.url);
   const shouldVerify = url.searchParams.get("verify") !== "0";
@@ -75,6 +77,8 @@ export async function GET(request: Request) {
     verifyReason,
     httpStatus,
     vercelEnv,
+    keyLength: apiKey ? apiKey.length : 0,
+    keyPrefix: apiKey ? apiKey.slice(0, 7) : undefined,
     hint,
   });
 }

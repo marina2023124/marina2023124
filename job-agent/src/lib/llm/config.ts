@@ -11,7 +11,8 @@ export function isDeepSeekConfigured(): boolean {
 
 export function isDeepSeekKeyFormatValid(): boolean {
   const key = normalizeDeepSeekApiKey(process.env.DEEPSEEK_API_KEY);
-  return key.startsWith("sk-");
+  // DeepSeek official keys: sk-xxxxxxxx (hyphen). Reject sk_live_ (Stripe etc.).
+  return /^sk-[a-zA-Z0-9]/.test(key);
 }
 
 export function getDeepSeekConfig() {
