@@ -41,6 +41,10 @@ async function main() {
     console.error("FAIL: xhs requirements", draft.requirements?.length);
     process.exit(1);
   }
+  if (draft.experienceYears != null) {
+    console.error("FAIL: xhs should not infer experienceYears without JD text", draft.experienceYears);
+    process.exit(1);
+  }
 
   console.log("OK: job source + xiaohongshu import verified");
 }

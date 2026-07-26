@@ -22,15 +22,16 @@ interface XhsApiResponse {
   data?: XhsPositionDetail;
 }
 
-const EXP_MAP: Record<string, number> = {
-  no_limit: 0,
-  graduate: 0,
-  one_year: 1,
-  one_to_three_year: 2,
-  three_to_five_year: 4,
-  five_to_ten_year: 7,
-  ten_year_more: 10,
-};
+function extractExperienceYearsFromText(...texts: Array<string | undefined>): number | undefined {
+  for (const text of texts) {
+    if (!text?.trim()) continue;
+    const range = text.match(/(\d+)\s*[-~至到]\s*(\d+)\s*年/);
+    if (range) return Math.round((Number(range[1]) + Number(range[2])) / 2);
+    const single = text.match(/(\d+)\s*年(?:及以上|以上|\+)?(?:工作)?经验/);
+    if (single) return Number(single[1]);
+  }
+  return undefined;
+}
 
 export function parseXiaohongshuPositionId(url: string): string | undefined {
   const m = url.match(/(?:social|campus)\/position\/(\d+)/i) || url.match(/positionId=(\d+)/i);
@@ -68,6 +69,17 @@ function buildIntro(detail: XhsPositionDetail): string | undefined {
   return parts.length ? parts.join("\n") : undefined;
 }
 
+function resolveExperienceYears(
+  detail: XhsPositionDetail,
+  duty: string,
+  qualification: string
+): number | undefined {
+  const fromText = extractExperienceYearsFromText(qualification, duty);
+  if (fromText != null) return fromText;
+  // 小红书 API 的 workExperience 是平台筛选项，JD 正文未写时不写入年限
+  return undefined;
+}
+
 export async function importXiaohongshuJob(url: string, positionId: string): Promise<ParsedJobDraft> {
   const channel = /\/campus\//i.test(url) ? "campus" : "social";
   const referer = `${API_ROOT}/${channel}/position/${positionId}`;
@@ -100,6 +112,7 @@ export async function importXiaohongshuJob(url: string, positionId: string): Pro
   const responsibilities = splitSectionText(duty, "responsibilities");
   const requirements = splitSectionText(qualification, "requirements");
   const jobIntro = buildIntro(detail);
+  const experienceYears = resolveExperienceYears(detail, duty, qualification);
 
   const sections = {
     jobIntro: jobIntro ?? "",
@@ -112,7 +125,7 @@ export async function importXiaohongshuJob(url: string, positionId: string): Pro
     company: "小红书",
     location: detail.workplace?.split(/[，,]/)[0]?.trim(),
     workAddress: detail.workplace?.replace(/[，,]/g, " / "),
-    experienceYears: detail.workExperience ? EXP_MAP[detail.workExperience] : undefined,
+    experienceYears,
     industry: "互联网",
     url: url.trim(),
     jobIntro,
