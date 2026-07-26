@@ -201,6 +201,8 @@ function SmartJobInput({
         company: merged.company || prev?.company || initial?.company || "",
         status: prev?.status || initial?.status || "saved",
         createdAt: prev?.createdAt || initial?.createdAt || new Date().toISOString(),
+        industry: prev?.industry ?? initial?.industry,
+        interestRating: prev?.interestRating ?? initial?.interestRating,
         preferredSkills: merged.preferredSkills || prev?.preferredSkills || initial?.preferredSkills || [],
         requirements: merged.requirements || [],
         responsibilities: merged.responsibilities || [],
@@ -272,10 +274,13 @@ function SmartJobInput({
         </div>
         <div>
           <h3 className="text-lg font-semibold text-slate-900">
-            {initial ? "编辑岗位" : "智能添加岗位"}
+            {initial ? `编辑岗位：${initial.title}` : "智能添加岗位"}
           </h3>
-          <p className="text-sm text-slate-500">粘贴 JD 文字或上传截图，自动识别关键信息</p>
-          <p className="text-xs text-slate-400">版本 0.2.4 · 支持职位描述 / 岗位职责 / 任职要求 三版块</p>
+          <p className="text-sm text-slate-500">
+            {initial
+              ? `${initial.company} · 可直接修改下方字段后保存`
+              : "粘贴 JD 文字或上传截图，自动识别关键信息"}
+          </p>
         </div>
       </div>
 
@@ -445,7 +450,7 @@ function SmartJobInput({
           )}
 
           <div className="mt-4 flex gap-2">
-            <Button onClick={handleSave}>确认添加</Button>
+            <Button onClick={handleSave}>{initial ? "保存修改" : "确认添加"}</Button>
             <Button variant="ghost" onClick={onCancel}>取消</Button>
           </div>
         </div>
@@ -465,10 +470,16 @@ export function JobManager() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<JobPosting | null>(null);
   const [listPrefs, setListPrefs] = useState<JobListPrefs>(() => loadJobListPrefs());
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     saveJobListPrefs(listPrefs);
   }, [listPrefs]);
+
+  useEffect(() => {
+    if (!showForm) return;
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showForm, editing?.id]);
 
   const industryOptions = useMemo(() => getJobIndustryOptions(data.jobs), [data.jobs]);
   const visibleJobs = useMemo(
@@ -501,14 +512,27 @@ export function JobManager() {
     );
   }
 
+  const openEdit = (job: JobPosting) => {
+    setEditing(job);
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditing(null);
+  };
+
   return (
     <div className="space-y-6">
       {showForm ? (
-        <SmartJobInput
-          initial={editing || undefined}
-          onSave={handleSave}
-          onCancel={() => { setShowForm(false); setEditing(null); }}
-        />
+        <div ref={formRef} className="scroll-mt-6">
+          <SmartJobInput
+            key={editing?.id ?? "new"}
+            initial={editing || undefined}
+            onSave={handleSave}
+            onCancel={closeForm}
+          />
+        </div>
       ) : (
         <div className="flex justify-end">
           <Button onClick={() => setShowForm(true)}>
@@ -517,7 +541,7 @@ export function JobManager() {
         </div>
       )}
 
-      {data.jobs.length > 0 && !showForm && (
+      {!showForm && data.jobs.length > 0 && (
         <JobListToolbar
           prefs={listPrefs}
           totalCount={data.jobs.length}
@@ -527,8 +551,9 @@ export function JobManager() {
         />
       )}
 
+      {!showForm && (
       <div className="grid gap-4">
-        {data.jobs.length > 0 && visibleJobs.length === 0 && !showForm && (
+        {data.jobs.length > 0 && visibleJobs.length === 0 && (
           <EmptyState
             icon={<SlidersHorizontal className="h-8 w-8" />}
             title="没有符合筛选条件的岗位"
@@ -582,10 +607,20 @@ export function JobManager() {
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   )}
-                  <button onClick={() => { setEditing(job); setShowForm(true); }} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(job)}
+                    className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    title="编辑岗位"
+                  >
                     <Edit2 className="h-4 w-4" />
                   </button>
-                  <button onClick={() => deleteJob(job.id)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                  <button
+                    type="button"
+                    onClick={() => deleteJob(job.id)}
+                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    title="删除岗位"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -594,6 +629,7 @@ export function JobManager() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
