@@ -24,6 +24,7 @@ export function jobToEditableText(job: JobPosting): string {
   if (job.experienceYears != null && job.experienceYears >= 0) {
     lines.push(`经验：${job.experienceYears}年`);
   }
+  if (job.industry) lines.push(`行业：${job.industry}`);
   if (job.company && !isUnknownCompany(job.company)) lines.push(`公司：${job.company}`);
   if (job.workAddress) lines.push(`工作地址：${job.workAddress}`);
 
@@ -53,6 +54,8 @@ export function mergeParsedJob(
     workAddress: parsed.workAddress ?? base?.workAddress,
     salary: parsed.salary ?? base?.salary,
     experienceYears: parsed.experienceYears ?? base?.experienceYears,
+    industry: parsed.industry ?? base?.industry,
+    interestRating: base?.interestRating,
     url: parsed.url ?? base?.url,
     jobIntro: parsed.jobIntro ?? base?.jobIntro,
     responsibilities:

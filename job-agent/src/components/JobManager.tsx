@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -11,6 +11,9 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  ArrowDownAZ,
+  ArrowUpAZ,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { JobPosting, JobStatus } from "@/lib/types";
@@ -21,8 +24,135 @@ import { extractTextFromImage, isImageFile } from "@/lib/ocr";
 import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
 import { CommuteInfo } from "@/components/CommuteInfo";
 import { JobDetailSections } from "@/components/JobDetailSections";
+import { JobInterestRating } from "@/components/JobInterestRating";
 import { assembleJobDescription } from "@/lib/job-sections";
+import {
+  applyJobListPrefs,
+  getJobIndustry,
+  getJobIndustryOptions,
+  loadJobListPrefs,
+  saveJobListPrefs,
+  type JobListPrefs,
+  type JobSortField,
+} from "@/lib/job-list";
 import { Button, Card, Input, Textarea, Select, Badge, EmptyState } from "./ui";
+
+const sortFieldOptions: { value: JobSortField; label: string }[] = [
+  { value: "createdAt", label: "添加时间" },
+  { value: "salary", label: "薪资" },
+  { value: "industry", label: "行业" },
+  { value: "title", label: "职位" },
+  { value: "experienceYears", label: "工作年限" },
+  { value: "interestRating", label: "意愿度" },
+];
+
+const interestFilterOptions = [
+  { value: "0", label: "全部意愿度" },
+  { value: "1", label: "1 星及以上" },
+  { value: "2", label: "2 星及以上" },
+  { value: "3", label: "3 星及以上" },
+  { value: "4", label: "4 星及以上" },
+  { value: "5", label: "5 星" },
+];
+
+function JobListToolbar({
+  prefs,
+  totalCount,
+  visibleCount,
+  industryOptions,
+  onChange,
+}: {
+  prefs: JobListPrefs;
+  totalCount: number;
+  visibleCount: number;
+  industryOptions: string[];
+  onChange: (prefs: JobListPrefs) => void;
+}) {
+  const updateFilters = (patch: Partial<JobListPrefs["filters"]>) => {
+    onChange({ ...prefs, filters: { ...prefs.filters, ...patch } });
+  };
+
+  const toggleSortOrder = () => {
+    onChange({ ...prefs, sortOrder: prefs.sortOrder === "asc" ? "desc" : "asc" });
+  };
+
+  return (
+    <Card className="border-indigo-100 bg-gradient-to-r from-slate-50 to-indigo-50/40">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <SlidersHorizontal className="h-4 w-4 text-indigo-500" />
+            <span>
+              显示 <strong className="text-slate-900">{visibleCount}</strong> / {totalCount} 个岗位
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              className="min-w-[140px]"
+              options={sortFieldOptions.map((opt) => ({ value: opt.value, label: `排序：${opt.label}` }))}
+              value={prefs.sortField}
+              onChange={(e) => onChange({ ...prefs, sortField: e.target.value as JobSortField })}
+            />
+            <Button variant="secondary" size="sm" onClick={toggleSortOrder} title={prefs.sortOrder === "asc" ? "升序" : "降序"}>
+              {prefs.sortOrder === "asc" ? <ArrowUpAZ className="h-4 w-4" /> : <ArrowDownAZ className="h-4 w-4" />}
+              {prefs.sortOrder === "asc" ? "升序" : "降序"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <Input
+            placeholder="搜索职位、公司、地点…"
+            value={prefs.filters.query ?? ""}
+            onChange={(e) => updateFilters({ query: e.target.value })}
+          />
+          <Select
+            options={[
+              { value: "", label: "全部行业" },
+              ...industryOptions.map((industry) => ({ value: industry, label: industry })),
+            ]}
+            value={prefs.filters.industry ?? ""}
+            onChange={(e) => updateFilters({ industry: e.target.value || undefined })}
+          />
+          <Select
+            options={[{ value: "", label: "全部状态" }, ...statusOptions]}
+            value={prefs.filters.status ?? ""}
+            onChange={(e) => updateFilters({ status: (e.target.value || undefined) as JobStatus | undefined })}
+          />
+          <Select
+            options={interestFilterOptions}
+            value={String(prefs.filters.minInterest ?? 0)}
+            onChange={(e) => updateFilters({ minInterest: Number(e.target.value) || undefined })}
+          />
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              min={0}
+              placeholder="最低年限"
+              value={prefs.filters.minExperience ?? ""}
+              onChange={(e) =>
+                updateFilters({
+                  minExperience: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+            />
+            <Input
+              type="number"
+              min={0}
+              placeholder="最高年限"
+              value={prefs.filters.maxExperience ?? ""}
+              onChange={(e) =>
+                updateFilters({
+                  maxExperience: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+            />
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 const statusOptions: { value: JobStatus; label: string }[] = [
   { value: "saved", label: "已收藏" },
@@ -236,6 +366,7 @@ function SmartJobInput({
             <div className="col-span-2"><span className="text-slate-500">工作地址：</span><span className="text-slate-800">{preview.workAddress || "—"}</span></div>
             <div><span className="text-slate-500">薪资：</span><span className="text-slate-800">{preview.salary || "—"}</span></div>
             <div><span className="text-slate-500">经验：</span><span className="text-slate-800">{preview.experienceYears != null ? `${preview.experienceYears}年` : "—"}</span></div>
+            <div><span className="text-slate-500">行业：</span><span className="text-slate-800">{preview.industry || "—"}</span></div>
             <div><span className="text-slate-500">技能：</span><span className="text-slate-800">{preview.preferredSkills.length} 项</span></div>
           </div>
 
@@ -262,7 +393,15 @@ function SmartJobInput({
                 <Input label="工作地址" value={preview.workAddress || ""} onChange={(e) => updatePreview({ workAddress: e.target.value })} className="col-span-2" />
                 <Input label="薪资" value={preview.salary || ""} onChange={(e) => updatePreview({ salary: e.target.value })} />
                 <Input label="经验（年）" type="number" value={preview.experienceYears ?? ""} onChange={(e) => updatePreview({ experienceYears: e.target.value ? Number(e.target.value) : undefined })} />
+                <Input label="行业" value={preview.industry || ""} onChange={(e) => updatePreview({ industry: e.target.value })} />
                 <Input label="链接" value={preview.url || ""} onChange={(e) => updatePreview({ url: e.target.value })} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">个人意愿度</label>
+                <JobInterestRating
+                  value={preview.interestRating ?? 0}
+                  onChange={(rating) => updatePreview({ interestRating: rating || undefined })}
+                />
               </div>
               <Textarea
                 label="职位描述（工时、福利等）"
@@ -325,6 +464,17 @@ export function JobManager() {
   const { data, addJob, updateJob, deleteJob } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<JobPosting | null>(null);
+  const [listPrefs, setListPrefs] = useState<JobListPrefs>(() => loadJobListPrefs());
+
+  useEffect(() => {
+    saveJobListPrefs(listPrefs);
+  }, [listPrefs]);
+
+  const industryOptions = useMemo(() => getJobIndustryOptions(data.jobs), [data.jobs]);
+  const visibleJobs = useMemo(
+    () => applyJobListPrefs(data.jobs, listPrefs),
+    [data.jobs, listPrefs]
+  );
 
   const handleSave = (job: JobPosting) => {
     if (editing) {
@@ -367,18 +517,38 @@ export function JobManager() {
         </div>
       )}
 
+      {data.jobs.length > 0 && !showForm && (
+        <JobListToolbar
+          prefs={listPrefs}
+          totalCount={data.jobs.length}
+          visibleCount={visibleJobs.length}
+          industryOptions={industryOptions}
+          onChange={setListPrefs}
+        />
+      )}
+
       <div className="grid gap-4">
-        {data.jobs.map((job) => {
+        {visibleJobs.map((job) => {
           const statusLabel = statusOptions.find((s) => s.value === job.status)?.label || job.status;
+          const industry = getJobIndustry(job);
           return (
             <Card key={job.id}>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
                     <Badge color={statusColor[job.status]}>{statusLabel}</Badge>
+                    {industry !== "未分类" && <Badge color="slate">{industry}</Badge>}
                   </div>
                   <p className="text-sm text-indigo-600">{job.company}</p>
+                  <div className="mt-2">
+                    <JobInterestRating
+                      value={job.interestRating ?? 0}
+                      onChange={(rating) =>
+                        updateJob({ ...job, interestRating: rating || undefined })
+                      }
+                    />
+                  </div>
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     {job.location && <span>{job.location}</span>}
                     {job.salary && <span>{job.salary}</span>}

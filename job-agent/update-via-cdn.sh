@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.75-project-cleanup-repair"
+EXPECTED_VERSION="0.2.76-job-sort-filter-rating"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -46,14 +46,14 @@ FILES=(
   "src/lib/weekly-report-parser.ts" "src/lib/project-workbook-parser.ts"
   "src/lib/project-work-summary.ts" "src/lib/project-table-parser.ts"
   "src/lib/resume-parser.ts" "src/lib/document-extract.ts" "src/lib/local-storage.ts"
-  "src/lib/storage.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts"
+  "src/lib/storage.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts" "src/lib/job-list.ts"
   "src/lib/job-merge.ts" "src/lib/job-sections.ts" "src/lib/commute.ts"
   "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
   "src/lib/cloud-storage.ts" "src/lib/boss-bookmarklet.ts"
   "src/lib/supabase/client.ts" "src/lib/supabase/middleware.ts" "src/lib/supabase/server.ts"
   "src/context/AppContext.tsx" "src/middleware.ts"
   "src/components/ExperienceManager.tsx" "src/components/SmartExperienceImport.tsx"
-  "src/components/AuthGuard.tsx" "src/components/JobManager.tsx"
+  "src/components/AuthGuard.tsx" "src/components/JobManager.tsx" "src/components/JobInterestRating.tsx"
   "src/components/JobDetailSections.tsx" "src/components/BossImportGuide.tsx"
   "src/components/MatchView.tsx" "src/components/CommuteInfo.tsx"
   "src/components/AgentChat.tsx" "src/components/Sidebar.tsx"

@@ -1,5 +1,6 @@
 import { extractSkillsFromJobDescription } from "./matching";
 import { extractJobSections, sectionsToDescription } from "./jd-sections";
+import { inferJobIndustry } from "./job-list";
 
 export interface ParsedJobDraft {
   title: string;
@@ -8,6 +9,7 @@ export interface ParsedJobDraft {
   workAddress?: string;
   salary?: string;
   experienceYears?: number;
+  industry?: string;
   url?: string;
   jobIntro?: string;
   responsibilities?: string[];
@@ -141,7 +143,7 @@ function parseExperienceText(text: string): number | undefined {
 function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
   const result: Partial<ParsedJobDraft> = {};
   for (const line of text.split("\n").map((l) => l.trim())) {
-    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司|工作地址)[：:]\s*(.+)$/);
+    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司|工作地址|行业)[：:]\s*(.+)$/);
     if (!m) continue;
     const val = m[2].trim();
     switch (m[1]) {
@@ -162,6 +164,9 @@ function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
         break;
       case "公司":
         result.company = val;
+        break;
+      case "行业":
+        result.industry = val;
         break;
     }
   }
@@ -511,6 +516,16 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     sectionsToDescription(sections) ||
     cleanText;
   const preferredSkills = extractSkillsFromJobDescription(description);
+  const industry =
+    bossPartial?.industry ||
+    inferJobIndustry({
+      company,
+      title,
+      description,
+      jobIntro,
+      requirements,
+      responsibilities,
+    });
 
   return {
     title,
@@ -519,6 +534,7 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     workAddress,
     salary,
     experienceYears,
+    industry,
     url,
     jobIntro,
     responsibilities,

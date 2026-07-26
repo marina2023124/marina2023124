@@ -85,6 +85,10 @@ export interface JobPosting {
   requirements: string[];
   preferredSkills: string[];
   experienceYears?: number;
+  /** 所属行业（可手动填写或由 JD 推断） */
+  industry?: string;
+  /** 个人意愿度 1-5 星，0 或未设置表示未标记 */
+  interestRating?: number;
   url?: string;
   status: JobStatus;
   createdAt: string;
