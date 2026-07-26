@@ -21,10 +21,16 @@ export async function deepseekChat(
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
   if (!isDeepSeekConfigured()) {
-    throw new LlmError("未配置 DeepSeek API Key，请在 .env.local 设置 DEEPSEEK_API_KEY");
+    throw new LlmError("未配置 DeepSeek API Key，请在 .env.local 或 Vercel 设置 DEEPSEEK_API_KEY");
   }
 
   const { apiKey, baseUrl, model } = getDeepSeekConfig();
+
+  if (!apiKey.startsWith("sk-")) {
+    throw new LlmError(
+      "DeepSeek API Key 格式不对：应以 sk- 开头。请到 https://platform.deepseek.com/api_keys 创建新 Key"
+    );
+  }
 
   const res = await serverFetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -42,10 +48,13 @@ export async function deepseekChat(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new LlmError(
-      body.includes("invalid") ? "DeepSeek API Key 无效" : `DeepSeek 请求失败 (${res.status})`,
-      res.status
-    );
+    if (res.status === 401 || body.includes("invalid") || body.includes("Authentication")) {
+      throw new LlmError(
+        "DeepSeek API Key 无效或已过期。请到 platform.deepseek.com 创建以 sk- 开头的新 Key，并确认账户有余额",
+        res.status
+      );
+    }
+    throw new LlmError(`DeepSeek 请求失败 (${res.status})`, res.status);
   }
 
   const data = (await res.json()) as {

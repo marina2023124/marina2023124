@@ -39,7 +39,15 @@ export function LlmMatchPanel({
 
     const configured = await checkStatus();
     if (!configured) {
-      setError("未配置 DeepSeek。请在 .env.local 添加 DEEPSEEK_API_KEY 后重启服务");
+      setError("未配置 DeepSeek。请在 Vercel Environment Variables 添加 DEEPSEEK_API_KEY 后 Redeploy");
+      setLoading(false);
+      return;
+    }
+
+    const statusRes = await fetch("/api/llm/status");
+    const statusBody = (await statusRes.json()) as { formatValid?: boolean; hint?: string };
+    if (statusBody.formatValid === false) {
+      setError(statusBody.hint ?? "DeepSeek Key 格式不对，应以 sk- 开头");
       setLoading(false);
       return;
     }
