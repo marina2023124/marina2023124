@@ -528,6 +528,12 @@ export function JobManager() {
       )}
 
       <div className="grid gap-4">
+        {data.jobs.length > 0 && visibleJobs.length === 0 && !showForm && (
+          <EmptyState
+            title="没有符合筛选条件的岗位"
+            description="试试放宽行业、意愿度或年限筛选，或清空搜索关键词"
+          />
+        )}
         {visibleJobs.map((job) => {
           const statusLabel = statusOptions.find((s) => s.value === job.status)?.label || job.status;
           const industry = getJobIndustry(job);
