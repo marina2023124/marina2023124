@@ -3,9 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
-  Trash2,
-  Edit2,
-  ExternalLink,
   Sparkles,
   ImagePlus,
   Loader2,
@@ -23,12 +20,12 @@ import { jobToEditableText, mergeParsedJob } from "@/lib/job-merge";
 import { extractTextFromImage, isImageFile } from "@/lib/ocr";
 import { BossImportGuide, BOSS_DEMO_TEXT } from "@/components/BossImportGuide";
 import { CommuteInfo } from "@/components/CommuteInfo";
+import { JobCard } from "@/components/JobCard";
 import { JobDetailSections } from "@/components/JobDetailSections";
 import { JobInterestRating } from "@/components/JobInterestRating";
 import { assembleJobDescription } from "@/lib/job-sections";
 import {
   applyJobListPrefs,
-  getJobIndustry,
   getJobIndustryOptions,
   loadJobListPrefs,
   saveJobListPrefs,
@@ -161,14 +158,6 @@ const statusOptions: { value: JobStatus; label: string }[] = [
   { value: "rejected", label: "已拒绝" },
   { value: "offer", label: "已获 Offer" },
 ];
-
-const statusColor: Record<JobStatus, "slate" | "indigo" | "amber" | "red" | "green"> = {
-  saved: "slate",
-  applied: "indigo",
-  interview: "amber",
-  rejected: "red",
-  offer: "green",
-};
 
 function SmartJobInput({
   initial,
@@ -470,8 +459,8 @@ function SmartJobInput({
 
 export function JobManager() {
   const { data, addJob, updateJob, deleteJob } = useApp();
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<JobPosting | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [listPrefs, setListPrefs] = useState<JobListPrefs>(() => loadJobListPrefs());
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -480,9 +469,9 @@ export function JobManager() {
   }, [listPrefs]);
 
   useEffect(() => {
-    if (!showForm) return;
+    if (!showAddForm) return;
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [showForm, editing?.id]);
+  }, [showAddForm]);
 
   const industryOptions = useMemo(() => getJobIndustryOptions(data.jobs), [data.jobs]);
   const visibleJobs = useMemo(
@@ -490,24 +479,19 @@ export function JobManager() {
     [data.jobs, listPrefs]
   );
 
-  const handleSave = (job: JobPosting) => {
-    if (editing) {
-      updateJob(job);
-    } else {
-      addJob(job);
-    }
-    setShowForm(false);
-    setEditing(null);
+  const handleAddSave = (job: JobPosting) => {
+    addJob(job);
+    setShowAddForm(false);
   };
 
-  if (data.jobs.length === 0 && !showForm) {
+  if (data.jobs.length === 0 && !showAddForm) {
     return (
       <EmptyState
         icon={<Sparkles className="h-8 w-8" />}
         title="还没有添加岗位"
         description="粘贴一段 JD 或上传招聘截图，系统会自动识别岗位、公司、薪资和技能要求"
         action={
-          <Button onClick={() => setShowForm(true)}>
+          <Button onClick={() => setShowAddForm(true)}>
             <Plus className="h-4 w-4" /> 智能添加岗位
           </Button>
         }
@@ -515,36 +499,24 @@ export function JobManager() {
     );
   }
 
-  const openEdit = (job: JobPosting) => {
-    setEditing(job);
-    setShowForm(true);
-  };
-
-  const closeForm = () => {
-    setShowForm(false);
-    setEditing(null);
-  };
-
   return (
     <div className="space-y-6">
-      {showForm ? (
+      {showAddForm ? (
         <div ref={formRef} className="scroll-mt-6">
           <SmartJobInput
-            key={editing?.id ?? "new"}
-            initial={editing || undefined}
-            onSave={handleSave}
-            onCancel={closeForm}
+            onSave={handleAddSave}
+            onCancel={() => setShowAddForm(false)}
           />
         </div>
       ) : (
         <div className="flex justify-end">
-          <Button onClick={() => setShowForm(true)}>
+          <Button onClick={() => setShowAddForm(true)}>
             <Sparkles className="h-4 w-4" /> 智能添加岗位
           </Button>
         </div>
       )}
 
-      {!showForm && data.jobs.length > 0 && (
+      {!showAddForm && data.jobs.length > 0 && (
         <JobListToolbar
           prefs={listPrefs}
           totalCount={data.jobs.length}
@@ -554,85 +526,30 @@ export function JobManager() {
         />
       )}
 
-      {!showForm && (
       <div className="grid gap-4">
-        {data.jobs.length > 0 && visibleJobs.length === 0 && (
+        {!showAddForm && data.jobs.length > 0 && visibleJobs.length === 0 && (
           <EmptyState
             icon={<SlidersHorizontal className="h-8 w-8" />}
             title="没有符合筛选条件的岗位"
             description="试试放宽行业、意愿度或年限筛选，或清空搜索关键词"
           />
         )}
-        {visibleJobs.map((job) => {
-          const statusLabel = statusOptions.find((s) => s.value === job.status)?.label || job.status;
-          const industry = getJobIndustry(job);
-          return (
-            <Card key={job.id}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
-                    <Badge color={statusColor[job.status]}>{statusLabel}</Badge>
-                    {industry !== "未分类" && <Badge color="slate">{industry}</Badge>}
-                  </div>
-                  <p className="text-sm text-indigo-600">{job.company}</p>
-                  <div className="mt-2">
-                    <JobInterestRating
-                      value={job.interestRating ?? 0}
-                      onChange={(rating) =>
-                        updateJob({ ...job, interestRating: rating || undefined })
-                      }
-                    />
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                    {job.location && <span>{job.location}</span>}
-                    {job.salary && <span>{job.salary}</span>}
-                    {job.experienceYears != null && job.experienceYears > 0 && (
-                      <span>{job.experienceYears}年经验</span>
-                    )}
-                  </div>
-                  <CommuteInfo workAddress={job.workAddress} />
-                  <JobDetailSections job={job} compact />
-                  {job.preferredSkills.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {job.preferredSkills.slice(0, 8).map((s) => (
-                        <Badge key={s}>{s}</Badge>
-                      ))}
-                      {job.preferredSkills.length > 8 && (
-                        <Badge>+{job.preferredSkills.length - 8}</Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  {job.url && (
-                    <a href={job.url} target="_blank" rel="noopener noreferrer" className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openEdit(job)}
-                    className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    title="编辑岗位"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteJob(job.id)}
-                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    title="删除岗位"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
+        {visibleJobs.map((job) => (
+          <JobCard
+            key={job.id}
+            job={job}
+            isEditing={editingJobId === job.id}
+            onEdit={() => setEditingJobId(job.id)}
+            onCancelEdit={() => setEditingJobId(null)}
+            onSave={(updated) => {
+              updateJob(updated);
+              setEditingJobId(null);
+            }}
+            onDelete={() => deleteJob(job.id)}
+            onRate={(rating) => updateJob({ ...job, interestRating: rating || undefined })}
+          />
+        ))}
       </div>
-      )}
     </div>
   );
 }
