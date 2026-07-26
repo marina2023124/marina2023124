@@ -493,8 +493,9 @@ export function buildWeeklyReportParsePrompt(text: string): { system: string; us
 4. priority 保留 P0/P1/P-1 等标签
 5. 忽略「本周目标」「下周计划」等标题行本身
 6. project name 不要包含【被动调整】【新增高优】等状态标签；priority 字段保留 P0/P1
-7. 单独的「内容」分支任务归入「产品战略分析」，不要单独建项目
-8. 仅返回 JSON，不要 markdown 包裹`;
+7. 单独的「内容」「软件」分支任务归入「产品战略分析」，不要单独建项目
+8. 「评论智能体搭建」与「智能体搭建」视为同一项目，统一为「智能体搭建」
+9. 仅返回 JSON，不要 markdown 包裹`;
 
   const user = `请解析以下周报文本：
 

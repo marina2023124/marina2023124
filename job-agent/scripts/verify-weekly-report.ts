@@ -174,3 +174,44 @@ if (strategic.name.includes("新增高优")) {
 }
 
 console.log("OK: status tags stripped and 内容 merged into 产品战略分析");
+
+const branchMerge = `WK29
+P0 产品战略分析。已达成。战略问卷
+软件：搜索精度分析、AI老师人设问卷
+P1【被动调整】评论智能体搭建。已达成。雷达图迭代
+P1 智能体搭建。已达成。电商评论agent搭建`;
+
+const branchProjects = parseWeeklyReportProjects(branchMerge, [
+  ...profile.projects,
+  {
+    id: "agent-existing",
+    name: "智能体搭建",
+    description: "",
+    technologies: [],
+    highlights: ["WK28 Codex搭建"],
+    startDate: "2026-07-01",
+    status: "ongoing" as const,
+  },
+]);
+const strategic2 = branchProjects.find((p) => p.name === "产品战略分析");
+const agentMerged = branchProjects.filter((p) => p.name === "智能体搭建");
+const softwareStandalone = branchProjects.find((p) => p.name === "软件");
+
+if (!strategic2 || !(strategic2.highlights ?? []).some((h) => /软件|搜索精度|AI老师/.test(h))) {
+  console.error("FAIL: 软件应合并进产品战略分析", strategic2?.highlights);
+  process.exit(1);
+}
+if (softwareStandalone) {
+  console.error("FAIL: 软件不应作为独立项目");
+  process.exit(1);
+}
+if (agentMerged.length !== 1) {
+  console.error("FAIL: 评论智能体搭建与智能体搭建应合并为 1 个项目", branchProjects.map((p) => p.name));
+  process.exit(1);
+}
+if (!(agentMerged[0]?.highlights ?? []).some((h) => /评论|雷达图|agent|电商/.test(h))) {
+  console.error("FAIL: 合并后的智能体搭建应保留双方任务", agentMerged[0]?.highlights);
+  process.exit(1);
+}
+
+console.log("OK: 软件归并产品战略分析，智能体项目合并");

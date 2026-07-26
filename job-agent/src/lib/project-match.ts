@@ -10,13 +10,15 @@ const PROJECT_KEYWORDS: Record<string, string[]> = {
   "内容PSM": ["内容PSM", "价格段"],
   "智能体搭建": ["智能体", "agent", "codex", "cursor", "评论"],
   "线下WBR": ["线下WBR", "线下调研", "WBR"],
-  "产品战略分析": ["产品战略", "学而思", "讯飞", "作业帮", "课程内容", "呈现分析"],
+  "产品战略分析": ["产品战略", "学而思", "讯飞", "作业帮", "课程内容", "呈现分析", "软件", "竞品", "AI老师", "AI教师"],
   "AI功能需求": ["AI功能", "雷达图问卷", "总结表"],
   "高价品WBR": ["高价品", "WBR"],
 };
 
 const PROJECT_BRANCH_ALIASES: Record<string, string> = {
   内容: "产品战略分析",
+  软件: "产品战略分析",
+  评论智能体搭建: "智能体搭建",
 };
 
 const CANONICAL_PROJECT_RULES: Array<{ pattern: RegExp; name: string }> = [
@@ -25,6 +27,7 @@ const CANONICAL_PROJECT_RULES: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /^XTS决策链路/i, name: "XTS决策链路" },
   { pattern: /^硬件PSM/i, name: "硬件PSM" },
   { pattern: /^内容PSM/i, name: "内容PSM" },
+  { pattern: /^评论智能体/i, name: "智能体搭建" },
   { pattern: /^智能体搭建/i, name: "智能体搭建" },
   { pattern: /^线下WBR/i, name: "线下WBR&线下调研" },
   { pattern: /^产品战略分析/i, name: "产品战略分析" },
