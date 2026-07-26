@@ -101,6 +101,8 @@ const JD_SIGNAL_PATTERNS: { label: string; keywords: RegExp; resumeHint: string 
   { label: "Excel分析", keywords: /\bexcel\b/i, resumeHint: "Excel数据处理" },
   { label: "统计软件", keywords: /SPSS|Stata|SQL|Python|R语言/i, resumeHint: "统计分析" },
   { label: "咨询框架", keywords: /研究框架|研究方案|咨询|框架思维|逻辑框架/i, resumeHint: "研究框架设计" },
+  { label: "内容社区", keywords: /内容社区|社区产品|UGC|创作者|笔记|种草|主站/i, resumeHint: "内容社区研究" },
+  { label: "短视频", keywords: /短视频|视频消费|视频内容|消费体验/i, resumeHint: "短视频/内容消费研究" },
 ];
 
 /** 岗位标题【方向】→ 可写入简历的对齐维度（比泛化「商业化」更具体） */
@@ -244,9 +246,13 @@ function splitLines(text: string): string[] {
 const CLIENT_IN_NAME_RE =
   /^(百度|阿里|腾讯|字节|快手|美团|京东|伊利|雀巢|可口可乐|宝洁|联合利华|玛氏|亿滋|欧莱雅|兰蔻|华为|小米|OPPO|vivo|网易|新浪|搜狐|滴滴|小红书|B站|哔哩|知乎|微博|抖音|淘宝|天猫|拼多多|苏宁|格力|海尔|美的|比亚迪|特斯拉|奔驰|宝马|奥迪|大众|丰田|本田|耐克|阿迪|星巴克|麦当劳|肯德基|沃尔玛|家乐福|屈臣氏|无印|MUJI|宜家|ZARA|H&M|优衣库|名创|瑞幸|喜茶|奈雪|元气森林|三顿半|完美日记|花西子|李佳琦|薇娅|.datastory|数说|百度百科|百科)/i;
 
+const KNOWN_PLATFORM_BRANDS =
+  /小红书|抖音|快手|B站|哔哩|哔哩哔哩|微博|知乎|视频号|豆瓣|头条|西瓜/i;
+
 const INDUSTRY_FROM_PROJECT: { label: string; keywords: RegExp }[] = [
   { label: "快消食品", keywords: /伊利|雀巢|可乐|玛氏|亿滋|食品|饮料|乳品|零食|餐饮|端午|春节|中秋/i },
   { label: "互联网品牌", keywords: /百度|阿里|腾讯|字节|快手|美团|京东|互联网|平台|APP|小程序/i },
+  { label: "内容社区平台", keywords: /小红书|抖音|B站|哔哩|微博|知乎|视频号|社区|种草|笔记|创作者|UGC/i },
   { label: "AI产品", keywords: /AI|智能体|agent|大模型|算法|功能需求|XTS/i },
   { label: "汽车出行", keywords: /汽车|出行|车联网|新能源|驾驶/i },
   { label: "3C数码", keywords: /手机|数码|3C|硬件|电子/i },
@@ -254,13 +260,19 @@ const INDUSTRY_FROM_PROJECT: { label: string; keywords: RegExp }[] = [
 ];
 
 function inferClientOrBrand(project: Project): string | null {
+  const blob = `${project.name} ${project.description}`;
+  const brandMatch = blob.match(KNOWN_PLATFORM_BRANDS);
+  if (brandMatch) {
+    const brand = brandMatch[0];
+    return brand === "哔哩哔哩" || brand === "哔哩" ? "B站" : brand;
+  }
+
   const name = project.name.trim();
   const m = name.match(CLIENT_IN_NAME_RE);
   if (m) return m[1] ?? name.split(/[\s·\-—]/)[0];
 
-  const desc = `${project.description} ${project.name}`;
   for (const { keywords } of INDUSTRY_FROM_PROJECT) {
-    const hit = desc.match(keywords);
+    const hit = blob.match(keywords);
     if (hit) return hit[0];
   }
   return null;
@@ -364,6 +376,53 @@ function findDistinctiveOverlap(project: ProjectSignals, pattern: RegExp): strin
   return null;
 }
 
+function isContentPlatformJob(job: JobPosting, jobSignals: JobSignals): boolean {
+  const text = [job.title, jobSignals.blob].join("\n");
+  return /主站|内容社区|短视频|视频|社区|创作|feed|UGC|快手/i.test(text);
+}
+
+/** 快手主站 ↔ 小红书/抖音等同类内容平台项目 */
+function matchContentPlatformAlignment(
+  job: JobPosting,
+  jobSignals: JobSignals,
+  project: ProjectSignals
+): MatchEvidence[] {
+  if (!isContentPlatformJob(job, jobSignals)) return [];
+
+  const platformRe = /小红书|抖音|B站|哔哩|微博|知乎|视频号|种草|笔记|创作者|社区|UGC|Feed/i;
+  if (!platformRe.test(project.blob)) return [];
+
+  const snippet =
+    findWorkItemEvidence(project.workItems, platformRe) ?? shorten(project.name, 28);
+  const client = project.clientOrBrand;
+  const targetCompany = job.company?.trim();
+
+  if (client === "小红书" && targetCompany === "快手") {
+    return [
+      {
+        specificity: 42,
+        reason: `JD 为快手主站/内容社区方向，项目服务「小红书」同类内容平台，产品形态与用户场景高度对标，建议重点写入`,
+      },
+    ];
+  }
+
+  if (client && /小红书|抖音|B站|微博|知乎/.test(client)) {
+    return [
+      {
+        specificity: 38,
+        reason: `JD 强调内容社区/短视频，项目客户「${client}」为同类平台研究，与「${jobSignals.direction ?? "主站"}」方向一致`,
+      },
+    ];
+  }
+
+  return [
+    {
+      specificity: 32,
+      reason: `JD 要求内容社区相关能力，项目「${snippet}」涉及内容平台/社区用户研究`,
+    },
+  ];
+}
+
 function matchIndustryAndClient(
   jobSignals: JobSignals,
   project: ProjectSignals
@@ -371,16 +430,30 @@ function matchIndustryAndClient(
   const evidence: MatchEvidence[] = [];
 
   for (const signal of jobSignals.signals) {
-    if (!/快消|零售|品牌|消费/i.test(signal.label)) continue;
-    for (const tag of project.industryTags) {
-      if (
-        (signal.label.includes("快消") && tag.includes("快消")) ||
-        (signal.label.includes("品牌") && /品牌|互联网/.test(tag))
-      ) {
+    if (/快消|零售|品牌|消费/i.test(signal.label)) {
+      for (const tag of project.industryTags) {
+        if (
+          (signal.label.includes("快消") && tag.includes("快消")) ||
+          (signal.label.includes("品牌") && /品牌|互联网/.test(tag))
+        ) {
+          const client = project.clientOrBrand ?? shorten(project.name, 20);
+          evidence.push({
+            specificity: 28,
+            reason: `JD 要求${signal.label}背景，项目服务「${client}」（${tag}），行业匹配度高`,
+          });
+        }
+      }
+    }
+
+    if (/内容社区|短视频|主站/.test(signal.label)) {
+      const isPlatformProject =
+        project.industryTags.includes("内容社区平台") ||
+        Boolean(project.clientOrBrand && /小红书|抖音|B站|微博|知乎|快手/.test(project.clientOrBrand));
+      if (isPlatformProject) {
         const client = project.clientOrBrand ?? shorten(project.name, 20);
         evidence.push({
-          specificity: 28,
-          reason: `JD 要求${signal.label}背景，项目服务「${client}」（${tag}），行业匹配度高`,
+          specificity: 34,
+          reason: `JD 核心要求「${signal.label}」，项目服务「${client}」（内容社区平台），与岗位产品方向高度相关`,
         });
       }
     }
@@ -571,8 +644,12 @@ function scoreProjectForJob(
   options?: { relaxed?: boolean }
 ): { specificity: number; reasons: string[] } | null {
   const urExtra = isUserResearchJob(job)
-    ? [...matchUrMethodologyAlignment(jobCtx, projectCtx), ...matchTargetCompany(job, projectCtx)]
-    : [];
+    ? [
+        ...matchUrMethodologyAlignment(jobCtx, projectCtx),
+        ...matchTargetCompany(job, projectCtx),
+        ...matchContentPlatformAlignment(job, jobCtx, projectCtx),
+      ]
+    : matchContentPlatformAlignment(job, jobCtx, projectCtx);
 
   const allEvidence = dedupeEvidence([
     ...matchJobSignals(jobCtx, projectCtx),

@@ -313,7 +313,8 @@ export function buildMatchAnalysisPrompt(
 硬性要求：
 1. 必须审视用户全部 ${workExpCount} 段工作经历及其下所有项目，不可只分析最近一份工作的项目
 2. matchedProjects：列出与 JD 真正相关的全部核心项目（最多 12 个）。规则初筛按工作分组的结果务必重点参考——若某段工作（如瑞拓普）下有多项相关项目，须尽量全部列入，不可只写最近一份工作（如猿辅导）的项目
-3. 当多段工作都有相关项目时，matchedProjects 每段至少 2 个（该段不足 2 个则全写），recommendedProjects 每段至少 1 个
+3. 投递快手/字节等内容平台岗位时，咨询项目中服务「小红书/抖音/B站」等同类平台的经历是核心亮点，必须优先列入 matchedProjects 与 recommendedProjects
+4. 当多段工作都有相关项目时，matchedProjects 每段至少 2 个（该段不足 2 个则全写），recommendedProjects 每段至少 1 个
 4. 每条 reason 必须引用 JD 中的具体要求 + 项目中的具体交付/客户/行业/工具，禁止空泛理由（如仅写「用户研究能力」「商业化业务研究」）
 5. recommendedProjects：从 matchedProjects 中精选最值得写进简历的项目（最多 6 个），附 2 条 resume bullet
 6. projectName 必须与上面项目列表中的名称完全一致

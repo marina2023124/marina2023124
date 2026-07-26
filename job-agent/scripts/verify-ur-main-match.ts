@@ -95,12 +95,32 @@ const profile: Profile = {
       workExperienceId: "w-rt",
       startDate: "2022-03-01",
     },
+    {
+      id: "p5",
+      name: "小红书种草链路研究",
+      description: "互联网 · 内容社区",
+      technologies: ["深访", "问卷"],
+      highlights: ["WK10 小红书用户深访8组", "WK11 种草链路问卷投放", "WK12 输出社区洞察报告"],
+      workSummary: "负责小红书种草链路定性定量研究",
+      workExperienceId: "w-rt",
+      startDate: "2022-01-01",
+    },
   ],
   skills: [],
 };
 
 const matched = findMatchedProjectsDetailed(profile, kuaishouMainJob);
 console.log("Matched count:", matched.length, matched.map((m) => `${m.workExperienceLabel} | ${m.name}`));
+
+const xhs = matched.find((m) => m.name.includes("小红书"));
+if (!xhs) {
+  console.error("FAIL: 小红书项目应匹配快手主站岗位");
+  process.exit(1);
+}
+if (!xhs.reasons.some((r) => /小红书|内容社区|内容平台/.test(r))) {
+  console.error("FAIL: 小红书项目匹配理由应提及内容平台", xhs.reasons);
+  process.exit(1);
+}
 
 if (matched.length < 3) {
   console.error("FAIL: UR 主站岗位应匹配至少 3 个项目，实际", matched.length);
