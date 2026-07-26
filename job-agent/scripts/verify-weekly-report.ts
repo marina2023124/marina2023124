@@ -123,3 +123,17 @@ if (!wkProjects.some((p) => p.name.includes("产品战略"))) {
 }
 
 console.log("OK: WK30 P0/P-1 direct paste verified");
+
+const numberedFullwidth = `WK30
+本周目标。
+1） P-1 小猿AI学练计划。已达成。访问28人
+2） P0 产品战略分析。已达成。问卷200份
+3） P0 线下WBR`;
+
+const fwProjects = parseWeeklyReportProjects(numberedFullwidth, profile.projects);
+if (fwProjects.length < 3) {
+  console.error("FAIL: fullwidth numbered parens should parse >=3 projects", fwProjects.length);
+  process.exit(1);
+}
+
+console.log("OK: fullwidth numbered list verified");

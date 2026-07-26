@@ -204,11 +204,13 @@ export function SmartExperienceImport() {
   const [summarizing, setSummarizing] = useState(false);
   const [summarizeError, setSummarizeError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+  const [weeklyParseSource, setWeeklyParseSource] = useState<"rule" | "llm" | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const runParse = useCallback((
+  const runParse = useCallback(async (
     text: string,
     excelRows?: Record<string, string>[],
     excelWorkbook?: WorkbookSheet[],
@@ -217,15 +219,63 @@ export function SmartExperienceImport() {
     const weeklyMode = mode === "weekly" || (mode === "resume" && isWeeklyReportText(text) && !excelWorkbook?.length && !excelRows?.length);
 
     if (weeklyMode) {
-      const projects = sanitizeProfileProjects(
+      setParseError(null);
+      let projects = sanitizeProfileProjects(
         parseWeeklyReportProjects(text, data.profile.projects),
         data.profile.workExperiences
       );
+      let source: "rule" | "llm" = "rule";
+
+      if (projects.length === 0 && isWeeklyReportText(text)) {
+        setProgress("规则未识别，正在 AI 解析周报…");
+        try {
+          const statusRes = await fetch("/api/llm/status");
+          const statusBody = (await statusRes.json()) as {
+            configured?: boolean;
+            liveValid?: boolean;
+            hint?: string;
+          };
+          if (statusBody.configured && statusBody.liveValid !== false) {
+            const res = await fetch("/api/llm/parse-weekly", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text,
+                existingProjects: data.profile.projects,
+              }),
+            });
+            const body = (await res.json()) as {
+              ok?: boolean;
+              error?: string;
+              projects?: Project[];
+            };
+            if (res.ok && body.ok && body.projects?.length) {
+              projects = sanitizeProfileProjects(body.projects, data.profile.workExperiences);
+              source = "llm";
+            } else if (!projects.length) {
+              setParseError(body.error ?? "AI 未能识别周报项目");
+            }
+          } else if (!projects.length) {
+            setParseError(statusBody.hint ?? "未配置 DeepSeek，无法使用 AI 解析");
+          }
+        } catch (err) {
+          if (!projects.length) {
+            setParseError(err instanceof Error ? err.message : "AI 解析失败");
+          }
+        } finally {
+          setProgress(null);
+        }
+      }
+
+      setWeeklyParseSource(source);
       setWeeklyPreview(projects);
       setPreview(null);
       setShowDetails(true);
       return;
     }
+
+    setWeeklyParseSource(null);
+    setParseError(null);
 
     let parsed = parseResumeText(text);
 
@@ -251,14 +301,16 @@ export function SmartExperienceImport() {
     setShowDetails(true);
   }, [data.profile.projects, data.profile.workExperiences, importMode]);
 
-  const handleSmartParse = () => {
+  const handleSmartParse = async () => {
     if (!rawInput.trim()) return;
     setParsing(true);
     setSummarizeError(null);
+    setParseError(null);
     try {
-      runParse(rawInput);
+      await runParse(rawInput);
     } finally {
       setParsing(false);
+      setProgress(null);
     }
   };
 
@@ -323,7 +375,7 @@ export function SmartExperienceImport() {
         return;
       }
       setRawInput(extracted.text);
-      runParse(extracted.text, extracted.excelRows, extracted.excelWorkbook);
+      await runParse(extracted.text, extracted.excelRows, extracted.excelWorkbook);
       setProgress(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "文件解析失败");
@@ -356,8 +408,22 @@ export function SmartExperienceImport() {
   const clearPreview = () => {
     setPreview(null);
     setWeeklyPreview(null);
+    setWeeklyParseSource(null);
     setSummarizeError(null);
+    setParseError(null);
   };
+
+  const weeklyResultMessage = weeklyPreview
+    ? weeklyPreview.length > 0
+      ? `${
+          weeklyParseSource === "llm"
+            ? "AI 解析"
+            : summarizeWeeklyReportParse(weeklyPreview, rawInput).split(" · ")[0]
+        } · 更新/新增 ${weeklyPreview.length} 个项目${
+          weeklyParseSource === "llm" ? "（DeepSeek）" : ""
+        }`
+      : parseError ?? summarizeWeeklyReportParse(weeklyPreview, rawInput)
+    : "";
 
   return (
     <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/50 to-white p-6">
@@ -481,7 +547,7 @@ export function SmartExperienceImport() {
                   <h4 className="font-semibold text-emerald-900">识别结果</h4>
                   <p className="text-sm text-emerald-700">
                     {weeklyPreview
-                      ? summarizeWeeklyReportParse(weeklyPreview, rawInput)
+                      ? weeklyResultMessage
                       : preview
                         ? summarizeParsedProfile(preview)
                         : ""}
@@ -505,7 +571,7 @@ export function SmartExperienceImport() {
               {showDetails && preview && <PreviewSummary draft={preview} />}
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button onClick={handleApply}>
+                <Button onClick={handleApply} disabled={Boolean(weeklyPreview && weeklyPreview.length === 0)}>
                   <Check className="h-4 w-4" />
                   {weeklyPreview ? "更新项目经历" : "合并到我的经历"}
                 </Button>
@@ -528,6 +594,9 @@ export function SmartExperienceImport() {
               </div>
               {summarizeError && (
                 <p className="mt-2 text-xs text-red-600">{summarizeError}</p>
+              )}
+              {parseError && weeklyPreview?.length === 0 && (
+                <p className="mt-2 text-xs text-red-600">{parseError}</p>
               )}
               <p className="mt-2 text-xs text-slate-500">
                 {weeklyPreview

@@ -35,9 +35,9 @@ const WK_HEADER_RE = /^WK\s*(\d{1,2})\s*$/i;
 const REPORT_DATE_RE = /周报[（(](\d{4})-(\d{2})-(\d{2})/;
 
 const PROJECT_SECTION_HEADER_RE =
-  /^(本周项目|本周工作|本周完成|本周进展|本周任务|进行中项目|项目进展)([：:。.\s]*)$/i;
+  /^(本周项目|本周工作|本周完成|本周进展|本周任务|本周目标|进行中项目|项目进展)([：:。.\s]*)$/i;
 const PROJECT_SECTION_INLINE_RE =
-  /^(本周项目|本周工作|本周完成|本周进展|本周任务)[：:]\s*(.+)$/i;
+  /^(本周项目|本周工作|本周完成|本周进展|本周任务|本周目标)[：:]\s*(.+)$/i;
 const END_SECTION_RE =
   /^(下周计划|下周工作|下月计划|下周任务|下周目标|方法策略|业务价值|资源支持|备注|附件|工作总结|其他事项|目标达成|团队Token|《.+》读书笔记)([：:。.\s]*)$/i;
 const CATEGORY_LABEL_RE = /^[a-zA-Z][）).、:：]\s*[\u4e00-\u9fa5A-Za-z]{1,16}$/;
@@ -85,21 +85,29 @@ const STATUS_INLINE_RE =
   /已达成|未达成|已推进|已同步|【被动调整】|【主动调整】|【新增高优】|【本周新增】|【紧急新增】/g;
 
 function extractPriority(line: string): string | undefined {
-  const pMinus = line.match(/^P-(\d)/i);
+  const normalized = normalizePriorityLine(line);
+  const pMinus = normalized.match(/^P-(\d)/i);
   if (pMinus) return `P-${pMinus[1]}`;
-  const match = line.match(/^(P[0-3])/i);
+  const match = normalized.match(/^(P[0-3])/i);
   return match?.[1]?.toUpperCase();
 }
 
 function stripPriorityPrefix(line: string): string {
-  return line
+  return normalizePriorityLine(line)
     .replace(/^P-\d(?:【[^】]+】)?\s*/i, "")
     .replace(/^P[0-3](?:【[^】]+】)?\s*/i, "")
     .trim();
 }
 
 function isPriorityProjectLine(line: string): boolean {
-  return /^(P[0-3]|P-\d)/i.test(line);
+  return /^(P[0-3]|P-\d)/i.test(normalizePriorityLine(line));
+}
+
+function normalizePriorityLine(line: string): string {
+  return line
+    .replace(/^[PpＰ]([0-3])/i, (_, d) => `P${d}`)
+    .replace(/^[PpＰ]-([0-9])/i, (_, d) => `P-${d}`)
+    .replace(/^[PpＰ]－([0-9])/i, (_, d) => `P-${d}`);
 }
 
 function cleanWorkText(text: string): string {
@@ -247,12 +255,25 @@ function extractReportYear(text: string): number {
   return new Date().getFullYear();
 }
 
+export function normalizeWeeklyText(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\uFF0E/g, ".")
+    .replace(/\uFF09/g, ")")
+    .replace(/\uFF08/g, "(")
+    .replace(/\uFF0C/g, ",")
+    .replace(/\uFF1A/g, ":")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\u3000/g, " ");
+}
+
 function cleanTaskLine(line: string): string {
-  return line
+  return normalizeWeeklyText(line)
     .trim()
     .replace(/^[-*•●]\s*/, "")
-    .replace(/^\d+[、.．)\]]\s*/, "")
+    .replace(/^\d+[、.．)\]）]\s*/, "")
     .replace(/^[（(]\d+[）)]\s*/, "")
+    .replace(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫]\s*/, "")
     .trim();
 }
 
@@ -281,26 +302,30 @@ function tryParseStructuredLine(line: string): WeeklyEntry | null {
 }
 
 function tryParsePriorityProjectLine(line: string): WeeklyEntry | null {
-  if (SKIP_PROJECT_LINE_RE.test(line)) return null;
-  if (/^P[23](?!-)/i.test(line)) return null;
+  const normalizedLine = normalizePriorityLine(line);
+  if (SKIP_PROJECT_LINE_RE.test(normalizedLine)) return null;
+  if (/^P[23](?!-)/i.test(normalizedLine)) return null;
 
-  const priority = extractPriority(line);
+  const priority = extractPriority(normalizedLine);
 
-  if (isPriorityProjectLine(line)) {
-    const parsed = parseProjectNameAndBody(line);
+  if (isPriorityProjectLine(normalizedLine)) {
+    const parsed = parseProjectNameAndBody(normalizedLine);
     if (parsed && parsed.name.length >= 2 && parsed.name.length <= 40) {
-      const entry = buildWeeklyEntry(line, parsed.name, priority);
+      const entry = buildWeeklyEntry(normalizedLine, parsed.name, priority);
       if (!entry.tasks.length && parsed.body) {
         entry.tasks = extractWorkFromBody(parsed.body);
       }
       if (!entry.tasks.length && parsed.body.length >= 4) {
         entry.tasks = [cleanWorkText(parsed.body)];
       }
+      if (!entry.tasks.length && parsed.name.length >= 2) {
+        entry.tasks = [parsed.name];
+      }
       return entry;
     }
   }
 
-  if (!isPriorityProjectLine(line)) {
+  if (!isPriorityProjectLine(normalizedLine)) {
     const bare = line.match(BARE_PROJECT_LINE_RE);
     if (bare) {
       const name = normalizeProjectName(bare[1].trim());
@@ -505,6 +530,12 @@ function parseBlockEntries(
       continue;
     }
 
+    if (/^本周目标[：:.。\s]*$|^下周目标[：:.。\s]*$/i.test(line)) {
+      flushCurrent();
+      inProjectSection = true;
+      continue;
+    }
+
     const structured = tryParseStructuredLine(line);
     if (structured) {
       pushEntry(structured);
@@ -638,10 +669,11 @@ function extractNextGoalProjectNames(sectionText: string): string[] {
 }
 
 function parseWeeklyEntries(text: string): WeeklyEntry[] {
-  if (/\bWK\s*\d{1,2}\b/i.test(text)) {
-    const year = extractReportYear(text);
+  const normalized = normalizeWeeklyText(text);
+  if (/\bWK\s*\d{1,2}\b/i.test(normalized)) {
+    const year = extractReportYear(normalized);
     const all: WeeklyEntry[] = [];
-    const sections = splitWeekSections(text);
+    const sections = splitWeekSections(normalized);
 
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i];
@@ -676,7 +708,7 @@ function parseWeeklyEntries(text: string): WeeklyEntry[] {
     if (all.length) return all;
   }
 
-  return parseBlockEntries(text);
+  return parseBlockEntries(normalized);
 }
 
 function extractWeekDates(text: string, entry?: WeeklyEntry): { start?: string; end?: string } {
@@ -794,20 +826,19 @@ function mergeHighlights(current: string[], incoming: string[]): string[] {
   return mergeWeeklyHighlights(current, incoming);
 }
 
-/** 从周报/工作记录提取项目更新，用于合并到已有项目列表 */
-export function parseWeeklyReportProjects(
-  text: string,
+/** 将解析出的周报条目合并为项目列表（规则引擎与 LLM 共用） */
+export function mergeWeeklyEntriesToProjects(
+  entries: WeeklyEntry[],
+  sourceText: string,
   existingProjects: Project[] = []
 ): Project[] {
-  if (!text.trim()) return [];
-
-  const entries = parseWeeklyEntries(text);
   if (!entries.length) return [];
 
+  const normalized = normalizeWeeklyText(sourceText);
   const updates = new Map<string, Project>();
 
   for (const entry of entries) {
-    const weekDates = extractWeekDates(text, entry);
+    const weekDates = extractWeekDates(normalized, entry);
     const existing = findExistingProject(entry, existingProjects, updates);
     const key = resolveMergeKey(entry, existing, updates);
     const projectName = entry.projectName
@@ -873,6 +904,51 @@ export function parseWeeklyReportProjects(
   }
 
   return Array.from(updates.values());
+}
+
+export interface LlmWeeklyProjectDraft {
+  name: string;
+  priority?: string;
+  tasks: string[];
+}
+
+export function projectsFromLlmWeeklyDrafts(
+  items: LlmWeeklyProjectDraft[],
+  sourceText: string,
+  existingProjects: Project[] = []
+): Project[] {
+  const wkMatch = normalizeWeeklyText(sourceText).match(/\bWK\s*(\d{1,2})\b/i);
+  const weekLabel = wkMatch ? `WK${wkMatch[1]}` : undefined;
+  const weekRange =
+    wkMatch != null
+      ? workWeekRange(extractReportYear(sourceText), Number(wkMatch[1]))
+      : undefined;
+
+  const entries: WeeklyEntry[] = items
+    .filter((item) => item.name?.trim())
+    .map((item) => ({
+      projectName: normalizeProjectName(item.name.trim()),
+      priority: item.priority?.toUpperCase(),
+      tags: item.priority ? [item.priority.toUpperCase()] : [],
+      tasks: item.tasks.filter(Boolean),
+      weekLabel,
+      weekStart: weekRange?.start,
+      weekEnd: weekRange?.end,
+    }));
+
+  return mergeWeeklyEntriesToProjects(entries, sourceText, existingProjects);
+}
+
+/** 从周报/工作记录提取项目更新，用于合并到已有项目列表 */
+export function parseWeeklyReportProjects(
+  text: string,
+  existingProjects: Project[] = []
+): Project[] {
+  const normalized = normalizeWeeklyText(text);
+  if (!normalized.trim()) return [];
+
+  const entries = parseWeeklyEntries(normalized);
+  return mergeWeeklyEntriesToProjects(entries, normalized, existingProjects);
 }
 
 export { normalizeProjectName, labelWeeklyTasks, mergeWeeklyHighlights, normalizeTaskHighlight, dedupeWeeklyHighlights } from "./project-name";

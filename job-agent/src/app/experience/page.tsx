@@ -10,7 +10,7 @@ export default function ExperiencePage() {
         <p className="mt-1 text-slate-500">
           粘贴简历/项目表，或用周报增量更新项目；项目将按时间自动关联到对应工作
         </p>
-        <p className="mt-1 text-xs font-medium text-indigo-600">版本 0.2.70 · WK 周报直粘贴 + AI 智能总结</p>
+        <p className="mt-1 text-xs font-medium text-indigo-600">版本 0.2.72 · WK 周报增强识别 + AI 兜底解析</p>
       </div>
       <ExperienceManager />
     </div>

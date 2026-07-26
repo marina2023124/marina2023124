@@ -478,6 +478,41 @@ ${projectBlocks}
   return { system, user };
 }
 
+export interface LlmWeeklyParseResult {
+  weekLabel?: string;
+  projects: { name: string; priority?: string; tasks: string[] }[];
+}
+
+export function buildWeeklyReportParsePrompt(text: string): { system: string; user: string } {
+  const system = `你是工作周报解析助手，从周报/工作记录中提取项目条目。
+
+要求：
+1. 识别 WK 编号（如 WK30）作为 weekLabel
+2. 每条 P0/P1/P-1/P2 或「项目名：任务」行提取为一个项目；同名项目合并 tasks
+3. tasks 只保留实质工作（访问人数、问卷、报告、深访等），去掉「已达成/未达成/原计划→」等状态词
+4. priority 保留 P0/P1/P-1 等标签
+5. 忽略「本周目标」「下周计划」等标题行本身
+6. 仅返回 JSON，不要 markdown 包裹`;
+
+  const user = `请解析以下周报文本：
+
+${text.slice(0, 12000)}
+
+返回 JSON：
+{
+  "weekLabel": "WK30",
+  "projects": [
+    {
+      "name": "项目名称",
+      "priority": "P0",
+      "tasks": ["实质工作内容 1", "实质工作内容 2"]
+    }
+  ]
+}`;
+
+  return { system, user };
+}
+
 export function buildAgentChatPrompt(data: AppData, userMessage: string): { system: string; messages: { role: "user" | "assistant"; content: string }[] } {
   const profile = data.profile;
   const system = `你是 JobAgent 职业顾问，基于用户档案回答问题。用中文，结构清晰，给出可执行的简历/求职建议。
