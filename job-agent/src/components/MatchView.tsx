@@ -47,7 +47,7 @@ export function MatchView() {
       <div className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
         <h2 className="text-xl font-bold">智能匹配结果</h2>
         <p className="mt-1 text-indigo-100">
-          打开页面即由 DeepSeek 分析匹配项目；亦会基于你的{" "}
+          基于你的{" "}
           <Link href="/experience" className="underline underline-offset-2 hover:text-white">
             {data.profile.skills.length} 项技能
           </Link>{" "}
@@ -58,8 +58,8 @@ export function MatchView() {
           ，分析了{" "}
           <Link href="/jobs" className="underline underline-offset-2 hover:text-white">
             {data.jobs.length} 个岗位
-          </Link>{" "}
-          的匹配度
+          </Link>
+          的匹配度；「匹配项目经历」进入页面后自动调用 DeepSeek 分析
         </p>
       </div>
 
