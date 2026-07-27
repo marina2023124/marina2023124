@@ -3,16 +3,49 @@
 import { useEffect, useState } from "react";
 import { Bike, Loader2, MapPin, TrainFront } from "lucide-react";
 import type { CommuteEstimate } from "@/lib/commute";
-import { COMMUTE_HOME, formatCommuteMinutes } from "@/lib/commute";
+import { COMMUTE_REFERENCES, formatCommuteMinutes } from "@/lib/commute";
+
+function CommuteEstimateCard({ estimate }: { estimate: CommuteEstimate }) {
+  return (
+    <div className="rounded-md border border-sky-100 bg-white/80 p-3">
+      <p className="mb-2 text-xs font-medium text-sky-900">
+        {estimate.homeShortLabel} · {estimate.homeLabel}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <TrainFront className="h-4 w-4 text-indigo-600" />
+          <div>
+            <p className="text-xs text-slate-500">地铁</p>
+            <p className="font-medium text-slate-900">
+              {formatCommuteMinutes(estimate.subwayMinutes)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Bike className="h-4 w-4 text-emerald-600" />
+          <div>
+            <p className="text-xs text-slate-500">电动车</p>
+            <p className="font-medium text-slate-900">
+              {formatCommuteMinutes(estimate.eBikeMinutes)}
+            </p>
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-sky-600/80">
+        直线距离约 {estimate.distanceKm} km · {estimate.note}
+      </p>
+    </div>
+  );
+}
 
 export function CommuteInfo({ workAddress }: { workAddress?: string }) {
-  const [estimate, setEstimate] = useState<CommuteEstimate | null>(null);
+  const [estimates, setEstimates] = useState<CommuteEstimate[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const address = workAddress?.trim();
     if (!address || address.length < 4) {
-      setEstimate(null);
+      setEstimates([]);
       return;
     }
 
@@ -21,11 +54,18 @@ export function CommuteInfo({ workAddress }: { workAddress?: string }) {
 
     fetch(`/api/commute?address=${encodeURIComponent(address)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: CommuteEstimate | null) => {
-        if (!cancelled) setEstimate(data);
+      .then((data: { estimates?: CommuteEstimate[]; homeLabel?: string } | null) => {
+        if (cancelled || !data) return;
+        if (Array.isArray(data.estimates)) {
+          setEstimates(data.estimates);
+          return;
+        }
+        if (data.homeLabel) {
+          setEstimates([data as CommuteEstimate]);
+        }
       })
       .catch(() => {
-        if (!cancelled) setEstimate(null);
+        if (!cancelled) setEstimates([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -49,7 +89,8 @@ export function CommuteInfo({ workAddress }: { workAddress?: string }) {
       </div>
 
       <p className="mb-2 text-xs text-sky-700/80">
-        参照：{COMMUTE_HOME.label}
+        通勤参照：
+        {COMMUTE_REFERENCES.map((ref) => ref.label).join(" · ")}
       </p>
 
       {loading ? (
@@ -57,30 +98,13 @@ export function CommuteInfo({ workAddress }: { workAddress?: string }) {
           <Loader2 className="h-3 w-3 animate-spin" />
           正在估算通勤...
         </div>
-      ) : estimate ? (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2 rounded-md bg-white/80 px-3 py-2 text-sm">
-            <TrainFront className="h-4 w-4 text-indigo-600" />
-            <div>
-              <p className="text-xs text-slate-500">地铁</p>
-              <p className="font-medium text-slate-900">{formatCommuteMinutes(estimate.subwayMinutes)}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-md bg-white/80 px-3 py-2 text-sm">
-            <Bike className="h-4 w-4 text-emerald-600" />
-            <div>
-              <p className="text-xs text-slate-500">电动车</p>
-              <p className="font-medium text-slate-900">{formatCommuteMinutes(estimate.eBikeMinutes)}</p>
-            </div>
-          </div>
+      ) : estimates.length > 0 ? (
+        <div className="space-y-2">
+          {estimates.map((estimate) => (
+            <CommuteEstimateCard key={estimate.homeId} estimate={estimate} />
+          ))}
         </div>
       ) : null}
-
-      {estimate && (
-        <p className="mt-2 text-xs text-sky-600/80">
-          直线距离约 {estimate.distanceKm} km · {estimate.note}
-        </p>
-      )}
     </div>
   );
 }

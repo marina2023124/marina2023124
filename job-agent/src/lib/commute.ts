@@ -1,12 +1,36 @@
-/** 通勤参照点：北京朝阳酒仙桥大山子社区（798/大山子附近） */
-export const COMMUTE_HOME = {
-  label: "北京朝阳酒仙桥大山子社区",
-  lng: 116.4988,
-  lat: 39.9842,
-} as const;
+/** 通勤参照点：用于估算工作地址到各参照点的距离与时间 */
+export interface CommuteReference {
+  id: string;
+  label: string;
+  shortLabel: string;
+  lng: number;
+  lat: number;
+}
+
+export const COMMUTE_REFERENCES: CommuteReference[] = [
+  {
+    id: "home",
+    label: "北京朝阳酒仙桥大山子社区",
+    shortLabel: "家",
+    lng: 116.4988,
+    lat: 39.9842,
+  },
+  {
+    id: "family",
+    label: "北京海淀区中关村东升科技园",
+    shortLabel: "家人",
+    lng: 116.3582,
+    lat: 40.044,
+  },
+];
+
+/** @deprecated 使用 COMMUTE_REFERENCES[0] */
+export const COMMUTE_HOME = COMMUTE_REFERENCES[0];
 
 export interface CommuteEstimate {
+  homeId: string;
   homeLabel: string;
+  homeShortLabel: string;
   workAddress: string;
   distanceKm: number;
   subwayMinutes: number;
@@ -15,8 +39,10 @@ export interface CommuteEstimate {
   note?: string;
 }
 
-/** 北京常见地标/商圈坐标（用于地址关键词匹配） */
+/** 北京常见地标/商圈坐标（用于地址关键词匹配；越具体的放越前） */
 const BEIJING_LANDMARKS: { keyword: string; lng: number; lat: number }[] = [
+  { keyword: "东升科技园", lng: 116.3582, lat: 40.044 },
+  { keyword: "西小口", lng: 116.3582, lat: 40.044 },
   { keyword: "天元港中心", lng: 116.4562, lat: 39.9558 },
   { keyword: "三元桥", lng: 116.4565, lat: 39.9612 },
   { keyword: "望京", lng: 116.4815, lat: 39.9962 },
@@ -110,24 +136,20 @@ function geocodeBeijingAddress(address: string): {
   return { lng: 116.4074, lat: 39.9042, method: "fallback" };
 }
 
-/**
- * 估算通勤时间（基于坐标距离 + 北京通勤经验系数）
- * - 地铁：含进出站、等车、换乘，等效约 22km/h
- * - 电动车：城区均速约 20km/h，含红绿灯与找位
- */
-export function estimateCommute(workAddress: string): CommuteEstimate | null {
-  const trimmed = workAddress.trim();
-  if (!trimmed || trimmed.length < 4) return null;
-
-  const dest = geocodeBeijingAddress(trimmed);
-  const straightKm = haversineKm(COMMUTE_HOME, dest);
+function buildEstimate(
+  home: CommuteReference,
+  workAddress: string,
+  dest: ReturnType<typeof geocodeBeijingAddress>
+): CommuteEstimate {
+  const straightKm = haversineKm(home, dest);
   const distanceKm = Math.round(roadDistanceKm(straightKm) * 10) / 10;
 
-  // 同区域（<1.5km）特殊处理
   if (distanceKm < 1.5) {
     return {
-      homeLabel: COMMUTE_HOME.label,
-      workAddress: trimmed,
+      homeId: home.id,
+      homeLabel: home.label,
+      homeShortLabel: home.shortLabel,
+      workAddress,
       distanceKm,
       subwayMinutes: 12,
       eBikeMinutes: 8,
@@ -138,7 +160,6 @@ export function estimateCommute(workAddress: string): CommuteEstimate | null {
 
   const subwayMinutes = Math.round(14 + (distanceKm / 22) * 60);
   const eBikeMinutes = Math.round(5 + (distanceKm / 20) * 60);
-
   const note =
     dest.method === "landmark"
       ? "基于地标坐标估算"
@@ -147,14 +168,44 @@ export function estimateCommute(workAddress: string): CommuteEstimate | null {
         : "未能精确匹配地址，结果为粗估";
 
   return {
-    homeLabel: COMMUTE_HOME.label,
-    workAddress: trimmed,
+    homeId: home.id,
+    homeLabel: home.label,
+    homeShortLabel: home.shortLabel,
+    workAddress,
     distanceKm,
     subwayMinutes,
     eBikeMinutes,
     method: dest.method,
     note,
   };
+}
+
+/** 从单个参照点估算通勤 */
+export function estimateCommuteFrom(
+  home: CommuteReference,
+  workAddress: string
+): CommuteEstimate | null {
+  const trimmed = workAddress.trim();
+  if (!trimmed || trimmed.length < 4) return null;
+  const dest = geocodeBeijingAddress(trimmed);
+  return buildEstimate(home, trimmed, dest);
+}
+
+/** 从所有参照点估算通勤 */
+export function estimateCommutes(workAddress: string): CommuteEstimate[] {
+  const trimmed = workAddress.trim();
+  if (!trimmed || trimmed.length < 4) return [];
+  const dest = geocodeBeijingAddress(trimmed);
+  return COMMUTE_REFERENCES.map((home) => buildEstimate(home, trimmed, dest));
+}
+
+/**
+ * 估算通勤时间（基于坐标距离 + 北京通勤经验系数）
+ * - 地铁：含进出站、等车、换乘，等效约 22km/h
+ * - 电动车：城区均速约 20km/h，含红绿灯与找位
+ */
+export function estimateCommute(workAddress: string): CommuteEstimate | null {
+  return estimateCommuteFrom(COMMUTE_HOME, workAddress);
 }
 
 export function formatCommuteMinutes(minutes: number): string {
