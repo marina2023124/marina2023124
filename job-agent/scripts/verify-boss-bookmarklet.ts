@@ -1,9 +1,13 @@
 import {
   buildBossDetailApiUrl,
+  buildBossDetailApiUrls,
   extractBossIdsFromHtml,
   extractBossIdsFromPerformance,
   extractBossIdsFromSearch,
+  extractBossSalaryFromApiPayload,
+  extractBossSalaryFromHtml,
   findBossDetailApiUrl,
+  findBossCachedApiUrls,
   mergeBossPageIds,
   parseBossJobPath,
   resolveBossSalary,
@@ -34,6 +38,16 @@ assert(fromPerf.lid === "talk.l.1", "performance lid");
 const cached = findBossDetailApiUrl(perfEntries);
 assert(!!cached && cached.includes("securityId=abc123XYZ"), "cached detail url");
 
+const cachedAll = findBossCachedApiUrls([
+  ...perfEntries,
+  { name: "https://www.zhipin.com/wapi/zpgeek/search/joblist.json?page=1" },
+]);
+assert(cachedAll.length === 2, "cached api urls include joblist");
+
+const detailUrls = buildBossDetailApiUrls({ encryptJobId: "job999" });
+assert(detailUrls.length === 2, "detail urls without securityId");
+assert(detailUrls[0].includes("encryptJobId=job999"), "encryptJobId detail url");
+
 const fromHtml = extractBossIdsFromHtml(
   '{"securityId":"nbyXZvE4kfp6Y-test","encryptJobId":"cbcbfca3","lid":"8"}'
 );
@@ -50,5 +64,23 @@ assert(!!apiUrl && apiUrl.includes("encryptJobId=job999"), "detail api includes 
 assert(resolveBossSalary({ salaryDesc: "12-18K" }) === "12-18K", "salary desc");
 assert(resolveBossSalary({ salary: "15K" }) === "15K", "salary fallback");
 assert(resolveBossSalary({ lowSalary: 15000, highSalary: 25000, salaryMonth: 16 }) === "15-25K·16薪", "low/high salary");
+
+assert(
+  extractBossSalaryFromHtml('{"salaryDesc":"15-20K\\u00b714薪","lowSalary":15000}') === "15-20K·14薪",
+  "html unicode salaryDesc"
+);
+assert(
+  extractBossSalaryFromHtml('{"lowSalary":15000,"highSalary":20000,"salaryMonth":14}') === "15-20K·14薪",
+  "html low/high salaryMonth"
+);
+assert(
+  extractBossSalaryFromApiPayload({
+    code: 0,
+    zpData: {
+      jobList: [{ encryptJobId: "abc", salaryDesc: "15-20K·14薪" }],
+    },
+  }, "abc") === "15-20K·14薪",
+  "joblist salary by job id"
+);
 
 console.log("OK: boss bookmarklet resolver verified");

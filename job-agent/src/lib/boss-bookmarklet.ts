@@ -54,48 +54,112 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     if(job.address)b.push('工作地址\\n'+job.address);
     return b.join('\\n\\n');
   }
+  function decodeJsonStr(raw){
+    var decoded=raw;
+    try{decoded=JSON.parse('"'+raw.replace(/\\\\/g,'\\\\\\\\').replace(/"/g,'\\\\"')+'"');}catch(e){decoded=raw;}
+    return decoded.replace(/\\\\u([0-9a-fA-F]{4})/g,function(_,h){return String.fromCharCode(parseInt(h,16));});
+  }
   function pickSalary(job){
-    var s=job.salaryDesc||job.salary||job.salaryName||job.salaryMonthText||job.payTypeDesc||'';
-    if(s)return s;
+    if(!job)return '';
+    var fields=['salaryDesc','salary','salaryName','salaryMonthText','payTypeDesc','salaryRangeDesc','jobSalaryDesc','performance'];
+    for(var i=0;i<fields.length;i++){
+      var v=job[fields[i]];
+      if(typeof v==='string'&&v.trim())return v.trim();
+    }
     var low=job.lowSalary||job.lowSalaryDesc;
     var high=job.highSalary||job.highSalaryDesc;
     if(low&&high){
       var l=Number(low),h=Number(high);
       if(l>1000)l=Math.round(l/1000);
       if(h>1000)h=Math.round(h/1000);
-      s=l+'-'+h+'K';
-      if(job.salaryMonth)s+='·'+job.salaryMonth+'薪';
+      var s=l+'-'+h+'K';
+      if(job.salaryMonth&&Number(job.salaryMonth)>12)s+='·'+job.salaryMonth+'薪';
       return s;
     }
     return '';
   }
   function salaryFromHtml(){
     var html=document.documentElement.innerHTML;
-    var m=html.match(/"salaryDesc"\\s*:\\s*"([^"]+)"/);
-    if(m&&m[1])return m[1];
-    m=html.match(/"salaryDesc"\\s*:\\s*'([^']+)'/);
-    if(m&&m[1])return m[1];
+    var patterns=[/"salaryDesc"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"/,/"salaryDesc"\\s*:\\s*'([^']+)'/,/\\\\"salaryDesc\\\\"\\s*:\\s*\\\\"((?:[^"\\\\]|\\\\.)*)\\\\"/];
+    for(var i=0;i<patterns.length;i++){
+      var m=html.match(patterns[i]);
+      if(m&&m[1]){
+        var val=decodeJsonStr(m[1]).trim();
+        if(/\\d/.test(val)&&/[Kk]|薪|万/.test(val))return val;
+      }
+    }
     var low=html.match(/"lowSalary"\\s*:\\s*(\\d+)/);
     var high=html.match(/"highSalary"\\s*:\\s*(\\d+)/);
+    var month=html.match(/"salaryMonth"\\s*:\\s*(\\d+)/);
     if(low&&high){
       var l=Math.round(Number(low[1])/1000),h=Math.round(Number(high[1])/1000);
-      if(l>0&&h>0)return l+'-'+h+'K';
+      if(l>0&&h>0){
+        var s=l+'-'+h+'K';
+        if(month&&Number(month[1])>12)s+='·'+month[1]+'薪';
+        return s;
+      }
+    }
+    var near=html.match(/"jobName"\\s*:\\s*"[^"]*"[\s\\S]{0,500}?"salaryDesc"\\s*:\\s*"([^"]+)"/);
+    if(near&&near[1]&&/\\d/.test(near[1]))return near[1];
+    var scripts=document.querySelectorAll('script');
+    for(var j=0;j<scripts.length;j++){
+      var txt=scripts[j].textContent||'';
+      if(txt.indexOf('salaryDesc')<0&&txt.indexOf('lowSalary')<0)continue;
+      var sm=txt.match(/"salaryDesc"\\s*:\\s*"([^"]+)"/);
+      if(sm&&sm[1]&&/\\d/.test(sm[1]))return sm[1];
+    }
+    var roots=[window.__INITIAL_STATE__,window.__zpData,window._PAGE];
+    for(var k=0;k<roots.length;k++){
+      if(!roots[k])continue;
+      try{
+        var blob=JSON.stringify(roots[k]);
+        var bm=blob.match(/"salaryDesc"\\s*:\\s*"([^"]+)"/);
+        if(bm&&bm[1])return bm[1];
+      }catch(e){}
     }
     return '';
+  }
+  function salaryFromApiPayload(d,encryptJobId){
+    if(!(d&&d.code===0&&d.zpData))return '';
+    var z=d.zpData,job=z.jobInfo||z.job||z.detail;
+    if(job){var s1=pickSalary(job);if(s1)return s1;}
+    var lists=[z.jobList,z.jobs,z.list,z.recommendJobList];
+    for(var li=0;li<lists.length;li++){
+      var list=lists[li];
+      if(!list||!list.length)continue;
+      if(encryptJobId){
+        for(var i=0;i<list.length;i++){
+          var item=list[i];
+          if(item.encryptJobId===encryptJobId||item.jobId===encryptJobId||item.encryptId===encryptJobId){
+            var s2=pickSalary(item);if(s2)return s2;
+          }
+        }
+      }
+      for(var j=0;j<list.length;j++){var s3=pickSalary(list[j]);if(s3)return s3;}
+    }
+    try{return salaryFromHtml()||pickSalary(JSON.parse(JSON.stringify(z)));}catch(e){return '';}
   }
   function metaFromPage(){
     var titleEl=document.querySelector('.job-name,.job-title,[class*="job-title"],h1.name');
     var title=titleEl?(titleEl.textContent||'').trim():'';
     var salary=salaryFromHtml();
+    var salEl=document.querySelector('.salary,[class*="salary"],.info-primary .red,.job-primary .salary');
+    if(salEl){
+      var ds=salEl.getAttribute('data-salary')||salEl.getAttribute('data-value');
+      if(ds&&/\\d/.test(ds))salary=salary||ds;
+    }
     return {title:title,salary:salary};
   }
-  function findCachedDetailUrl(){
+  function findCachedApiUrls(){
+    var urls=[],seen={};
     var entries=performance.getEntriesByType('resource');
     for(var i=entries.length-1;i>=0;i--){
       var u=entries[i].name;
-      if(u.indexOf('/job/detail.json')>=0&&u.indexOf('securityId')>=0)return u;
+      if(u.indexOf('/wapi/zpgeek/')<0)continue;
+      if(!/job\\/(detail|card|preview)\\.json|search\\/joblist\\.json/i.test(u))continue;
+      if(!seen[u]){seen[u]=1;urls.push(u);}
     }
-    return '';
+    return urls;
   }
   function mergeIds(a,b){
     return {securityId:a.securityId||b.securityId||'',lid:a.lid||b.lid||'',encryptJobId:a.encryptJobId||b.encryptJobId||''};
@@ -111,26 +175,36 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
   }
   function idsFromDom(){
     var out={securityId:'',lid:'',encryptJobId:''};
+    var nodes=document.querySelectorAll('[data-securityid],[data-security-id],[data-secid]');
+    for(var n=0;n<nodes.length;n++){
+      var sid=nodes[n].getAttribute('data-securityid')||nodes[n].getAttribute('data-security-id')||nodes[n].getAttribute('data-secid')||'';
+      if(sid){out.securityId=sid;break;}
+    }
     var btn=document.querySelector('.btn-startchat,[class*="startchat"],.btn-chat,.job-detail-operate .btn');
     if(btn){
-      out.securityId=btn.getAttribute('data-securityid')||btn.getAttribute('data-security-id')||btn.dataset.securityid||btn.dataset.securityId||'';
+      out.securityId=out.securityId||btn.getAttribute('data-securityid')||btn.getAttribute('data-security-id')||btn.dataset.securityid||btn.dataset.securityId||'';
       var href=btn.getAttribute('href')||'';
       var hm=href.match(/securityId=([^&]+)/i);if(hm&&!out.securityId)out.securityId=decodeURIComponent(hm[1]);
       var dp=btn.getAttribute('data-params');
       if(dp&&!out.securityId){try{var p=JSON.parse(dp);out.securityId=p.securityId||'';out.lid=p.lid||out.lid;}catch(e){}}
     }
-    if(!out.securityId){
-      var el=document.querySelector('[data-securityid],[data-security-id]');
-      if(el)out.securityId=el.getAttribute('data-securityid')||el.getAttribute('data-security-id')||'';
-    }
     return out;
+  }
+  function idsFromLinks(){
+    var links=document.querySelectorAll('a[href*="securityId"]');
+    for(var i=0;i<links.length;i++){
+      var h=links[i].getAttribute('href')||'';
+      var sm=h.match(/securityId=([^&]+)/i);
+      if(sm)return {securityId:decodeURIComponent(sm[1]),lid:'',encryptJobId:''};
+    }
+    return {securityId:'',lid:'',encryptJobId:''};
   }
   function idsFromPerformance(){
     var out={securityId:'',lid:'',encryptJobId:''};
     var entries=performance.getEntriesByType('resource');
     for(var i=entries.length-1;i>=0;i--){
       var u=entries[i].name;
-      if(u.indexOf('/job/detail.json')<0)continue;
+      if(u.indexOf('/job/detail.json')<0&&u.indexOf('/job/card.json')<0)continue;
       var sm=u.match(/[?&]securityId=([^&]+)/i);if(sm)out.securityId=decodeURIComponent(sm[1]);
       var lm=u.match(/[?&]lid=([^&]+)/i);if(lm)out.lid=decodeURIComponent(lm[1]);
       var jm=u.match(/[?&]encryptJobId=([^&]+)/i);if(jm)out.encryptJobId=decodeURIComponent(jm[1]);
@@ -151,16 +225,25 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     ids=mergeIds(ids,idsFromSearch());
     ids=mergeIds(ids,idsFromPath());
     ids=mergeIds(ids,idsFromDom());
+    ids=mergeIds(ids,idsFromLinks());
     ids=mergeIds(ids,idsFromPerformance());
     ids=mergeIds(ids,idsFromHtml());
     return ids;
   }
-  function buildDetailUrl(ids){
-    if(!ids.securityId)return '';
-    var q='securityId='+encodeURIComponent(ids.securityId);
-    if(ids.lid)q+='&lid='+encodeURIComponent(ids.lid);
-    if(ids.encryptJobId)q+='&encryptJobId='+encodeURIComponent(ids.encryptJobId);
-    return '/wapi/zpgeek/job/detail.json?'+q;
+  function buildDetailUrls(ids){
+    var urls=[],seen={};
+    function add(u){if(u&&!seen[u]){seen[u]=1;urls.push(u);}}
+    if(ids.securityId){
+      var q='securityId='+encodeURIComponent(ids.securityId);
+      if(ids.lid)q+='&lid='+encodeURIComponent(ids.lid);
+      if(ids.encryptJobId)q+='&encryptJobId='+encodeURIComponent(ids.encryptJobId);
+      add('/wapi/zpgeek/job/detail.json?'+q);
+    }
+    if(ids.encryptJobId){
+      add('/wapi/zpgeek/job/detail.json?encryptJobId='+encodeURIComponent(ids.encryptJobId));
+      add('/wapi/zpgeek/job/detail.json?jobId='+encodeURIComponent(ids.encryptJobId));
+    }
+    return urls;
   }
   function normalizeDetailUrl(url){
     if(!url)return '';
@@ -168,16 +251,32 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     if(url.charAt(0)==='/')return location.origin+url;
     return location.origin+'/'+url;
   }
-  function handleDetail(d,bodyFallback){
-    if(!(d&&d.code===0&&d.zpData&&d.zpData.jobInfo))return false;
-    var job=d.zpData.jobInfo,brand=d.zpData.brandComInfo||{};
-    var salary=pickSalary(job)||salaryFromHtml();
-    var meta={title:job.jobName,salary:salary,location:job.locationName,
-      experience:job.experienceName,degree:job.degreeName,company:brand.brandName,
-      workAddress:job.address||''};
-    var body=bodyFromApi(job,brand)||bodyFallback||domBody();
-    copyOut(header(meta)+'\\n\\n'+body,!!meta.salary);
-    return true;
+  function collectFetchUrls(ids){
+    var urls=[],seen={};
+    function add(u){var n=normalizeDetailUrl(u);if(n&&!seen[n]){seen[n]=1;urls.push(n);}}
+    findCachedApiUrls().forEach(add);
+    buildDetailUrls(ids).forEach(add);
+    return urls;
+  }
+  function handleDetail(d,bodyFallback,encryptJobId){
+    if(!(d&&d.code===0&&d.zpData))return false;
+    var job=d.zpData.jobInfo||d.zpData.job||d.zpData.detail;
+    var brand=d.zpData.brandComInfo||{};
+    var salary=pickSalary(job)||salaryFromHtml()||salaryFromApiPayload(d,encryptJobId);
+    if(job&&job.jobName){
+      var meta={title:job.jobName,salary:salary,location:job.locationName,
+        experience:job.experienceName,degree:job.degreeName,company:brand.brandName,
+        workAddress:job.address||''};
+      var body=bodyFromApi(job,brand)||bodyFallback||domBody();
+      copyOut(header(meta)+'\\n\\n'+body,!!meta.salary);
+      return true;
+    }
+    if(salary){
+      var pageMeta=metaFromPage();pageMeta.salary=salary;
+      copyOut(header(pageMeta)+'\\n\\n'+(bodyFallback||domBody()),true);
+      return true;
+    }
+    return false;
   }
   function fallback(){
     var pageMeta=metaFromPage();
@@ -186,21 +285,21 @@ const BOSS_BOOKMARKLET_SOURCE = `(function(){
     if(!body||body.length<20){alert('请先打开 BOSS 岗位详情页，等页面加载完成后再点书签');return;}
     copyOut(header(pageMeta)+'\\n\\n'+body,!!pageMeta.salary);
   }
-  function fetchDetail(url,bodyFallback){
-    fetch(normalizeDetailUrl(url),{credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}})
+  function tryFetch(urls,idx,bodyFallback,encryptJobId){
+    if(idx>=urls.length){fallback();return;}
+    fetch(urls[idx],{credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(handleDetail(d,bodyFallback))return;
-        fallback();
-      }).catch(function(){fallback();});
+        if(handleDetail(d,bodyFallback,encryptJobId))return;
+        tryFetch(urls,idx+1,bodyFallback,encryptJobId);
+      }).catch(function(){tryFetch(urls,idx+1,bodyFallback,encryptJobId);});
   }
   function attempt(retry){
-    var cached=findCachedDetailUrl();
-    if(cached){fetchDetail(cached,domBody());return;}
     var ids=resolveIds();
-    var built=buildDetailUrl(ids);
-    if(built){fetchDetail(built,domBody());return;}
-    if(retry<12){setTimeout(function(){attempt(retry+1);},500);return;}
+    var urls=collectFetchUrls(ids);
+    var body=domBody();
+    if(urls.length){tryFetch(urls,0,body,ids.encryptJobId);return;}
+    if(retry<16){setTimeout(function(){attempt(retry+1);},450);return;}
     fallback();
   }
   try{attempt(0);}catch(e){alert('提取失败，请刷新页面后重试');}
