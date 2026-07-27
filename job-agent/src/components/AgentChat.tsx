@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Bot, User, Sparkles, Trash2 } from "lucide-react";
+import { Send, Bot, User, Sparkles, Trash2, Paperclip, Loader2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { generateAgentResponse, createChatMessage, QUICK_PROMPTS } from "@/lib/agent";
 import {
@@ -10,34 +10,12 @@ import {
   getContextBarColor,
   COMPRESS_THRESHOLD,
 } from "@/lib/context-manager";
+import { extractTextFromDocument } from "@/lib/document-extract";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { Button, ProgressBar } from "./ui";
 
-function MessageContent({ content }: { content: string }) {
-  const lines = content.split("\n");
-  return (
-    <div className="space-y-1 text-sm leading-relaxed">
-      {lines.map((line, i) => {
-        if (line.startsWith("**") && line.endsWith("**")) {
-          return <p key={i} className="font-semibold text-slate-900">{line.slice(2, -2)}</p>;
-        }
-        if (line.startsWith("• ") || line.startsWith("- ")) {
-          return <p key={i} className="pl-2 text-slate-700">{line}</p>;
-        }
-        if (line.match(/^\d+\./)) {
-          return <p key={i} className="pl-2 text-slate-700">{line}</p>;
-        }
-        if (line.startsWith("   ")) {
-          return <p key={i} className="pl-4 text-slate-600">{line.trim()}</p>;
-        }
-        if (line.startsWith("💡")) {
-          return <p key={i} className="mt-2 rounded-lg bg-amber-50 p-2 text-amber-800">{line}</p>;
-        }
-        if (line.trim() === "") return <br key={i} />;
-        return <p key={i} className="text-slate-700">{line}</p>;
-      })}
-    </div>
-  );
-}
+const RESUME_ACCEPT = ".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp";
+const RESUME_TEXT_LIMIT = 12000;
 
 function ContextChatStatus({
   percent,
@@ -74,9 +52,11 @@ export function AgentChat() {
   const { data, addChatMessage, replaceChatHistory, clearChat } = useApp();
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [loadingPercent, setLoadingPercent] = useState<number | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const contextUsage = useMemo(() => estimateContextChars(data), [data]);
 
@@ -96,7 +76,7 @@ export function AgentChat() {
   }, []);
 
   const sendMessage = (text: string) => {
-    if (!text.trim() || thinking) return;
+    if (!text.trim() || thinking || uploading) return;
 
     const userMsg = createChatMessage("user", text.trim());
     const historyWithUser = [...data.chatHistory, userMsg];
@@ -153,7 +133,32 @@ export function AgentChat() {
     }, 500);
   };
 
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const doc = await extractTextFromDocument(file);
+      if (!doc.text.trim()) {
+        alert("未能从文件中提取到文字，请尝试 PDF、Word 或更清晰的图片");
+        return;
+      }
+      const truncated = doc.text.slice(0, RESUME_TEXT_LIMIT);
+      const suffix =
+        doc.text.length > RESUME_TEXT_LIMIT
+          ? "\n\n（内容已截断，仅发送前 12000 字）"
+          : "";
+      sendMessage(
+        `【已上传简历：${doc.fileName}】\n\n请帮我分析并优化这份简历，给出具体修改建议（结构、措辞、量化成果）：\n\n${truncated}${suffix}`
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "文件解析失败");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
   const displayPercent = loadingPercent ?? contextUsage.percent;
+  const busy = thinking || uploading;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -164,7 +169,9 @@ export function AgentChat() {
           </div>
           <div>
             <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
-            <p className="text-xs text-slate-500">帮你梳理经历、分析技能、匹配岗位（支持 DeepSeek）</p>
+            <p className="text-xs text-slate-500">
+              帮你梳理经历、分析技能、匹配岗位；支持上传简历优化（DeepSeek）
+            </p>
           </div>
         </div>
         {data.chatHistory.length > 1 && (
@@ -198,9 +205,9 @@ export function AgentChat() {
                 }`}
               >
                 {msg.role === "user" ? (
-                  <p className="text-sm">{msg.content}</p>
+                  <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                 ) : (
-                  <MessageContent content={msg.content} />
+                  <MarkdownContent content={msg.content} />
                 )}
               </div>
             </div>
@@ -223,28 +230,56 @@ export function AgentChat() {
               <button
                 key={prompt}
                 onClick={() => sendMessage(prompt)}
-                className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                disabled={busy}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
               >
                 {prompt}
               </button>
             ))}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept={RESUME_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFileUpload(file);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy}
+              title="上传简历（PDF、Word、图片、TXT）"
+              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-500 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
+            >
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Paperclip className="h-5 w-5" />
+              )}
+            </button>
             <input
               className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               placeholder="描述你的经历、提问或粘贴 JD..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage(input)}
+              disabled={busy}
             />
             <Button
               onClick={() => sendMessage(input)}
-              disabled={!input.trim() || thinking}
+              disabled={!input.trim() || busy}
               className="rounded-xl px-5"
             >
               <Send className="h-4 w-4" />
             </Button>
           </div>
+          <p className="mt-2 text-xs text-slate-400">
+            支持上传 PDF、Word、TXT、图片简历，自动提取文字并给出优化建议
+          </p>
         </div>
       </div>
     </div>

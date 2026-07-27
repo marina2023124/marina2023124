@@ -518,12 +518,15 @@ ${text.slice(0, 12000)}
 
 export function buildAgentChatPrompt(data: AppData, userMessage: string): { system: string; messages: { role: "user" | "assistant"; content: string }[] } {
   const profile = data.profile;
+  const isResumeUpload = /【已上传简历：/.test(userMessage);
   const system = `你是 JobAgent 职业顾问，基于用户档案回答问题。用中文，结构清晰，给出可执行的简历/求职建议。
+回复请使用 Markdown 格式（标题、加粗、列表），便于阅读。
 用户档案摘要：
 - 姓名：${profile.name || "未填"}
 - 工作 ${profile.workExperiences.length} 段，项目 ${profile.projects.length} 个，技能 ${profile.skills.length} 项
 - 关注岗位 ${data.jobs.length} 个
-${profile.summary ? `- 摘要：${profile.summary}` : ""}`;
+${profile.summary ? `- 摘要：${profile.summary}` : ""}
+${isResumeUpload ? "\n用户刚上传了简历全文。请逐段给出优化建议：结构层次、措辞表达、量化成果、与目标岗位的匹配度；按优先级排列，并给出可直接替换的改写示例。" : ""}`;
 
   const recent = data.chatHistory.slice(-10).map((m) => ({
     role: m.role,
