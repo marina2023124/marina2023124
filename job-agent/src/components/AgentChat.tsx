@@ -57,6 +57,7 @@ export function AgentChat() {
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const contextUsage = useMemo(() => estimateContextChars(data), [data]);
 
@@ -146,9 +147,15 @@ export function AgentChat() {
         doc.text.length > RESUME_TEXT_LIMIT
           ? "\n\n（内容已截断，仅发送前 12000 字）"
           : "";
-      sendMessage(
-        `【已上传简历：${doc.fileName}】\n\n请帮我分析并优化这份简历，给出具体修改建议（结构、措辞、量化成果）：\n\n${truncated}${suffix}`
-      );
+      const prefix = `【已上传简历：${doc.fileName}】\n\n`;
+      const hint = "（在此补充说明，例如目标岗位、优化重点，然后点击发送）";
+      setInput(`${prefix}${hint}\n\n---\n\n${truncated}${suffix}`);
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(prefix.length, prefix.length + hint.length);
+      });
     } catch (err) {
       alert(err instanceof Error ? err.message : "文件解析失败");
     } finally {
@@ -261,12 +268,19 @@ export function AgentChat() {
                 <Paperclip className="h-5 w-5" />
               )}
             </button>
-            <input
-              className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            <textarea
+              ref={inputRef}
+              rows={3}
+              className="max-h-48 min-h-[3rem] flex-1 resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               placeholder="描述你的经历、提问或粘贴 JD..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage(input)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  sendMessage(input);
+                }
+              }}
               disabled={busy}
             />
             <Button
@@ -278,7 +292,7 @@ export function AgentChat() {
             </Button>
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            支持上传 PDF、Word、TXT、图片简历，自动提取文字并给出优化建议
+            支持上传 PDF、Word、TXT、图片简历；上传后可在输入框补充说明再发送（Ctrl+Enter 快捷发送）
           </p>
         </div>
       </div>
