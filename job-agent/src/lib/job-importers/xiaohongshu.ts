@@ -1,6 +1,6 @@
 import type { ParsedJobDraft } from "../jd-parser";
 import { extractJobSections, sectionsToDescription } from "../jd-sections";
-import { xhsWorkExperienceToLabel } from "../job-experience";
+import { extractExperienceYearsFromText, xhsWorkExperienceToLabel } from "../job-experience";
 
 const API_ROOT = "https://job.xiaohongshu.com";
 
@@ -21,17 +21,6 @@ interface XhsApiResponse {
   statusCode?: number;
   alertMsg?: string;
   data?: XhsPositionDetail;
-}
-
-function extractExperienceYearsFromText(...texts: Array<string | undefined>): number | undefined {
-  for (const text of texts) {
-    if (!text?.trim()) continue;
-    const range = text.match(/(\d+)\s*[-~至到]\s*(\d+)\s*年/);
-    if (range) return Math.round((Number(range[1]) + Number(range[2])) / 2);
-    const single = text.match(/(\d+)\s*年(?:及以上|以上|\+)?(?:工作)?经验/);
-    if (single) return Number(single[1]);
-  }
-  return undefined;
 }
 
 export function parseXiaohongshuPositionId(url: string): string | undefined {

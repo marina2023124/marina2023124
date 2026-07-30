@@ -2,6 +2,7 @@ import type { ParsedJobDraft } from "../jd-parser";
 import type { JobSource } from "../job-source";
 import { detectJobSourceFromUrl, getJobSourceLabel } from "../job-source";
 import { parseJobDescription } from "../jd-parser";
+import { importLiepinJob, parseLiepinJobId } from "./liepin";
 import { importXiaohongshuJob, parseXiaohongshuPositionId } from "./xiaohongshu";
 
 export interface ImportedJobDraft extends ParsedJobDraft {
@@ -41,7 +42,7 @@ async function importGenericUrl(url: string): Promise<ParsedJobDraft> {
   return { ...parsed, url: parsed.url || url };
 }
 
-/** 从 URL 导入岗位（支持小红书招聘、BOSS 等；企业官网尝试 HTML 抓取） */
+/** 从 URL 导入岗位（支持小红书招聘、猎聘、BOSS 等；企业官网尝试 HTML 抓取） */
 export async function importJobFromUrl(url: string): Promise<ImportedJobDraft> {
   const trimmed = url.trim();
   if (!/^https?:\/\//i.test(trimmed)) {
@@ -57,6 +58,12 @@ export async function importJobFromUrl(url: string): Promise<ImportedJobDraft> {
       throw new Error("无法识别小红书岗位 ID，请使用类似 https://job.xiaohongshu.com/social/position/18746 的链接");
     }
     draft = await importXiaohongshuJob(trimmed, positionId);
+  } else if (source === "liepin") {
+    const jobId = parseLiepinJobId(trimmed);
+    if (!jobId) {
+      throw new Error("无法识别猎聘岗位 ID，请使用类似 https://www.liepin.com/job/1984054575.shtml 的链接");
+    }
+    draft = await importLiepinJob(trimmed, jobId);
   } else if (source === "boss") {
     throw new Error("BOSS 岗位请使用书签导入（可获取明文薪资），或复制 JD 文字粘贴");
   } else {
