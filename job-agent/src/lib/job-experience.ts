@@ -24,3 +24,19 @@ export function xhsWorkExperienceToLabel(code?: string): string | undefined {
   if (!code?.trim()) return undefined;
   return XHS_WORK_EXPERIENCE_LABELS[code] ?? code;
 }
+
+/** 从 JD 正文提取明确年限要求 */
+export function extractExperienceYearsFromText(
+  ...texts: Array<string | undefined>
+): number | undefined {
+  for (const text of texts) {
+    if (!text?.trim()) continue;
+    const range = text.match(/(\d+)\s*[-~至到]\s*(\d+)\s*年/);
+    if (range) return Math.round((Number(range[1]) + Number(range[2])) / 2);
+    const atLeast = text.match(/(\d+)\s*年(?:及以上|以上|\+)/);
+    if (atLeast) return Number(atLeast[1]);
+    const single = text.match(/(\d+)\s*年(?:及以上|以上|\+)?(?:工作)?经验/);
+    if (single) return Number(single[1]);
+  }
+  return undefined;
+}

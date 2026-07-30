@@ -343,10 +343,10 @@ function SmartJobInput({
       <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-4">
         <div className="mb-3 flex items-center gap-2">
           <Link2 className="h-4 w-4 text-violet-600" />
-          <p className="text-sm font-semibold text-slate-900">从链接导入（企业官网 / 小红书招聘等）</p>
+          <p className="text-sm font-semibold text-slate-900">从链接导入（企业官网 / 小红书 / 猎聘等）</p>
         </div>
         <p className="mb-3 text-xs text-slate-600">
-          粘贴岗位详情页链接，系统自动识别渠道并抓取 JD。已支持小红书招聘；BOSS 请继续用书签导入。
+          粘贴岗位详情页链接，系统自动识别渠道并抓取 JD。已支持小红书招聘、猎聘；BOSS 请继续用书签导入。
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
