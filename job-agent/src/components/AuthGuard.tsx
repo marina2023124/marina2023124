@@ -16,8 +16,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loaded || !authReady) return;
 
-    // 登录页始终放行（配置 Supabase / 云端登录）
-    if (pathname === "/login") return;
+    // 登录页、访客体验页始终放行
+    if (pathname === "/login" || pathname === "/try") return;
 
     if (localMode) return;
 
@@ -80,8 +80,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  // 登录/配置页不拦截
-  if (pathname === "/login") {
+  // 登录/体验页不拦截
+  if (pathname === "/login" || pathname === "/try") {
     return <>{children}</>;
   }
 

@@ -288,6 +288,12 @@ export default function LoginPage() {
             登录与同步经本机 Next.js 服务转发，浏览器无需直连 *.supabase.co
           </p>
 
+          <p className="mt-3 text-center text-sm">
+            <a href="/try" className="text-indigo-600 hover:underline">
+              访客体验（无需注册，适合分享给朋友/面试官）
+            </a>
+          </p>
+
           <div className="mt-4 border-t border-slate-100 pt-4">
             <p className="mb-2 text-center text-xs text-slate-400">
               仅在 VPN 不可用、又急需编辑时的备用入口
