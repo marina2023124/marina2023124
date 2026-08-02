@@ -58,7 +58,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">
           {profile.name ? `你好，${profile.name}` : "欢迎使用 JobAgent"}
@@ -66,7 +66,7 @@ export default function DashboardPage() {
         <p className="mt-1 text-slate-500">智能求职助手 — 梳理经历，匹配理想岗位</p>
       </div>
 
-      <div className="mb-8 grid grid-cols-4 gap-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
         <Card className="!p-5">
           <p className="text-sm text-slate-500">档案完整度</p>
           <p className="mt-1 text-3xl font-bold text-indigo-600">{completeness}%</p>
@@ -116,7 +116,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="mb-8 grid grid-cols-4 gap-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
         {quickLinks.map(({ href, icon: Icon, label, desc, color }) => (
           <Link key={href} href={href}>
             <div className="group cursor-pointer rounded-xl border border-slate-200 bg-white p-5 transition-all hover:border-indigo-200 hover:shadow-md">
@@ -130,7 +130,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card title="快速开始">
           <div className="space-y-3">
             {completeness < 100 ? (

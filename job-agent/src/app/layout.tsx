@@ -17,7 +17,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var guest=localStorage.getItem("job-agent-guest-mode");if(guest==="1"){document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";return}var explicit=localStorage.getItem("job-agent-offline-explicit");if(explicit==="1"){document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax"}else{localStorage.setItem("job-agent-cloud-mode","1");localStorage.removeItem("job-agent-offline");localStorage.removeItem("job-agent-offline-explicit");localStorage.removeItem("job-agent-data");document.cookie="job-agent-offline=; path=/; max-age=0; SameSite=Lax"}}catch(e){}})();`,
+            __html: `(function(){try{if(location.pathname==="/try"){document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";return}var guest=localStorage.getItem("job-agent-guest-mode");if(guest==="1"){document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";document.cookie="job-agent-guest-mode=1; path=/; max-age=31536000; SameSite=Lax";return}var explicit=localStorage.getItem("job-agent-offline-explicit");if(explicit==="1"){document.cookie="job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax"}else{localStorage.setItem("job-agent-cloud-mode","1");localStorage.removeItem("job-agent-offline");localStorage.removeItem("job-agent-offline-explicit");localStorage.removeItem("job-agent-data");document.cookie="job-agent-offline=; path=/; max-age=0; SameSite=Lax";document.cookie="job-agent-guest-mode=; path=/; max-age=0; SameSite=Lax"}}catch(e){}})();`,
           }}
         />
       </head>

@@ -1,16 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Briefcase, Loader2, Sparkles, WifiOff } from "lucide-react";
-import { enableGuestMode } from "@/lib/local-storage";
+import { enableGuestMode, primeTryPageOffline } from "@/lib/local-storage";
 import { Button } from "@/components/ui";
 
-async function startGuestExperience(withSampleData: boolean) {
-  try {
-    await fetch("/api/auth/logout", { method: "POST" });
-  } catch {
-    // 即使登出失败也继续：访客数据与账号存储已隔离
-  }
+function startGuestExperience(withSampleData: boolean) {
   enableGuestMode(withSampleData);
   window.location.href = "/";
 }
@@ -18,9 +13,13 @@ async function startGuestExperience(withSampleData: boolean) {
 export default function TryPage() {
   const [loading, setLoading] = useState<"sample" | "blank" | null>(null);
 
-  const handleEnter = async (withSampleData: boolean) => {
+  useEffect(() => {
+    primeTryPageOffline();
+  }, []);
+
+  const handleEnter = (withSampleData: boolean) => {
     setLoading(withSampleData ? "sample" : "blank");
-    await startGuestExperience(withSampleData);
+    startGuestExperience(withSampleData);
   };
 
   return (
@@ -32,7 +31,7 @@ export default function TryPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">JobAgent 访客体验</h1>
-            <p className="text-sm text-slate-500">无需注册 · 无需 Vercel 权限 · 直接试用</p>
+            <p className="text-sm text-slate-500">无需注册 · 无需 VPN · 直接试用</p>
           </div>
         </div>
 

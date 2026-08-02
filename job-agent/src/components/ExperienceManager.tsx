@@ -179,7 +179,7 @@ function ExperienceForm({
 
   return (
     <div className="space-y-4 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 p-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input label="公司名称 *" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
         <Input label="职位名称 *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         <Input label="开始日期" type="month" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
@@ -566,7 +566,7 @@ function EducationSection() {
       ))}
       {showForm ? (
         <div className="space-y-3 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 p-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input label="学校" value={form.school || ""} onChange={(e) => setForm({ ...form, school: e.target.value })} />
             <Input label="学位" value={form.degree || ""} onChange={(e) => setForm({ ...form, degree: e.target.value })} />
             <Input label="专业" value={form.field || ""} onChange={(e) => setForm({ ...form, field: e.target.value })} />
@@ -589,7 +589,7 @@ export function ProfileForm() {
 
   return (
     <Card title="基本信息">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input label="姓名" value={data.profile.name} onChange={(e) => updateProfile({ name: e.target.value })} />
         <Input label="邮箱" type="email" value={data.profile.email} onChange={(e) => updateProfile({ email: e.target.value })} />
         <Input label="电话" value={data.profile.phone || ""} onChange={(e) => updateProfile({ phone: e.target.value })} />

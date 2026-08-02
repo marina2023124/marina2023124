@@ -68,15 +68,15 @@ export function MatchView() {
           const job = data.jobs.find((j) => j.id === match.jobId)!;
           return (
             <Card key={match.jobId}>
-              <div className="flex gap-6">
-                <div className="flex-shrink-0">
+              <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+                <div className="flex flex-shrink-0 flex-row items-center gap-4 sm:flex-col sm:items-center">
                   <ScoreRing score={match.score} />
-                  <p className="mt-2 text-center text-xs font-medium text-slate-500">
+                  <p className="text-xs font-medium text-slate-500 sm:mt-2 sm:text-center">
                     {getScoreLabel(match.score)}
                   </p>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                     <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
                     <span className="text-sm text-indigo-600">{job.company}</span>
                   </div>
@@ -85,7 +85,7 @@ export function MatchView() {
                     {job.salary && <span>{job.salary}</span>}
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <p className="mb-2 text-xs font-medium uppercase text-slate-400">匹配技能</p>
                       <div className="flex flex-wrap gap-1.5">

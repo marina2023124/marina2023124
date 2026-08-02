@@ -131,6 +131,15 @@ export function useAppData() {
   useEffect(() => {
     if (startedOffline) return;
 
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path === "/try" || isGuestMode()) {
+        setAuthReady(true);
+        setLoaded(true);
+        return;
+      }
+    }
+
     if (isLocalModeEnabled()) {
       setLocalMode(true);
       setData(loadLocalData());

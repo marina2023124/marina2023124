@@ -168,15 +168,15 @@ export function AgentChat() {
   const busy = thinking || uploading;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+    <div className="flex h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] flex-col lg:h-[calc(100vh-4rem)]">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6 lg:py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
             <Sparkles className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-semibold text-slate-900">职业顾问 Agent</h2>
-            <p className="text-xs text-slate-500">
+            <p className="hidden text-xs text-slate-500 sm:block">
               帮你梳理经历、分析技能、匹配岗位；支持上传简历优化（DeepSeek）
             </p>
           </div>
@@ -188,7 +188,7 @@ export function AgentChat() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6">
         <div className="mx-auto max-w-3xl space-y-6">
           {data.chatHistory.map((msg) => (
             <div
@@ -230,7 +230,7 @@ export function AgentChat() {
         </div>
       </div>
 
-      <div className="border-t border-slate-200 bg-white px-6 py-4">
+      <div className="border-t border-slate-200 bg-white px-4 py-3 lg:px-6 lg:py-4">
         <div className="mx-auto max-w-3xl">
           <div className="mb-3 flex flex-wrap gap-2">
             {QUICK_PROMPTS.map((prompt) => (

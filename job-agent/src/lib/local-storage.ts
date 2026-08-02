@@ -8,7 +8,22 @@ export const LOCAL_MODE_KEY = "job-agent-offline";
 export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
 export const OFFLINE_EXPLICIT_KEY = "job-agent-offline-explicit";
 export const GUEST_MODE_KEY = "job-agent-guest-mode";
+export const GUEST_MODE_COOKIE = "job-agent-guest-mode";
 const DATA_KEY = "job-agent-data";
+
+function setGuestModeCookie(enabled: boolean): void {
+  if (typeof document === "undefined") return;
+  if (enabled) {
+    document.cookie = `${GUEST_MODE_COOKIE}=1; path=/; max-age=31536000; SameSite=Lax`;
+  } else {
+    document.cookie = `${GUEST_MODE_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  }
+}
+
+export function primeTryPageOffline(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = "job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";
+}
 const GUEST_DATA_KEY = "job-agent-guest-data";
 const LEGACY_SESSION_DATA_KEY = "job-agent-session-data";
 
@@ -80,6 +95,7 @@ export function disableLocalMode(): void {
 /** 进入访客体验：独立存储，不读取账号本地/云端数据 */
 export function enableGuestMode(withSampleData: boolean): void {
   writeStorage(GUEST_MODE_KEY, "1");
+  setGuestModeCookie(true);
   enableLocalMode();
   removeStorage(DATA_KEY);
   removeStorage(LEGACY_SESSION_DATA_KEY);
@@ -91,6 +107,7 @@ export function enableGuestMode(withSampleData: boolean): void {
 export function disableGuestMode(): void {
   removeStorage(GUEST_MODE_KEY);
   removeStorage(GUEST_DATA_KEY);
+  setGuestModeCookie(false);
 }
 
 /** 清除本机求职资料缓存（云端登录前/退出后调用） */
