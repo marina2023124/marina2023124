@@ -1,19 +1,28 @@
 "use client";
 
-import { Briefcase, Sparkles, WifiOff } from "lucide-react";
-import { enableLocalMode, saveLocalData } from "@/lib/local-storage";
-import { createDemoAppData } from "@/lib/demo-data";
+import { useState } from "react";
+import { Briefcase, Loader2, Sparkles, WifiOff } from "lucide-react";
+import { enableGuestMode } from "@/lib/local-storage";
 import { Button } from "@/components/ui";
 
-function enterGuestMode(withSampleData: boolean) {
-  enableLocalMode();
-  if (withSampleData) {
-    saveLocalData(createDemoAppData());
+async function startGuestExperience(withSampleData: boolean) {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    // 即使登出失败也继续：访客数据与账号存储已隔离
   }
+  enableGuestMode(withSampleData);
   window.location.href = "/";
 }
 
 export default function TryPage() {
+  const [loading, setLoading] = useState<"sample" | "blank" | null>(null);
+
+  const handleEnter = async (withSampleData: boolean) => {
+    setLoading(withSampleData ? "sample" : "blank");
+    await startGuestExperience(withSampleData);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/40 to-violet-50 px-6 py-12">
       <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
@@ -37,12 +46,29 @@ export default function TryPage() {
         </div>
 
         <div className="space-y-3">
-          <Button className="w-full" onClick={() => enterGuestMode(true)}>
-            <Sparkles className="h-4 w-4" />
+          <Button
+            className="w-full"
+            disabled={loading !== null}
+            onClick={() => handleEnter(true)}
+          >
+            {loading === "sample" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
             加载示例数据并体验
           </Button>
-          <Button variant="secondary" className="w-full" onClick={() => enterGuestMode(false)}>
-            <WifiOff className="h-4 w-4" />
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={loading !== null}
+            onClick={() => handleEnter(false)}
+          >
+            {loading === "blank" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <WifiOff className="h-4 w-4" />
+            )}
             空白体验（自行录入）
           </Button>
         </div>

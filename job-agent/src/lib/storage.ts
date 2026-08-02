@@ -10,6 +10,7 @@ import {
   enableCloudMode,
   enableLocalMode,
   ensureCloudDefault,
+  isGuestMode,
   isLocalModeEnabled,
   loadLocalData,
   saveLocalData,
@@ -121,6 +122,9 @@ export function useAppData() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [localMode, setLocalMode] = useState(bootstrap.localMode);
+  const [guestMode, setGuestMode] = useState(
+    () => typeof window !== "undefined" && isGuestMode()
+  );
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSaveRef = useRef(true);
 
@@ -162,7 +166,7 @@ export function useAppData() {
   useEffect(() => {
     if (!authReady) return;
 
-    if (localMode) {
+    if (localMode || isGuestMode()) {
       setData(loadLocalData());
       setLoaded(true);
       skipSaveRef.current = true;
@@ -215,8 +219,8 @@ export function useAppData() {
   }, [authReady, user, localMode]);
 
   useEffect(() => {
-    if (!loaded || localMode) {
-      if (localMode && loaded) {
+    if (!loaded || localMode || guestMode) {
+      if ((localMode || guestMode) && loaded) {
         saveLocalData(data);
       }
       return;
@@ -247,7 +251,7 @@ export function useAppData() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [data, loaded, user, localMode]);
+  }, [data, loaded, user, localMode, guestMode]);
 
   const updateProfile = useCallback((profile: Partial<Profile>) => {
     setData((prev) => ({
@@ -316,7 +320,7 @@ export function useAppData() {
           };
           setData(imported);
 
-          if (user && isSupabaseConfigured()) {
+          if (user && isSupabaseConfigured() && !isGuestMode()) {
             setSyncing(true);
             await persistCloudData(imported);
             setLastSyncedAt(new Date().toISOString());
@@ -348,6 +352,7 @@ export function useAppData() {
     enableCloudMode();
     clearLocalAppData();
     setLocalMode(false);
+    setGuestMode(false);
     setUser(null);
     setAuthReady(true);
     setLoaded(true);
@@ -379,6 +384,7 @@ export function useAppData() {
     lastSyncedAt,
     isConfigured: isSupabaseConfigured(),
     localMode,
+    guestMode,
     updateProfile,
     setProfile,
     addJob,

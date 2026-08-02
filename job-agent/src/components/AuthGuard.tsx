@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { Cloud, Loader2, WifiOff } from "lucide-react";
+import { Cloud, Loader2, Sparkles, WifiOff } from "lucide-react";
 import { enableCloudMode, wantsCloudMode } from "@/lib/local-storage";
 import { Button } from "./ui";
 
@@ -117,7 +117,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export function CloudSyncStatus() {
-  const { syncing, syncError, lastSyncedAt, localMode } = useApp();
+  const { syncing, syncError, lastSyncedAt, localMode, guestMode } = useApp();
+
+  if (guestMode) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+        <Sparkles className="h-3 w-3" />
+        访客体验模式 · 示例数据，与账号无关
+      </div>
+    );
+  }
 
   if (localMode) {
     return (
