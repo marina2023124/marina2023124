@@ -27,7 +27,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { exportData, importData, signOut, user, localMode, enterCloudMode } = useApp();
+  const { exportData, importData, signOut, user, localMode, guestMode, enterCloudMode } =
+    useApp();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-slate-200 bg-white">
@@ -38,7 +39,9 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-slate-900">JobAgent</h1>
-            <p className="text-xs text-slate-500">云端求职助手</p>
+            <p className="text-xs text-slate-500">
+              {guestMode ? "访客体验" : "云端求职助手"}
+            </p>
           </div>
         </div>
       </div>
@@ -67,17 +70,17 @@ export function Sidebar() {
       <div className="border-t border-slate-200 p-4 space-y-3">
         <CloudSyncStatus />
 
-        {localMode && (
+        {(localMode || guestMode) && (
           <button
             onClick={enterCloudMode}
             className="flex w-full items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-100"
           >
             <Cloud className="h-4 w-4" />
-            切换到云端登录
+            {guestMode ? "退出访客模式并登录" : "切换到云端登录"}
           </button>
         )}
 
-        {user && (
+        {user && !guestMode && (
           <p className="truncate px-1 text-xs text-slate-400">{user.email}</p>
         )}
 
@@ -101,13 +104,15 @@ export function Sidebar() {
             }}
           />
         </label>
-        <button
-          onClick={signOut}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-        >
-          <LogOut className="h-4 w-4" />
-          退出登录
-        </button>
+        {user && !guestMode && (
+          <button
+            onClick={signOut}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            <LogOut className="h-4 w-4" />
+            退出登录
+          </button>
+        )}
       </div>
     </aside>
   );
@@ -115,7 +120,7 @@ export function Sidebar() {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const showSidebar = pathname !== "/login";
+  const showSidebar = pathname !== "/login" && pathname !== "/try";
 
   if (!showSidebar) {
     return <>{children}</>;

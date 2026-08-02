@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { Cloud, Loader2, WifiOff } from "lucide-react";
+import { Cloud, Loader2, Sparkles, WifiOff } from "lucide-react";
 import { enableCloudMode, wantsCloudMode } from "@/lib/local-storage";
 import { Button } from "./ui";
 
@@ -16,8 +16,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loaded || !authReady) return;
 
-    // 登录页始终放行（配置 Supabase / 云端登录）
-    if (pathname === "/login") return;
+    // 登录页、访客体验页始终放行
+    if (pathname === "/login" || pathname === "/try") return;
 
     if (localMode) return;
 
@@ -80,8 +80,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  // 登录/配置页不拦截
-  if (pathname === "/login") {
+  // 登录/体验页不拦截
+  if (pathname === "/login" || pathname === "/try") {
     return <>{children}</>;
   }
 
@@ -117,7 +117,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export function CloudSyncStatus() {
-  const { syncing, syncError, lastSyncedAt, localMode } = useApp();
+  const { syncing, syncError, lastSyncedAt, localMode, guestMode } = useApp();
+
+  if (guestMode) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+        <Sparkles className="h-3 w-3" />
+        访客体验模式 · 示例数据，与账号无关
+      </div>
+    );
+  }
 
   if (localMode) {
     return (
