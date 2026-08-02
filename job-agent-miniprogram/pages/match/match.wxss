@@ -1,0 +1,77 @@
+.page {
+  padding: 24rpx;
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.hero-card {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+}
+
+.hero-card .card-title,
+.hero-card .muted {
+  color: #fff;
+}
+
+.hero-card .muted {
+  opacity: 0.85;
+}
+
+.match-head {
+  display: flex;
+  gap: 24rpx;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.score-circle {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.job-title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.company {
+  color: #4f46e5;
+}
+
+.match-section {
+  margin-bottom: 12rpx;
+  font-size: 26rpx;
+}
+
+.section-label {
+  display: inline-block;
+  font-size: 22rpx;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  margin-right: 8rpx;
+}
+
+.section-label.warn {
+  color: #d97706;
+  background: #fffbeb;
+}
+
+.recommend {
+  margin-top: 16rpx;
+  padding: 16rpx;
+  background: #f8fafc;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  color: #475569;
+}

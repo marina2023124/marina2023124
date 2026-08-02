@@ -1,0 +1,32 @@
+<view class="page">
+  <view class="card">
+    <view class="card-title">基本信息</view>
+    <view class="field">
+      <text class="label">姓名</text>
+      <input class="input" value="{{name}}" bindinput="onNameInput" placeholder="你的姓名" />
+    </view>
+    <view class="field">
+      <text class="label">目标岗位</text>
+      <input class="input" value="{{targetRole}}" bindinput="onTargetInput" placeholder="如：用户研究员" />
+    </view>
+    <view class="field">
+      <text class="label">个人简介</text>
+      <textarea class="textarea" value="{{summary}}" bindinput="onSummaryInput" placeholder="简要介绍你的背景" />
+    </view>
+    <view class="field">
+      <text class="label">核心技能</text>
+      <input class="input" value="{{skills}}" bindinput="onSkillsInput" placeholder="用顿号分隔，如：用户访谈、SPSS" />
+    </view>
+    <button class="btn-primary" bindtap="saveProfile">保存资料</button>
+  </view>
+
+  <view class="card">
+    <view class="card-title">工作经历</view>
+    <view wx:if="{{workList.length === 0}}" class="empty">暂无经历，点击下方添加</view>
+    <view wx:for="{{workList}}" wx:key="id" class="work-item">
+      <view class="work-title">{{item.title}} · {{item.company}}</view>
+      <view class="muted">{{item.startDate}} 至今</view>
+    </view>
+    <button class="btn-secondary" bindtap="addWork">+ 添加工作经历</button>
+  </view>
+</view>

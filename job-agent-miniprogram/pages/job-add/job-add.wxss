@@ -1,0 +1,17 @@
+.page {
+  padding: 24rpx;
+}
+
+.paste-btn {
+  margin: 24rpx 0;
+}
+
+.jd-textarea {
+  width: 100%;
+  min-height: 480rpx;
+  background: #f8fafc;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  margin-bottom: 24rpx;
+}

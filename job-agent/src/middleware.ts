@@ -15,6 +15,10 @@ export async function middleware(request: NextRequest) {
   // 访客体验页、离线/访客 cookie：不连 Supabase，国内无需 VPN
   if (
     pathname === "/try" ||
+    pathname.startsWith("/api/auth/wechat") ||
+    pathname.startsWith("/api/wechat/") ||
+    pathname === "/api/match" ||
+    pathname === "/api/jobs/parse-text" ||
     request.cookies.get("job-agent-offline")?.value === "1" ||
     request.cookies.get("job-agent-guest-mode")?.value === "1"
   ) {
