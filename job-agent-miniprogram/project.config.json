@@ -2,7 +2,7 @@
   "miniprogramRoot": "./",
   "projectname": "JobAgent",
   "description": "JobAgent 智能求职助手微信小程序",
-  "appid": "touristappid",
+  "appid": "wx4722b2e031487051",
   "setting": {
     "urlCheck": false,
     "es6": true,
