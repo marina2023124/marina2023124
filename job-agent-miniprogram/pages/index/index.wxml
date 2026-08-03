@@ -44,7 +44,8 @@
 
   <view class="card">
     <view class="card-title">快速开始</view>
+    <button class="btn-secondary quick-btn" bindtap="goAgent">AI 职业顾问 (DeepSeek)</button>
     <button class="btn-secondary quick-btn" bindtap="goExperience">完善我的经历</button>
-    <button class="btn-secondary quick-btn" bindtap="goJobs">添加岗位 JD</button>
+    <button class="btn-secondary quick-btn" bindtap="goJobs">智能添加岗位</button>
   </view>
 </view>
