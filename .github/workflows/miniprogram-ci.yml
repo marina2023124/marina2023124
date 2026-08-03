@@ -35,21 +35,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 生成预览二维码
-        id: ci_preview
-        uses: seepine/action-miniprogram-ci@v1
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
-          mode: preview
-          project-path: ./job-agent-miniprogram
-          private-key: ${{ secrets.WECHAT_UPLOAD_KEY }}
-          version: ${{ github.run_number }}.${{ github.run_attempt }}
-          desc: "${{ github.event.head_commit.message || '手动预览' }} (${{ github.sha }})"
-          qrcode-format: image
-          qrcode-output-dest: ./preview-qrcode.png
-          output: |
-            ✅ 小程序预览已生成
-            版本: ${{ github.run_number }}.${{ github.run_attempt }}
-            提交: ${{ github.sha }}
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: job-agent-miniprogram/package-lock.json
+
+      - name: 安装 miniprogram-ci
+        working-directory: job-agent-miniprogram
+        run: npm install
+
+      - name: 生成预览二维码
+        env:
+          WECHAT_UPLOAD_KEY: ${{ secrets.WECHAT_UPLOAD_KEY }}
+        run: npm run ci:preview --prefix job-agent-miniprogram
 
       - name: 上传二维码（下载后微信扫码）
         uses: actions/upload-artifact@v4
@@ -61,9 +61,8 @@ jobs:
       - name: 预览说明
         run: |
           echo "## 如何扫码体验" >> "$GITHUB_STEP_SUMMARY"
-          echo "1. 在本 Workflow 页面右侧 **Artifacts** 下载 \`miniprogram-preview-qrcode\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "2. 用微信扫描 png 二维码即可打开预览（无需本机安装开发者工具）" >> "$GITHUB_STEP_SUMMARY"
-          echo "3. 需先在 GitHub Secrets 配置 \`WECHAT_UPLOAD_KEY\`，并在小程序后台开启代码上传密钥" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. 下载 Artifacts 里的 \`miniprogram-preview-qrcode\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "2. 微信扫描 png 二维码" >> "$GITHUB_STEP_SUMMARY"
 
   upload:
     name: 上传体验版
@@ -75,17 +74,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 上传到微信后台（体验版）
-        uses: seepine/action-miniprogram-ci@v1
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
-          mode: upload
-          project-path: ./job-agent-miniprogram
-          private-key: ${{ secrets.WECHAT_UPLOAD_KEY }}
-          version: 1.0.${{ github.run_number }}
-          desc: "${{ github.event.head_commit.message || 'CI 上传' }}"
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: job-agent-miniprogram/package-lock.json
+
+      - name: 安装 miniprogram-ci
+        working-directory: job-agent-miniprogram
+        run: npm install
+
+      - name: 上传到微信后台（体验版）
+        env:
+          WECHAT_UPLOAD_KEY: ${{ secrets.WECHAT_UPLOAD_KEY }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_EVENT_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: npm run ci:upload --prefix job-agent-miniprogram
 
       - name: 体验版说明
         run: |
           echo "## 体验版已更新" >> "$GITHUB_STEP_SUMMARY"
-          echo "登录 [微信公众平台](https://mp.weixin.qq.com/) → 版本管理 → 体验版 → 扫码体验" >> "$GITHUB_STEP_SUMMARY"
-          echo "体验版比预览码更稳定，适合反复测试同一版本" >> "$GITHUB_STEP_SUMMARY"
+          echo "微信公众平台 → 版本管理 → 体验版 → 扫码" >> "$GITHUB_STEP_SUMMARY"
