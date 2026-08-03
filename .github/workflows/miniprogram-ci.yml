@@ -1,0 +1,91 @@
+name: 微信小程序 CI
+
+on:
+  push:
+    branches:
+      - main
+      - "cursor/**"
+    paths:
+      - "job-agent-miniprogram/**"
+      - ".github/workflows/miniprogram-ci.yml"
+  pull_request:
+    paths:
+      - "job-agent-miniprogram/**"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preview 或 upload"
+        required: false
+        default: preview
+        type: choice
+        options:
+          - preview
+          - upload
+
+concurrency:
+  group: miniprogram-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: 预览并生成二维码
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.mode == 'preview'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 生成预览二维码
+        id: ci_preview
+        uses: seepine/action-miniprogram-ci@v1
+        with:
+          mode: preview
+          project-path: ./job-agent-miniprogram
+          private-key: ${{ secrets.WECHAT_UPLOAD_KEY }}
+          version: ${{ github.run_number }}.${{ github.run_attempt }}
+          desc: "${{ github.event.head_commit.message || '手动预览' }} (${{ github.sha }})"
+          qrcode-format: image
+          qrcode-output-dest: ./preview-qrcode.png
+          output: |
+            ✅ 小程序预览已生成
+            版本: ${{ github.run_number }}.${{ github.run_attempt }}
+            提交: ${{ github.sha }}
+
+      - name: 上传二维码（下载后微信扫码）
+        uses: actions/upload-artifact@v4
+        with:
+          name: miniprogram-preview-qrcode
+          path: preview-qrcode.png
+          retention-days: 7
+
+      - name: 预览说明
+        run: |
+          echo "## 如何扫码体验" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. 在本 Workflow 页面右侧 **Artifacts** 下载 \`miniprogram-preview-qrcode\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "2. 用微信扫描 png 二维码即可打开预览（无需本机安装开发者工具）" >> "$GITHUB_STEP_SUMMARY"
+          echo "3. 需先在 GitHub Secrets 配置 \`WECHAT_UPLOAD_KEY\`，并在小程序后台开启代码上传密钥" >> "$GITHUB_STEP_SUMMARY"
+
+  upload:
+    name: 上传体验版
+    runs-on: ubuntu-latest
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'upload')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 上传到微信后台（体验版）
+        uses: seepine/action-miniprogram-ci@v1
+        with:
+          mode: upload
+          project-path: ./job-agent-miniprogram
+          private-key: ${{ secrets.WECHAT_UPLOAD_KEY }}
+          version: 1.0.${{ github.run_number }}
+          desc: "${{ github.event.head_commit.message || 'CI 上传' }}"
+
+      - name: 体验版说明
+        run: |
+          echo "## 体验版已更新" >> "$GITHUB_STEP_SUMMARY"
+          echo "登录 [微信公众平台](https://mp.weixin.qq.com/) → 版本管理 → 体验版 → 扫码体验" >> "$GITHUB_STEP_SUMMARY"
+          echo "体验版比预览码更稳定，适合反复测试同一版本" >> "$GITHUB_STEP_SUMMARY"

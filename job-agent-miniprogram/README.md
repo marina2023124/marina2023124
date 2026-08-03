@@ -2,6 +2,62 @@
 
 原生微信小程序 MVP，对接 JobAgent 后端 API。
 
+## 推荐：云端 CI 上传，手机扫码体验（工作电脑不留痕）
+
+无需在本机安装微信开发者工具。代码 push 到 GitHub 后，Actions 自动编译并生成预览二维码。
+
+### 一次性配置（约 10 分钟）
+
+#### 1. 填写 AppID
+
+编辑 `project.config.json`，把 `appid` 改成你的小程序 AppID：
+
+```json
+"appid": "wx你的AppID"
+```
+
+提交并 push 到 GitHub。
+
+#### 2. 下载「代码上传密钥」
+
+1. 登录 [微信公众平台](https://mp.weixin.qq.com/)
+2. **开发 → 开发管理 → 开发设置 → 小程序代码上传**
+3. 点击 **生成** 或 **重置**，下载 `.key` 文件（只显示一次，妥善保存）
+
+#### 3. 配置 GitHub Secrets
+
+打开 GitHub 仓库 → **Settings → Secrets and variables → Actions → New repository secret**：
+
+| Secret 名称 | 内容 |
+|-------------|------|
+| `WECHAT_UPLOAD_KEY` | 打开 `.key` 文件，**全文复制**（含 `-----BEGIN RSA PRIVATE KEY-----` 行） |
+
+#### 4. 配置服务器域名（正式发布前）
+
+小程序后台 → **开发设置 → 服务器域名 → request 合法域名**：
+
+```
+https://marina2023124.vercel.app
+```
+
+开发阶段若 CI 预览报域名错误，需先在后台添加域名；预览版有时可跳过，以实际为准。
+
+### 日常使用（零本机留痕）
+
+```
+1. 在 Cursor Cloud / GitHub 改 job-agent-miniprogram/ 代码
+2. git push
+3. 打开 GitHub → Actions →「微信小程序 CI」→ 最新一条
+4. 右侧 Artifacts → 下载 miniprogram-preview-qrcode
+5. 手机微信扫 png 二维码 → 打开预览
+```
+
+**推送到 main 分支**时，还会自动上传**体验版**，可在小程序后台 → **版本管理 → 体验版** 扫码（比每次下 Artifacts 更方便）。
+
+手动触发：Actions → 微信小程序 CI → **Run workflow**。
+
+---
+
 ## 功能（MVP）
 
 - 微信一键登录（openid）
@@ -37,18 +93,9 @@
 -- 见 ../job-agent/supabase/wechat-schema.sql
 ```
 
-### 3. 用微信开发者工具打开
+### 3. 本地开发（可选）
 
-1. 下载 [微信开发者工具](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)
-2. 导入本项目目录 `job-agent-miniprogram/`
-3. 填入你的 AppID（测试可用测试号）
-4. 详情 → 本地设置 → 勾选「不校验合法域名」（仅开发阶段）
-5. 修改 `utils/api.js` 中的 `API_BASE` 为你的后端地址
-
-### 4. 预览与发布
-
-- 开发者工具 → 预览 → 手机扫码体验
-- 确认无误后 → 上传 → 在微信公众平台提交审核
+若需在本机调试，才需要微信开发者工具：
 
 ## 目录结构
 
