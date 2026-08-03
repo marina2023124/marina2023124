@@ -3,7 +3,13 @@
   "private": true,
   "description": "JobAgent WeChat mini program (runtime only)",
   "devDependencies": {
-    "less": "3.13.1",
+    "less": "4.5.1",
     "miniprogram-ci": "1.9.17"
+  },
+  "overrides": {
+    "miniprogram-ci": {
+      "less": "4.5.1"
+    },
+    "less": "4.5.1"
   }
 }
