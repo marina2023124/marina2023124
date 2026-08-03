@@ -1,5 +1,6 @@
 const api = require("../../utils/api");
 const storage = require("../../utils/storage");
+const clipboardImport = require("../../utils/clipboard-import");
 
 function draftToJob(draft, rawText) {
   return {
@@ -16,14 +17,43 @@ function draftToJob(draft, rawText) {
   };
 }
 
+function fingerprint(text) {
+  return String(text || "").slice(0, 120);
+}
+
 Page({
   data: {
-    mode: "text",
+    mode: "wechat",
     text: "",
     importUrl: "",
     parsing: false,
     preview: null,
     requirementsText: "",
+  },
+
+  onLoad(options) {
+    if (options.url) {
+      this.setData({ mode: "url", importUrl: decodeURIComponent(options.url) });
+      return;
+    }
+    if (options.text) {
+      this.setData({ mode: "text", text: decodeURIComponent(options.text) });
+      return;
+    }
+
+    const pending = getApp().globalData.pendingImport;
+    if (pending) {
+      getApp().globalData.pendingImport = null;
+      if (pending.url) {
+        this.setData({ mode: "url", importUrl: pending.url });
+      } else if (pending.text) {
+        this.setData({ mode: "text", text: pending.text });
+      }
+    }
+  },
+
+  onShow() {
+    this.tryClipboardImport(false);
   },
 
   setMode(e) {
@@ -49,25 +79,76 @@ Page({
   },
 
   pasteFromClipboard() {
-    wx.getClipboardData({
-      success: (res) => {
-        if (res.data) {
-          this.setData({ text: res.data });
-          wx.showToast({ title: "已粘贴", icon: "success" });
-        }
-      },
-    });
+    clipboardImport
+      .getClipboardData()
+      .then((data) => {
+        if (!data) return;
+        this.applyClipboardPayload(data, true);
+      })
+      .catch(() => {
+        wx.showToast({ title: "读取剪贴板失败", icon: "none" });
+      });
   },
 
-  pasteUrl() {
-    wx.getClipboardData({
-      success: (res) => {
-        if (res.data) {
-          this.setData({ importUrl: res.data.trim() });
-          wx.showToast({ title: "已粘贴链接", icon: "success" });
+  detectClipboard() {
+    this.tryClipboardImport(true);
+  },
+
+  tryClipboardImport(force) {
+    if (this.data.preview || this.data.parsing) return;
+
+    clipboardImport
+      .getClipboardData()
+      .then((data) => {
+        const detected = clipboardImport.detectClipboardImport(data);
+        if (!detected) {
+          if (force) wx.showToast({ title: "未检测到岗位链接或 JD", icon: "none" });
+          return;
         }
-      },
-    });
+
+        const key = fingerprint(detected.value);
+        const lastKey = wx.getStorageSync("last-clipboard-import") || "";
+        if (!force && key === lastKey) return;
+
+        wx.showModal({
+          title: `检测到${detected.label}`,
+          content: force
+            ? "是否立即导入？"
+            : "是否导入刚复制的内容？（BOSS 分享链接到微信后，长按复制链接即可）",
+          confirmText: "导入",
+          success: (res) => {
+            if (!res.confirm) return;
+            wx.setStorageSync("last-clipboard-import", key);
+            this.applyDetectedImport(detected);
+          },
+        });
+      })
+      .catch(() => {
+        if (force) wx.showToast({ title: "读取剪贴板失败", icon: "none" });
+      });
+  },
+
+  applyClipboardPayload(data, autoImport) {
+    const detected = clipboardImport.detectClipboardImport(data);
+    if (!detected) {
+      this.setData({ text: data, mode: "text" });
+      wx.showToast({ title: "已粘贴", icon: "success" });
+      if (autoImport && clipboardImport.looksLikeJobText(data)) {
+        this.parseText();
+      }
+      return;
+    }
+    this.applyDetectedImport(detected);
+  },
+
+  applyDetectedImport(detected) {
+    if (detected.type === "url") {
+      this.setData({ mode: "url", importUrl: detected.value });
+      this.importUrl();
+      return;
+    }
+    this.setData({ mode: "text", text: detected.value });
+    this.parseText();
   },
 
   parseText() {
@@ -142,7 +223,7 @@ Page({
       createdAt: new Date().toISOString(),
     });
     app.updateData(data);
-    wx.showToast({ title: "添加成功", icon: "success" });
+    wx.showToast({ title: "收藏成功", icon: "success" });
     setTimeout(() => wx.navigateBack(), 500);
   },
 });

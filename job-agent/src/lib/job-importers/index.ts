@@ -4,6 +4,7 @@ import { detectJobSourceFromUrl, getJobSourceLabel } from "../job-source";
 import { parseJobDescription } from "../jd-parser";
 import { importLiepinJob, parseLiepinJobId } from "./liepin";
 import { importXiaohongshuJob, parseXiaohongshuPositionId } from "./xiaohongshu";
+import { importBossJob, parseBossJobUrl } from "./boss";
 
 export interface ImportedJobDraft extends ParsedJobDraft {
   source: JobSource;
@@ -65,7 +66,10 @@ export async function importJobFromUrl(url: string): Promise<ImportedJobDraft> {
     }
     draft = await importLiepinJob(trimmed, jobId);
   } else if (source === "boss") {
-    throw new Error("BOSS 岗位请使用书签导入（可获取明文薪资），或复制 JD 文字粘贴");
+    if (!parseBossJobUrl(trimmed)) {
+      throw new Error("无法识别 BOSS 岗位链接，请使用 zhipin.com/job_detail/xxx.html 格式");
+    }
+    draft = await importBossJob(trimmed);
   } else {
     draft = await importGenericUrl(trimmed);
   }

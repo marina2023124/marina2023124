@@ -1,8 +1,8 @@
 <view class="page">
   <view class="card">
     <view class="card-title">岗位列表</view>
-    <view class="muted">粘贴 JD 或导入猎聘/小红书链接，智能解析岗位</view>
-    <button class="btn-primary add-btn" bindtap="addJob">+ 智能添加岗位</button>
+    <view class="muted">粘贴 JD、从微信复制 BOSS 链接，或导入猎聘/小红书链接</view>
+    <button class="btn-primary add-btn" bindtap="addJob">+ 智能添加 / 收藏岗位</button>
   </view>
 
   <view wx:if="{{jobs.length === 0}}" class="empty card">还没有岗位，点击上方添加</view>

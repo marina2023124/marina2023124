@@ -8,10 +8,28 @@ App({
     syncing: false,
     linked: false,
     loginError: null,
+    pendingImport: null,
   },
 
-  onLaunch() {
+  onLaunch(options) {
+    this.captureImportQuery(options);
     this._readyPromise = this.bootstrap(false);
+  },
+
+  onShow(options) {
+    this.captureImportQuery(options);
+  },
+
+  captureImportQuery(options) {
+    const query = (options && options.query) || {};
+    if (!query.url && !query.text) return;
+    if (this._importHandled) return;
+    this._importHandled = true;
+    this.globalData.pendingImport = {
+      url: query.url ? decodeURIComponent(query.url) : "",
+      text: query.text ? decodeURIComponent(query.text) : "",
+    };
+    wx.navigateTo({ url: "/pages/job-add/job-add" });
   },
 
   whenReady() {

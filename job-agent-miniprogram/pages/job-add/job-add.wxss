@@ -28,6 +28,27 @@
   margin: 24rpx 0;
 }
 
+.guide-step {
+  margin-bottom: 16rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.highlight {
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.tip {
+  margin: 16rpx 0 24rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.detect-btn {
+  margin-bottom: 16rpx;
+}
+
 .jd-textarea {
   width: 100%;
   min-height: 400rpx;
