@@ -8,4 +8,5 @@ create table if not exists public.wechat_user_data (
 alter table public.wechat_user_data enable row level security;
 
 -- 禁止 anon/authenticated 直接访问，仅服务端 Service Role 使用
+grant all on public.wechat_user_data to service_role;
 revoke all on public.wechat_user_data from anon, authenticated;

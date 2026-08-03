@@ -19,6 +19,7 @@
    - [`supabase/schema.sql`](supabase/schema.sql) — 网页用户数据
    - [`supabase/wechat-schema.sql`](supabase/wechat-schema.sql) — 小程序数据（未绑定时）
    - [`supabase/wechat-link-schema.sql`](supabase/wechat-link-schema.sql) — 网页↔微信账号绑定
+   - 若小程序报 `permission denied for table wechat_user_data`，再执行 [`supabase/wechat-schema-fix.sql`](supabase/wechat-schema-fix.sql)
 3. 在 **Project Settings → API** 复制 `Project URL` 和 `anon public` key
 
 ### 2. 配置环境变量
