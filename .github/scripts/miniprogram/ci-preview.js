@@ -13,7 +13,8 @@ async function main() {
   const keyPath = path.join(repoRoot, "private.key");
   fs.writeFileSync(keyPath, privateKey, { mode: 0o600 });
 
-  const ci = require("miniprogram-ci");
+  const ciRoot = path.join(miniprogramRoot, "node_modules", "miniprogram-ci");
+  const ci = require(ciRoot);
   const config = JSON.parse(
     fs.readFileSync(path.join(miniprogramRoot, "project.config.json"), "utf8")
   );

@@ -8,6 +8,7 @@ on:
     paths:
       - "job-agent-miniprogram/**"
       - ".github/workflows/miniprogram-ci.yml"
+      - ".github/scripts/miniprogram/**"
   pull_request:
     paths:
       - "job-agent-miniprogram/**"
