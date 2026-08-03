@@ -57,7 +57,7 @@ Page({
       .catch((err) => {
         wx.showToast({ title: err.message || "解析失败", icon: "none" });
       })
-      .finally(() => {
+      .then(() => {
         this.setData({ parsing: false });
       });
   },
