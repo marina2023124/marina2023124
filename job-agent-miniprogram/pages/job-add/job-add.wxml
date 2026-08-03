@@ -1,67 +1,60 @@
 <view class="page">
   <view wx:if="{{!preview}}">
     <view class="tabs card">
-      <view class="tab {{mode === 'wechat' ? 'active' : ''}}" data-mode="wechat" bindtap="setMode">BOSS 卡片</view>
+      <view class="tab {{mode === 'wechat' ? 'active' : ''}}" data-mode="wechat" bindtap="setMode">BOSS 收藏</view>
       <view class="tab {{mode === 'text' ? 'active' : ''}}" data-mode="text" bindtap="setMode">粘贴文字</view>
       <view class="tab {{mode === 'url' ? 'active' : ''}}" data-mode="url" bindtap="setMode">链接导入</view>
     </view>
 
     <view wx:if="{{mode === 'wechat'}}" class="card">
-      <view class="card-title">BOSS 转发到微信是「小程序卡片」</view>
-      <view class="muted">没有可复制链接，只能点开 BOSS 卡片进入详情页操作</view>
+      <view class="card-title">BOSS 详情无法复制？</view>
+      <view class="muted">这是 BOSS 的反爬限制，用手机只能截图或手动录入卡片上的信息</view>
 
-      <view class="method-title">方法一：复制 JD 文字（推荐）</view>
-      <view class="guide-step">1. 在微信里<text class="highlight">点击 BOSS 卡片</text>，进入岗位详情</view>
-      <view class="guide-step">2. 在 BOSS 详情页长按 JD → 全选 → 复制</view>
-      <view class="guide-step">3. 回到本页，点「检测剪贴板并导入」</view>
-
-      <view class="method-title">方法二：截图识别</view>
-      <view class="guide-step">1. 对 BOSS 详情页或微信里的卡片截图</view>
-      <view class="guide-step">2. 点击下方按钮，从相册选择截图</view>
-
-      <view class="muted tip">微信不允许把 BOSS 卡片直接转进 JobAgent，也无法读取聊天记录里的卡片内容。</view>
-      <button class="btn-primary detect-btn" bindtap="detectClipboard">检测剪贴板并导入</button>
-      <button class="btn-secondary detect-btn" bindtap="chooseScreenshot" loading="{{parsing}}" disabled="{{parsing}}">
+      <view class="method-title">方法一：截图识别（推荐）</view>
+      <view class="guide-step">1. 在微信聊天里对 <text class="highlight">BOSS 卡片</text> 截图（卡片上已有公司、岗位、部分 JD）</view>
+      <view class="guide-step">2. 或进入 BOSS 详情页，<text class="highlight">分段截图</text>（向下滑动再截，信息更全）</view>
+      <view class="guide-step">3. 点击下方按钮，从相册选截图 → DeepSeek 识图解析</view>
+      <button class="btn-primary detect-btn" bindtap="chooseScreenshot" loading="{{parsing}}" disabled="{{parsing}}">
         从相册选截图识别
       </button>
+
+      <view class="method-title">方法二：快速录入（看卡片就能填）</view>
+      <view class="guide-step">微信卡片标题通常是「公司 · 岗位」，对照卡片填写即可收藏</view>
+      <view class="field">
+        <text class="label">卡片标题（如：嘀嘀无限科技 · 用户研究）</text>
+        <input class="field-input" placeholder="公司 · 岗位" value="{{quickLine}}" bindinput="onQuickLineInput" />
+      </view>
+      <view class="field">
+        <text class="label">薪资（选填）</text>
+        <input class="field-input" placeholder="如 15-25K" value="{{quickSalary}}" bindinput="onQuickSalaryInput" />
+      </view>
+      <view class="field">
+        <text class="label">备注 / 卡片上的 JD 摘要（选填）</text>
+        <textarea class="req-textarea short" placeholder="把卡片上能看到的职责、要求手动打几行..." value="{{quickNotes}}" bindinput="onQuickNotesInput" maxlength="-1" />
+      </view>
+      <button class="btn-secondary detect-btn" bindtap="saveQuick">快速收藏</button>
     </view>
 
     <view wx:if="{{mode === 'text'}}" class="card">
       <view class="card-title">粘贴岗位 JD</view>
-      <view class="muted">从 BOSS 详情页复制的文字，或猎聘/小红书 JD</view>
+      <view class="muted">猎聘、小红书等可复制文字的平台</view>
       <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴</button>
-      <textarea
-        class="jd-textarea"
-        placeholder="在此粘贴完整 JD 文字..."
-        value="{{text}}"
-        bindinput="onTextInput"
-        maxlength="-1"
-      />
-      <button class="btn-primary" bindtap="parseText" loading="{{parsing}}" disabled="{{parsing}}">
-        智能解析
-      </button>
+      <textarea class="jd-textarea" placeholder="在此粘贴完整 JD 文字..." value="{{text}}" bindinput="onTextInput" maxlength="-1" />
+      <button class="btn-primary" bindtap="parseText" loading="{{parsing}}" disabled="{{parsing}}">智能解析</button>
     </view>
 
     <view wx:if="{{mode === 'url'}}" class="card">
       <view class="card-title">链接导入</view>
-      <view class="muted">适用于猎聘、小红书等网页链接（BOSS 微信卡片无链接）</view>
+      <view class="muted">猎聘、小红书网页链接（BOSS 微信卡片无链接）</view>
       <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴链接</button>
-      <input
-        class="url-input"
-        placeholder="https://..."
-        value="{{importUrl}}"
-        bindinput="onUrlInput"
-      />
-      <button class="btn-primary" bindtap="importUrl" loading="{{parsing}}" disabled="{{parsing}}">
-        导入并解析
-      </button>
+      <input class="url-input" placeholder="https://..." value="{{importUrl}}" bindinput="onUrlInput" />
+      <button class="btn-primary" bindtap="importUrl" loading="{{parsing}}" disabled="{{parsing}}">导入并解析</button>
     </view>
   </view>
 
   <view wx:if="{{preview}}" class="card">
     <view class="card-title">预览并收藏</view>
-    <view class="muted">检查解析结果，可手动修改后保存到岗位列表</view>
-
+    <view class="muted">检查解析结果，可手动修改后保存</view>
     <view class="field">
       <text class="label">岗位名称</text>
       <input class="field-input" value="{{preview.title}}" data-field="title" bindinput="onPreviewInput" />
@@ -80,14 +73,8 @@
     </view>
     <view class="field">
       <text class="label">岗位要求（每行一条）</text>
-      <textarea
-        class="req-textarea"
-        value="{{requirementsText}}"
-        bindinput="onRequirementsInput"
-        maxlength="-1"
-      />
+      <textarea class="req-textarea" value="{{requirementsText}}" bindinput="onRequirementsInput" maxlength="-1" />
     </view>
-
     <view class="btn-row">
       <button class="btn-secondary half" bindtap="backToEdit">返回修改</button>
       <button class="btn-primary half" bindtap="saveJob">确认收藏</button>
