@@ -1,13 +1,14 @@
 <view class="page">
   <view class="card hero-card">
     <view class="card-title">智能匹配结果</view>
-    <view class="muted">基于你的技能与经历，分析各岗位匹配度</view>
+    <view class="muted">规则匹配 + DeepSeek 深度分析</view>
+    <button wx:if="{{llmReady}}" class="agent-link" size="mini" bindtap="goAgent">AI 职业顾问</button>
   </view>
 
   <view wx:if="{{loading}}" class="empty">正在计算匹配度...</view>
 
   <view wx:elif="{{matches.length === 0}}" class="empty card">
-    请先在「岗位」页添加 JD，并在「经历」页完善资料
+    请先在「岗位」页智能添加 JD，并在「经历」页完善资料
   </view>
 
   <view wx:for="{{matches}}" wx:key="jobId" class="card match-card">
@@ -27,5 +28,37 @@
       <text>{{item.missingPreview}}</text>
     </view>
     <view class="recommend">{{item.recommendation}}</view>
+    <button
+      wx:if="{{llmReady}}"
+      class="ai-btn"
+      size="mini"
+      data-id="{{item.jobId}}"
+      bindtap="runAiAnalysis"
+      loading="{{aiAnalyzing === item.jobId}}"
+      disabled="{{aiAnalyzing}}"
+    >DeepSeek 深度分析</button>
+  </view>
+</view>
+
+<view wx:if="{{showAiModal}}" class="modal-mask" bindtap="closeAiModal">
+  <view class="modal-card" catchtap="">
+    <view wx:if="{{!aiResult}}" class="modal-loading">DeepSeek 分析中，请稍候...</view>
+    <view wx:else>
+      <view class="modal-title">{{aiResult.title}}</view>
+      <view class="muted">{{aiResult.company}} · 规则分 {{aiResult.score}}</view>
+      <view class="modal-section">
+        <text class="section-label">AI 评估</text>
+        <text>{{aiResult.summary}}</text>
+      </view>
+      <view class="modal-section" wx:if="{{aiResult.advice}}">
+        <text class="section-label">简历建议</text>
+        <text>{{aiResult.advice}}</text>
+      </view>
+      <view class="modal-section" wx:if="{{aiResult.mappings.length}}">
+        <text class="section-label">逐条匹配</text>
+        <view wx:for="{{aiResult.mappings}}" wx:key="*this" class="mapping-line">{{item}}</view>
+      </view>
+      <button class="btn-primary modal-close" bindtap="closeAiModal">关闭</button>
+    </view>
   </view>
 </view>

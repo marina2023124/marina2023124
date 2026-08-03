@@ -68,4 +68,8 @@ Page({
   goBind() {
     wx.navigateTo({ url: "/pages/bind/bind" });
   },
+
+  goAgent() {
+    wx.navigateTo({ url: "/pages/agent/agent" });
+  },
 });

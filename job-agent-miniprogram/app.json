@@ -5,6 +5,7 @@
     "pages/jobs/jobs",
     "pages/match/match",
     "pages/job-add/job-add",
+    "pages/agent/agent",
     "pages/bind/bind"
   ],
   "window": {

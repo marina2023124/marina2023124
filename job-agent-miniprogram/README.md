@@ -70,8 +70,9 @@ https://marina2023124.vercel.app
 - 微信一键登录（openid）
 - 首页：档案完整度、最佳匹配
 - 经历：基本信息、技能、工作经历
-- 岗位：粘贴 JD 自动解析
-- 匹配：规则引擎匹配度分析
+- **智能添加岗位**：粘贴 JD 或导入猎聘/小红书链接，预览后保存
+- 匹配：规则引擎 + **DeepSeek 深度分析**
+- **AI 职业顾问**：DeepSeek 对话（`/pages/agent`）
 - 数据云端同步（Supabase `wechat_user_data` 表）
 
 ## 开发步骤
@@ -93,6 +94,7 @@ https://marina2023124.vercel.app
 | `WECHAT_SECRET` | 小程序 AppSecret |
 | `WECHAT_JWT_SECRET` | 任意随机字符串（用于签发登录 token） |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key（服务端读写） |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key（AI 顾问与深度匹配） |
 
 并在 Supabase SQL Editor 执行：
 
@@ -124,8 +126,8 @@ job-agent-miniprogram/
 
 ## 后续可扩展
 
-- [ ] AI 职业顾问（对接 `/api/llm/chat`）
-- [ ] 猎聘/小红书链接导入（对接 `/api/jobs/import-url`）
+- [x] AI 职业顾问（对接 `/api/llm/chat`）
+- [x] 猎聘/小红书链接导入（对接 `/api/jobs/import-url`）
 - [ ] 简历图片 OCR
 - [ ] 分享卡片、订阅消息
 

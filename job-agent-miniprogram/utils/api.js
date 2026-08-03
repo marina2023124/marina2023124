@@ -1,10 +1,12 @@
 // 部署后改成你的线上地址；开发阶段可在微信开发者工具勾选「不校验合法域名」
 const API_BASE = "https://marina2023124.vercel.app";
 const REQUEST_TIMEOUT_MS = 20000;
+const LLM_TIMEOUT_MS = 60000;
 
 function parseErrorBody(data, statusCode) {
-  if (data && typeof data === "object" && data.error) {
-    return String(data.error);
+  if (data && typeof data === "object") {
+    if (data.error) return String(data.error);
+    if (data.ok === false && data.error) return String(data.error);
   }
   if (statusCode === 404) {
     return "后端 API 未部署（404）。请在 Vercel 将最新 main 部署 Promote 到 Production";
@@ -24,13 +26,15 @@ function request(path, options = {}) {
     }
   }
 
+  const timeout = options.timeout || REQUEST_TIMEOUT_MS;
+
   return new Promise((resolve, reject) => {
     wx.request({
       url: `${API_BASE}${path}`,
       method: options.method || "GET",
       data: options.data,
       header,
-      timeout: REQUEST_TIMEOUT_MS,
+      timeout,
       success(res) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data);
@@ -116,6 +120,30 @@ function parseJobText(text) {
   return request("/api/jobs/parse-text", { method: "POST", data: { text } });
 }
 
+function importJobUrl(url) {
+  return request("/api/jobs/import-url", { method: "POST", data: { url }, timeout: 30000 });
+}
+
+function getLlmStatus() {
+  return request("/api/llm/status");
+}
+
+function llmChat(data, message) {
+  return request("/api/llm/chat", {
+    method: "POST",
+    data: { data, message },
+    timeout: LLM_TIMEOUT_MS,
+  });
+}
+
+function llmMatch(profile, job) {
+  return request("/api/llm/match", {
+    method: "POST",
+    data: { profile, job },
+    timeout: LLM_TIMEOUT_MS,
+  });
+}
+
 function matchJobs(profile, jobs) {
   return request("/api/match", { method: "POST", data: { profile, jobs } });
 }
@@ -130,5 +158,9 @@ module.exports = {
   getLinkStatus,
   bindAccount,
   parseJobText,
+  importJobUrl,
+  getLlmStatus,
+  llmChat,
+  llmMatch,
   matchJobs,
 };

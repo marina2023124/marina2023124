@@ -1,17 +1,75 @@
 <view class="page">
-  <view class="card">
-    <view class="card-title">粘贴岗位 JD</view>
-    <view class="muted">从猎聘、小红书或招聘页复制文字，自动识别公司、岗位、要求</view>
-    <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴</button>
-    <textarea
-      class="jd-textarea"
-      placeholder="在此粘贴完整 JD 文字..."
-      value="{{text}}"
-      bindinput="onTextInput"
-      maxlength="-1"
-    />
-    <button class="btn-primary" bindtap="submit" loading="{{parsing}}" disabled="{{parsing}}">
-      解析并保存
-    </button>
+  <view wx:if="{{!preview}}">
+    <view class="tabs card">
+      <view class="tab {{mode === 'text' ? 'active' : ''}}" data-mode="text" bindtap="setMode">粘贴文字</view>
+      <view class="tab {{mode === 'url' ? 'active' : ''}}" data-mode="url" bindtap="setMode">链接导入</view>
+    </view>
+
+    <view wx:if="{{mode === 'text'}}" class="card">
+      <view class="card-title">粘贴岗位 JD</view>
+      <view class="muted">支持 BOSS、猎聘、小红书等招聘页复制的文字，自动识别公司、岗位、要求</view>
+      <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴</button>
+      <textarea
+        class="jd-textarea"
+        placeholder="在此粘贴完整 JD 文字..."
+        value="{{text}}"
+        bindinput="onTextInput"
+        maxlength="-1"
+      />
+      <button class="btn-primary" bindtap="parseText" loading="{{parsing}}" disabled="{{parsing}}">
+        智能解析
+      </button>
+    </view>
+
+    <view wx:if="{{mode === 'url'}}" class="card">
+      <view class="card-title">链接导入</view>
+      <view class="muted">支持猎聘、小红书等链接；BOSS 直聘请复制文字粘贴</view>
+      <button class="btn-secondary paste-btn" bindtap="pasteUrl">从剪贴板粘贴链接</button>
+      <input
+        class="url-input"
+        placeholder="https://..."
+        value="{{importUrl}}"
+        bindinput="onUrlInput"
+      />
+      <button class="btn-primary" bindtap="importUrl" loading="{{parsing}}" disabled="{{parsing}}">
+        导入并解析
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{preview}}" class="card">
+    <view class="card-title">预览并确认</view>
+    <view class="muted">检查解析结果，可手动修改后保存</view>
+
+    <view class="field">
+      <text class="label">岗位名称</text>
+      <input class="field-input" value="{{preview.title}}" data-field="title" bindinput="onPreviewInput" />
+    </view>
+    <view class="field">
+      <text class="label">公司</text>
+      <input class="field-input" value="{{preview.company}}" data-field="company" bindinput="onPreviewInput" />
+    </view>
+    <view class="field">
+      <text class="label">地点</text>
+      <input class="field-input" value="{{preview.location}}" data-field="location" bindinput="onPreviewInput" />
+    </view>
+    <view class="field">
+      <text class="label">薪资</text>
+      <input class="field-input" value="{{preview.salary}}" data-field="salary" bindinput="onPreviewInput" />
+    </view>
+    <view class="field">
+      <text class="label">岗位要求（每行一条）</text>
+      <textarea
+        class="req-textarea"
+        value="{{requirementsText}}"
+        bindinput="onRequirementsInput"
+        maxlength="-1"
+      />
+    </view>
+
+    <view class="btn-row">
+      <button class="btn-secondary half" bindtap="backToEdit">返回修改</button>
+      <button class="btn-primary half" bindtap="saveJob">确认保存</button>
+    </view>
   </view>
 </view>
