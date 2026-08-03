@@ -1,6 +1,7 @@
 import type { JobPosting } from "./types";
 import type { ParsedJobDraft } from "./jd-parser";
 import { assembleJobDescription } from "./job-sections";
+import { getJobSourceLabel, resolveJobSource } from "./job-source";
 
 const UNKNOWN_TITLE = "未知岗位";
 const UNKNOWN_COMPANY = "未知公司";
@@ -24,6 +25,11 @@ export function jobToEditableText(job: JobPosting): string {
   if (job.experienceYears != null && job.experienceYears >= 0) {
     lines.push(`经验：${job.experienceYears}年`);
   }
+  if (job.platformExperienceLabel) {
+    lines.push(`平台标签：${job.platformExperienceLabel}`);
+  }
+  if (job.industry) lines.push(`行业：${job.industry}`);
+  if (job.source) lines.push(`渠道：${getJobSourceLabel(job.source)}`);
   if (job.company && !isUnknownCompany(job.company)) lines.push(`公司：${job.company}`);
   if (job.workAddress) lines.push(`工作地址：${job.workAddress}`);
 
@@ -53,6 +59,10 @@ export function mergeParsedJob(
     workAddress: parsed.workAddress ?? base?.workAddress,
     salary: parsed.salary ?? base?.salary,
     experienceYears: parsed.experienceYears ?? base?.experienceYears,
+    platformExperienceLabel: parsed.platformExperienceLabel ?? base?.platformExperienceLabel,
+    industry: parsed.industry ?? base?.industry,
+    source: parsed.source ?? base?.source ?? resolveJobSource({ url: parsed.url ?? base?.url }),
+    interestRating: base?.interestRating,
     url: parsed.url ?? base?.url,
     jobIntro: parsed.jobIntro ?? base?.jobIntro,
     responsibilities:

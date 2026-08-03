@@ -1,5 +1,7 @@
 import { extractSkillsFromJobDescription } from "./matching";
 import { extractJobSections, sectionsToDescription } from "./jd-sections";
+import { inferJobIndustry } from "./job-list";
+import { detectJobSourceFromText, detectJobSourceFromUrl, extractSourceUrl, type JobSource } from "./job-source";
 
 export interface ParsedJobDraft {
   title: string;
@@ -8,6 +10,9 @@ export interface ParsedJobDraft {
   workAddress?: string;
   salary?: string;
   experienceYears?: number;
+  platformExperienceLabel?: string;
+  industry?: string;
+  source?: JobSource;
   url?: string;
   jobIntro?: string;
   responsibilities?: string[];
@@ -141,7 +146,15 @@ function parseExperienceText(text: string): number | undefined {
 function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
   const result: Partial<ParsedJobDraft> = {};
   for (const line of text.split("\n").map((l) => l.trim())) {
-    const m = line.match(/^(岗位|薪资|地点|经验|学历|公司|工作地址)[：:]\s*(.+)$/);
+    const sourceLine = line.match(/^来源[：:]\s*(.+)$/);
+    if (sourceLine?.[1]) {
+      const val = sourceLine[1].trim();
+      if (/^https?:\/\//i.test(val)) result.url = val;
+      result.source = detectJobSourceFromUrl(val);
+      continue;
+    }
+
+    const m = line.match(/^(岗位|薪资|地点|经验|平台标签|学历|公司|工作地址|行业|渠道)[：:]\s*(.+)$/);
     if (!m) continue;
     const val = m[2].trim();
     switch (m[1]) {
@@ -160,8 +173,17 @@ function parseStructuredBossFields(text: string): Partial<ParsedJobDraft> {
       case "经验":
         result.experienceYears = parseExperienceText(val);
         break;
+      case "平台标签":
+        result.platformExperienceLabel = val;
+        break;
       case "公司":
         result.company = val;
+        break;
+      case "行业":
+        result.industry = val;
+        break;
+      case "渠道":
+        result.source = detectJobSourceFromText(`来源：${val}`) || result.source;
         break;
     }
   }
@@ -484,6 +506,7 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
 
   const isBoss = isBossZhipinContent(text);
   const bossPartial = isBoss ? parseBossFormat(text) : null;
+  const structuredFields = parseStructuredBossFields(text);
   const cleanText = isBoss ? sanitizeBossContent(text) : text;
 
   const title =
@@ -496,7 +519,8 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     extractWorkAddress(cleanText) ||
     (bossPartial?.location && bossPartial.location.length > 20 ? bossPartial.location : undefined);
   const salary = bossPartial?.salary || extractSalary(cleanText);
-  const experienceYears = bossPartial?.experienceYears ?? extractExperienceYears(cleanText);
+  const experienceYears = bossPartial?.experienceYears ?? structuredFields.experienceYears ?? extractExperienceYears(cleanText);
+  const platformExperienceLabel = bossPartial?.platformExperienceLabel ?? structuredFields.platformExperienceLabel;
   const url = bossPartial?.url || extractUrl(text);
   const sections = extractJobSections(cleanText);
   const jobIntro = bossPartial?.jobIntro || sections.jobIntro || undefined;
@@ -511,6 +535,20 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     sectionsToDescription(sections) ||
     cleanText;
   const preferredSkills = extractSkillsFromJobDescription(description);
+  const industry =
+    bossPartial?.industry ||
+    inferJobIndustry({
+      company,
+      title,
+      description,
+      jobIntro,
+      requirements,
+      responsibilities,
+    });
+  const source =
+    bossPartial?.source ||
+    detectJobSourceFromText(text) ||
+    detectJobSourceFromUrl(url || extractSourceUrl(text));
 
   return {
     title,
@@ -519,6 +557,9 @@ export function parseJobDescription(rawText: string): ParsedJobDraft {
     workAddress,
     salary,
     experienceYears,
+    platformExperienceLabel,
+    industry,
+    source: source || undefined,
     url,
     jobIntro,
     responsibilities,

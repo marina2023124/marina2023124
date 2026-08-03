@@ -6,6 +6,7 @@ import { Card, ScoreRing, Badge, EmptyState } from "./ui";
 import { Target } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui";
+import { LlmMatchPanel } from "./LlmMatchPanel";
 
 export function MatchView() {
   const { data } = useApp();
@@ -46,8 +47,19 @@ export function MatchView() {
       <div className="rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
         <h2 className="text-xl font-bold">智能匹配结果</h2>
         <p className="mt-1 text-indigo-100">
-          基于你的 {data.profile.skills.length} 项技能和 {data.profile.workExperiences.length} 段工作经历，
-          分析了 {data.jobs.length} 个岗位的匹配度
+          基于你的{" "}
+          <Link href="/experience" className="underline underline-offset-2 hover:text-white">
+            {data.profile.skills.length} 项技能
+          </Link>{" "}
+          和{" "}
+          <Link href="/experience" className="underline underline-offset-2 hover:text-white">
+            {data.profile.workExperiences.length} 段工作经历
+          </Link>
+          ，分析了{" "}
+          <Link href="/jobs" className="underline underline-offset-2 hover:text-white">
+            {data.jobs.length} 个岗位
+          </Link>
+          的匹配度；「匹配项目经历」进入页面后自动调用 DeepSeek 分析
         </p>
       </div>
 
@@ -56,15 +68,15 @@ export function MatchView() {
           const job = data.jobs.find((j) => j.id === match.jobId)!;
           return (
             <Card key={match.jobId}>
-              <div className="flex gap-6">
-                <div className="flex-shrink-0">
+              <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+                <div className="flex flex-shrink-0 flex-row items-center gap-4 sm:flex-col sm:items-center">
                   <ScoreRing score={match.score} />
-                  <p className="mt-2 text-center text-xs font-medium text-slate-500">
+                  <p className="text-xs font-medium text-slate-500 sm:mt-2 sm:text-center">
                     {getScoreLabel(match.score)}
                   </p>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                     <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
                     <span className="text-sm text-indigo-600">{job.company}</span>
                   </div>
@@ -73,7 +85,7 @@ export function MatchView() {
                     {job.salary && <span>{job.salary}</span>}
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <p className="mb-2 text-xs font-medium uppercase text-slate-400">匹配技能</p>
                       <div className="flex flex-wrap gap-1.5">
@@ -99,6 +111,8 @@ export function MatchView() {
                       </div>
                     </div>
                   </div>
+
+                  <LlmMatchPanel profile={data.profile} job={job} ruleMatch={match} />
 
                   <div className="mt-4 rounded-lg bg-slate-50 p-3">
                     <p className="text-sm text-slate-700">{match.recommendation}</p>

@@ -1,0 +1,4 @@
+{
+  "desc": "JobAgent sitemap",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

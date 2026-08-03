@@ -1,0 +1,20 @@
+{
+  "miniprogramRoot": "./",
+  "projectname": "JobAgent",
+  "description": "JobAgent 智能求职助手微信小程序",
+  "appid": "wx4722b2e031487051",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "enhance": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.3.4",
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "condition": {}
+}

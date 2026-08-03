@@ -1,5 +1,10 @@
 import type { Education, Profile, Project, Skill, WorkExperience } from "./types";
+import { mergeWeeklyHighlights } from "./project-name";
+import { canonicalProjectName, projectsShouldMerge } from "./project-match";
 import type { ParsedProfileDraft } from "./resume-parser";
+import { sanitizeProfileSkills } from "./skill-tags";
+import { calcDurationDays, maxIsoDate, minIsoDate, getProjectWorkItems, sanitizeProfileProjects, extractProjectId } from "./utils";
+import { summarizeProjectWork } from "./project-work-summary";
 
 function dedupeWork(a: WorkExperience, b: WorkExperience): boolean {
   return (
@@ -11,10 +16,6 @@ function dedupeWork(a: WorkExperience, b: WorkExperience): boolean {
 
 function dedupeEdu(a: Education, b: Education): boolean {
   return a.school === b.school && a.degree === b.degree;
-}
-
-function dedupeProject(a: Project, b: Project): boolean {
-  return a.name === b.name;
 }
 
 function dedupeSkill(a: Skill, b: Skill): boolean {
@@ -29,8 +30,77 @@ function mergeArray<T>(existing: T[], incoming: T[], isDup: (a: T, b: T) => bool
   return result;
 }
 
-export function mergeParsedProfile(parsed: ParsedProfileDraft, base: Profile): Profile {
+function mergeProjects(
+  existing: Project[],
+  incoming: Project[],
+  workExperiences: WorkExperience[] = []
+): Project[] {
+  const result = [...existing];
+
+  for (const item of incoming) {
+    const index = result.findIndex((project) => {
+      const currentId = project.projectId || extractProjectId(project);
+      const incomingId = item.projectId || extractProjectId(item);
+      if (incomingId && currentId) return currentId === incomingId;
+      if (item.projectId && project.projectId) return project.projectId === item.projectId;
+      return projectsShouldMerge(project.name, item.name);
+    });
+    if (index < 0) {
+      result.push(item);
+      continue;
+    }
+
+    const current = result[index];
+    const highlights = mergeWeeklyHighlights(
+      current.highlights ?? [],
+      item.highlights ?? []
+    );
+
+    const startDate = minIsoDate(current.startDate, item.startDate);
+    const endDate = maxIsoDate(current.endDate, item.endDate);
+    const status: Project["status"] =
+      current.status === "ongoing" || item.status === "ongoing" ? "ongoing" : "completed";
+    const mergedProject: Project = {
+      ...current,
+      name: canonicalProjectName(current.name || item.name),
+      description: current.description || item.description,
+      technologies: Array.from(new Set([...current.technologies, ...item.technologies])),
+      tags: Array.from(new Set([...(current.tags ?? []), ...(item.tags ?? [])])),
+      highlights,
+      projectId: current.projectId || item.projectId,
+      startDate,
+      endDate,
+      status,
+      durationDays:
+        status === "ongoing" ? undefined : calcDurationDays(startDate, endDate) ?? current.durationDays,
+    };
+    mergedProject.workSummary = summarizeProjectWork(
+      getProjectWorkItems(mergedProject),
+      mergedProject.name
+    );
+
+    result[index] = mergedProject;
+  }
+
+  return sanitizeProfileProjects(result, workExperiences);
+}
+
+export function mergeWeeklyReportProjects(
+  weeklyProjects: Project[],
+  base: Profile
+): Profile {
+  if (!weeklyProjects.length) return base;
   return {
+    ...base,
+    projects: sanitizeProfileProjects(
+      mergeProjects(base.projects, weeklyProjects, base.workExperiences),
+      base.workExperiences
+    ),
+  };
+}
+
+export function mergeParsedProfile(parsed: ParsedProfileDraft, base: Profile): Profile {
+  const merged: Profile = {
     ...base,
     name: parsed.name?.trim() || base.name,
     email: parsed.email?.trim() || base.email,
@@ -50,7 +120,14 @@ export function mergeParsedProfile(parsed: ParsedProfileDraft, base: Profile): P
         : base.preferredLocations,
     workExperiences: mergeArray(base.workExperiences, parsed.workExperiences, dedupeWork),
     educations: mergeArray(base.educations, parsed.educations, dedupeEdu),
-    projects: mergeArray(base.projects, parsed.projects, dedupeProject),
-    skills: mergeArray(base.skills, parsed.skills, dedupeSkill),
+    projects: mergeProjects(base.projects, parsed.projects, base.workExperiences),
+    skills: sanitizeProfileSkills(
+      mergeArray(base.skills, parsed.skills, dedupeSkill)
+    ),
+  };
+
+  return {
+    ...merged,
+    projects: sanitizeProfileProjects(merged.projects, merged.workExperiences),
   };
 }

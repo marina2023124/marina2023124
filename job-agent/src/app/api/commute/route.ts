@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { estimateCommute } from "@/lib/commute";
+import { estimateCommutes } from "@/lib/commute";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -9,10 +9,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "缺少 address 参数" }, { status: 400 });
   }
 
-  const result = estimateCommute(address);
-  if (!result) {
+  const estimates = estimateCommutes(address);
+  if (!estimates.length) {
     return NextResponse.json({ error: "无法估算通勤" }, { status: 400 });
   }
 
-  return NextResponse.json(result);
+  return NextResponse.json({ estimates });
 }

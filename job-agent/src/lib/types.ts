@@ -35,6 +35,22 @@ export interface Project {
   technologies: string[];
   highlights: string[];
   url?: string;
+  /** One-sentence summary of highlights for resume display */
+  workSummary?: string;
+  /** 项目编号，如 2406303 */
+  projectId?: string;
+  /** 启动日期 YYYY-MM-DD */
+  startDate?: string;
+  /** 结束日期 YYYY-MM-DD */
+  endDate?: string;
+  /** 项目周期（天） */
+  durationDays?: number;
+  /** ongoing = 进行中 */
+  status?: "ongoing" | "completed";
+  /** 所属工作经历 ID（按项目时间自动匹配） */
+  workExperienceId?: string;
+  /** 项目标签，如 P0、P1 优先级 */
+  tags?: string[];
 }
 
 export interface Profile {
@@ -54,6 +70,9 @@ export interface Profile {
 
 export type JobStatus = "saved" | "applied" | "interview" | "rejected" | "offer";
 
+import type { JobSource } from "./job-source";
+export type { JobSource } from "./job-source";
+
 export interface JobPosting {
   id: string;
   title: string;
@@ -69,6 +88,14 @@ export interface JobPosting {
   requirements: string[];
   preferredSkills: string[];
   experienceYears?: number;
+  /** 平台筛选项经验标签（如小红书 3-5年），非 JD 正文硬性要求 */
+  platformExperienceLabel?: string;
+  /** 所属行业（可手动填写或由 JD 推断） */
+  industry?: string;
+  /** 个人意愿度 1-5 星，0 或未设置表示未标记 */
+  interestRating?: number;
+  /** 岗位信息来源渠道 */
+  source?: JobSource;
   url?: string;
   status: JobStatus;
   createdAt: string;
@@ -81,9 +108,23 @@ export interface MatchResult {
   experienceMatch: number;
   matchedSkills: string[];
   missingSkills: string[];
+  /** 与岗位相关的项目经历及匹配原因 */
+  matchedProjects: MatchedProject[];
   strengths: string[];
   gaps: string[];
   recommendation: string;
+}
+
+export interface MatchedProject {
+  id: string;
+  name: string;
+  /** 项目成果一句话描述 */
+  summary: string;
+  /** 具体匹配原因（完整句子） */
+  reasons: string[];
+  /** 所属工作经历，如「数说故事 · 商业分析师」 */
+  workExperienceLabel: string;
+  workExperienceId?: string;
 }
 
 export interface ChatMessage {

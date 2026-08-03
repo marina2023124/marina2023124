@@ -64,7 +64,7 @@ function buildExperienceGuide(profile: Profile): string {
 function buildSkillAnalysis(profile: Profile): string {
   const skills = profile.skills;
   const expSkills = profile.workExperiences.flatMap((e) => e.skills);
-  const projectTech = profile.projects.flatMap((p) => p.technologies);
+  const projectTech = profile.projects.flatMap((p) => p.technologies ?? []);
   const allSkills = Array.from(new Set([...skills.map((s) => s.name), ...expSkills, ...projectTech]));
 
   if (allSkills.length === 0) {
@@ -122,6 +122,13 @@ function buildJobRecommend(data: AppData): string {
     result += `${emoji} **${job.title}** @ ${job.company} — 匹配度 **${match.score}%**\n`;
     if (match.matchedSkills.length > 0) {
       result += `   ✓ 匹配技能：${match.matchedSkills.slice(0, 4).join("、")}\n`;
+    }
+    if (match.matchedProjects.length > 0) {
+      const projectLines = match.matchedProjects
+        .slice(0, 3)
+        .map((p) => `${p.workExperienceLabel}｜${p.name}：${p.summary || p.reasons[0] || ""}`)
+        .join("；");
+      result += `   ✓ 相关项目：${projectLines}\n`;
     }
     if (match.missingSkills.length > 0) {
       result += `   ✗ 待补充：${match.missingSkills.slice(0, 3).join("、")}\n`;

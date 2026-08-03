@@ -1,0 +1,49 @@
+.page {
+  padding: 24rpx;
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.add-btn {
+  margin-top: 24rpx;
+}
+
+.job-card {
+  position: relative;
+}
+
+.job-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.job-title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.company {
+  color: #4f46e5;
+  margin-top: 4rpx;
+}
+
+.job-meta {
+  margin: 12rpx 0;
+  font-size: 24rpx;
+}
+
+.job-desc {
+  font-size: 26rpx;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.delete-btn {
+  margin-top: 16rpx;
+  color: #ef4444 !important;
+  background: #fef2f2 !important;
+}

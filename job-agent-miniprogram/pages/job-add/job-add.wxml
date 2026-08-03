@@ -1,0 +1,17 @@
+<view class="page">
+  <view class="card">
+    <view class="card-title">粘贴岗位 JD</view>
+    <view class="muted">从猎聘、小红书或招聘页复制文字，自动识别公司、岗位、要求</view>
+    <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴</button>
+    <textarea
+      class="jd-textarea"
+      placeholder="在此粘贴完整 JD 文字..."
+      value="{{text}}"
+      bindinput="onTextInput"
+      maxlength="-1"
+    />
+    <button class="btn-primary" bindtap="submit" loading="{{parsing}}" disabled="{{parsing}}">
+      解析并保存
+    </button>
+  </view>
+</view>

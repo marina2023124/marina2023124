@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Copy, ExternalLink, Loader2, WifiOff } from "lucide-react";
+import { useApp } from "@/context/AppContext";
 import { Button, Input } from "@/components/ui";
 
 const SCHEMA_SQL = `-- JobAgent 云端存储表结构
@@ -39,6 +41,8 @@ create policy "Users can delete own data"
   using (auth.uid() = user_id);`;
 
 export function SetupWizard() {
+  const router = useRouter();
+  const { enterLocalMode } = useApp();
   const [url, setUrl] = useState("");
   const [anonKey, setAnonKey] = useState("");
   const [copied, setCopied] = useState(false);
@@ -103,10 +107,26 @@ export function SetupWizard() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-slate-900">首次配置 Supabase 云端</h1>
+        <h1 className="text-2xl font-bold text-slate-900">配置 Supabase 云端</h1>
         <p className="mt-2 text-sm text-slate-500">
-          约 3 分钟完成。配置后求职资料保存在云端，不会写入浏览器本地。
+          当前运行环境尚未配置 Supabase。若你之前在 Mac 上已配置过，填入<strong>相同的 URL 和 anon key</strong> 即可，无需新建项目。
         </p>
+        <p className="mt-1 text-xs text-slate-400">
+          配置保存在本机的 .env.local，换电脑/云端环境需要重新填一次（或复制 .env.local 文件）。
+        </p>
+      </div>
+
+      <div className="flex justify-center">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            enterLocalMode();
+            router.replace("/");
+          }}
+        >
+          <WifiOff className="h-4 w-4" />
+          暂不配置，返回离线模式
+        </Button>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -196,12 +216,17 @@ export function SetupWizard() {
             </div>
           )}
           {saveResult && (
-            <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+            <div
+              className={`rounded-lg px-3 py-2 text-sm ${
+                saveResult.includes("失败") || saveResult.includes("生产环境")
+                  ? "bg-red-50 text-red-600"
+                  : "bg-indigo-50 text-indigo-700"
+              }`}
+            >
               {saveResult}
               {saveResult.includes("重启") && (
                 <p className="mt-2 font-medium">
-                  请在终端按 Ctrl+C 停止服务，然后重新运行：
-                  <code className="ml-1 rounded bg-indigo-100 px-1">npm run dev</code>
+                  保存后必须重启服务，配置才会生效（生产模式会重新构建）。
                 </p>
               )}
             </div>

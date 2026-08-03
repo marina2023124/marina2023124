@@ -1,0 +1,43 @@
+<view class="page">
+  <view class="hero card">
+    <view class="hero-title">{{name}}</view>
+    <view class="muted">智能求职助手 · 微信小程序版</view>
+  </view>
+
+  <view class="stats-grid">
+    <view class="card stat-card">
+      <view class="muted">档案完整度</view>
+      <view class="stat-value">{{completeness}}%</view>
+    </view>
+    <view class="card stat-card">
+      <view class="muted">工作经历</view>
+      <view class="stat-value">{{workCount}}</view>
+    </view>
+    <view class="card stat-card">
+      <view class="muted">技能数量</view>
+      <view class="stat-value">{{skillCount}}</view>
+    </view>
+    <view class="card stat-card">
+      <view class="muted">关注岗位</view>
+      <view class="stat-value">{{jobCount}}</view>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{topMatch}}">
+    <view class="card-title">最佳匹配</view>
+    <view class="match-row">
+      <view class="score-circle">{{topMatch.score}}</view>
+      <view>
+        <view class="job-title">{{topMatch.title}}</view>
+        <view class="muted">{{topMatch.company}}</view>
+      </view>
+    </view>
+    <button class="btn-primary" bindtap="goMatch">查看全部匹配</button>
+  </view>
+
+  <view class="card">
+    <view class="card-title">快速开始</view>
+    <button class="btn-secondary quick-btn" bindtap="goExperience">完善我的经历</button>
+    <button class="btn-secondary quick-btn" bindtap="goJobs">添加岗位 JD</button>
+  </view>
+</view>

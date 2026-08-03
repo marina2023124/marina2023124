@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { Cloud, Loader2, WifiOff } from "lucide-react";
-import { enableCloudMode } from "@/lib/local-storage";
+import { Cloud, Loader2, Sparkles, WifiOff } from "lucide-react";
+import { enableCloudMode, wantsCloudMode } from "@/lib/local-storage";
 import { Button } from "./ui";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -15,20 +15,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loaded || !authReady) return;
-    if (localMode) {
-      if (pathname === "/login") router.replace("/");
-      return;
-    }
-    if (!isConfigured && pathname !== "/login") {
+
+    // 登录页、访客体验页始终放行
+    if (pathname === "/login" || pathname === "/try") return;
+
+    if (localMode) return;
+
+    if (!isConfigured) {
       router.replace("/login");
       return;
     }
-    if (!isConfigured) return;
-    if (!user && pathname !== "/login") {
+    if (!user) {
       router.replace("/login");
-    }
-    if (user && pathname === "/login") {
-      router.replace("/");
     }
   }, [user, loaded, authReady, isConfigured, localMode, pathname, router]);
 
@@ -37,25 +35,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col items-center gap-4 text-center px-6 max-w-md">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
         <p className="text-sm text-slate-600">{message}</p>
+        <p className="text-xs text-slate-400">
+          数据仅保存在 Supabase 云端，不会写入本机浏览器
+        </p>
         <p className="text-xs text-slate-400">国内网络通常需要 VPN 才能访问 supabase.co</p>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
-          <p className="text-sm text-amber-900">
-            一直转圈说明连不上 Supabase。你可以：
-          </p>
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 w-full space-y-3">
+          <p className="text-sm text-indigo-900">连接较慢？可刷新或前往登录页重试：</p>
           <Button
             size="sm"
-            className="w-full"
-            onClick={() => {
-              enterLocalMode();
-              router.replace("/");
-            }}
-          >
-            <WifiOff className="mr-2 h-4 w-4" />
-            离线使用（推荐，立即可用）
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
             className="w-full"
             onClick={() => {
               enableCloudMode();
@@ -63,18 +50,51 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               router.replace("/login");
             }}
           >
-            跳过等待，尝试登录云端
+            前往云端登录
           </Button>
-          <p className="text-xs text-amber-700">
-            离线模式：数据仅保存在本次浏览器会话，关闭浏览器后自动清除，不会写入硬盘。
-          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={() => window.location.reload()}
+          >
+            刷新重试
+          </Button>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 w-full space-y-3">
+          <p className="text-xs text-amber-800">仅在无法连云端时的备用方案（资料会暂存本机）：</p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              enterLocalMode();
+              router.replace("/");
+            }}
+          >
+            <WifiOff className="mr-2 h-4 w-4" />
+            临时离线使用
+          </Button>
         </div>
       </div>
     </div>
   );
 
+  // 登录/体验页不拦截
+  if (pathname === "/login" || pathname === "/try") {
+    return <>{children}</>;
+  }
+
+  // 离线模式直接显示
   if (localMode) {
     return <>{children}</>;
+  }
+
+  // 用户主动选了云端，尽快进入登录流程
+  if (wantsCloudMode() && !user) {
+    if (!authReady || !loaded) {
+      return <>{children}</>;
+    }
   }
 
   if (!authReady) {
@@ -82,17 +102,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!isConfigured) {
-    if (pathname === "/login") {
-      return <>{children}</>;
-    }
-    return loadingScreen("正在跳转...");
+    return loadingScreen("正在跳转配置页...");
   }
 
   if (!loaded) {
     return loadingScreen("正在从云端加载数据...");
   }
 
-  if (!user && pathname !== "/login") {
+  if (!user) {
     return loadingScreen("正在跳转登录...");
   }
 
@@ -100,13 +117,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export function CloudSyncStatus() {
-  const { syncing, syncError, lastSyncedAt, localMode } = useApp();
+  const { syncing, syncError, lastSyncedAt, localMode, guestMode } = useApp();
+
+  if (guestMode) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+        <Sparkles className="h-3 w-3" />
+        访客体验模式 · 示例数据，与账号无关
+      </div>
+    );
+  }
 
   if (localMode) {
     return (
       <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
         <WifiOff className="h-3 w-3" />
-        离线模式 · 关闭浏览器后数据自动清除
+        离线模式 · 数据保存在本机浏览器
       </div>
     );
   }

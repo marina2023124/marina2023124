@@ -203,3 +203,41 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
     </div>
   );
 }
+
+interface ProgressBarProps {
+  percent: number;
+  label?: string;
+  hint?: string;
+  barClassName?: string;
+  animated?: boolean;
+}
+
+export function ProgressBar({
+  percent,
+  label,
+  hint,
+  barClassName = "bg-indigo-500",
+  animated = false,
+}: ProgressBarProps) {
+  const clamped = Math.min(100, Math.max(0, percent));
+
+  return (
+    <div className="w-full">
+      {(label || hint) && (
+        <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+          {label && <span className="font-medium text-slate-600">{label}</span>}
+          <span className="tabular-nums text-slate-500">{clamped}%</span>
+        </div>
+      )}
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${barClassName} ${
+            animated ? "animate-pulse" : ""
+          }`}
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
+    </div>
+  );
+}

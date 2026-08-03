@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { serverFetch } from "@/lib/supabase/server-fetch";
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "URL 格式不正确，应以 supabase.co 结尾" }, { status: 400 });
     }
 
-    const supabase = createClient(url, anonKey);
+    const supabase = createClient(url, anonKey, { global: { fetch: serverFetch } });
     const { error } = await supabase.from("user_app_data").select("user_id").limit(1);
 
     if (error) {

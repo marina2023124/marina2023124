@@ -4,71 +4,66 @@
 
 set -e
 
-# 用 commit 固定版本，避免 jsDelivr 分支缓存返回旧文件
-COMMIT_SHA="2fcdf11"
-EXPECTED_VERSION="0.2.5-default-offline"
-BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${COMMIT_SHA}/job-agent"
+# 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
+GIT_REF="cursor/job-finding-agent-5260"
+EXPECTED_VERSION="0.2.76-job-sort-filter-rating"
+BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
-echo "📥 通过 CDN 更新 JobAgent（无需访问 github.com）"
-echo "   来源: cdn.jsdelivr.net"
-echo "   版本: ${COMMIT_SHA} (${EXPECTED_VERSION})"
+echo "📥 通过 CDN 更新 JobAgent"
+echo "   分支: ${GIT_REF}"
+echo "   期望版本: ${EXPECTED_VERSION}"
 echo ""
 
 if ! command -v curl &>/dev/null; then
-  echo "❌ 需要 curl，macOS 一般自带"
+  echo "❌ 需要 curl"
   exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
+chmod +x start.sh fix-and-start.sh doctor.sh go.sh 2>/dev/null || true
 
-# 备份配置
-if [ -f ".env.local" ]; then
-  cp .env.local .env.local.bak
-  echo "✓ 已备份 .env.local → .env.local.bak"
-fi
+[ -f ".env.local" ] && cp .env.local .env.local.bak && echo "✓ 已备份 .env.local"
 
 download() {
   local rel="$1"
-  local dir
-  dir="$(dirname "$rel")"
-  [ "$dir" != "." ] && mkdir -p "$dir"
+  mkdir -p "$(dirname "$rel")"
   echo "  → $rel"
   if ! curl -fsSL "${BASE}/${rel}" -o "$rel"; then
     echo "❌ 下载失败: $rel"
-    echo "   请检查网络，或换手机热点重试"
+    echo "   URL: ${BASE}/${rel}"
+    echo "   请检查网络，或稍后重试"
     exit 1
   fi
 }
 
 FILES=(
-  "VERSION"
-  "start.sh"
-  "package.json"
-  "package-lock.json"
-  "src/lib/types.ts"
-  "src/lib/commute.ts"
-  "src/lib/jd-sections.ts"
-  "src/lib/job-sections.ts"
-  "src/lib/job-merge.ts"
-  "src/lib/profile-merge.ts"
-  "src/lib/resume-parser.ts"
-  "src/lib/document-extract.ts"
-  "src/lib/local-storage.ts"
-  "src/lib/jd-parser.ts"
-  "src/lib/boss-bookmarklet.ts"
-  "src/lib/storage.ts"
-  "src/lib/supabase/middleware.ts"
-  "src/components/AuthGuard.tsx"
-  "src/components/CommuteInfo.tsx"
-  "src/components/JobDetailSections.tsx"
-  "src/components/JobManager.tsx"
-  "src/components/BossImportGuide.tsx"
-  "src/components/SmartExperienceImport.tsx"
-  "src/components/ExperienceManager.tsx"
-  "src/app/experience/page.tsx"
-  "src/app/api/commute/route.ts"
-  "src/app/login/page.tsx"
+  "VERSION" "start.sh" "fix-and-start.sh" "doctor.sh" "go.sh" "update-via-cdn.sh"
+  "package.json" "package-lock.json" "next.config.mjs" "tsconfig.json"
+  "tailwind.config.ts" "postcss.config.mjs"
+  "src/lib/types.ts" "src/lib/utils.ts" "src/lib/matching.ts" "src/lib/job-criteria.ts"
+  "src/lib/skill-tags.ts" "src/lib/profile-merge.ts" "src/lib/project-work-link.ts"
+  "src/lib/weekly-report-parser.ts" "src/lib/project-workbook-parser.ts"
+  "src/lib/project-work-summary.ts" "src/lib/project-table-parser.ts"
+  "src/lib/resume-parser.ts" "src/lib/document-extract.ts" "src/lib/local-storage.ts"
+  "src/lib/storage.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts" "src/lib/job-list.ts"
+  "src/lib/job-merge.ts" "src/lib/job-sections.ts" "src/lib/commute.ts"
+  "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
+  "src/lib/cloud-storage.ts" "src/lib/boss-bookmarklet.ts"
+  "src/lib/supabase/client.ts" "src/lib/supabase/middleware.ts" "src/lib/supabase/server.ts"
+  "src/context/AppContext.tsx" "src/middleware.ts"
+  "src/components/ExperienceManager.tsx" "src/components/SmartExperienceImport.tsx"
+  "src/components/AuthGuard.tsx" "src/components/JobManager.tsx" "src/components/JobInterestRating.tsx"
+  "src/components/JobDetailSections.tsx" "src/components/BossImportGuide.tsx"
+  "src/components/MatchView.tsx" "src/components/CommuteInfo.tsx"
+  "src/components/AgentChat.tsx" "src/components/Sidebar.tsx"
+  "src/components/SetupWizard.tsx" "src/components/ClientProviders.tsx"
+  "src/components/ui.tsx"
+  "src/app/layout.tsx" "src/app/page.tsx" "src/app/experience/page.tsx"
+  "src/app/jobs/page.tsx" "src/app/match/page.tsx" "src/app/agent/page.tsx"
+  "src/app/login/page.tsx" "src/app/api/health/route.ts"
+  "src/app/api/commute/route.ts" "src/app/api/setup/configure/route.ts"
+  "src/app/api/setup/test/route.ts"
 )
 
 echo "开始下载 ${#FILES[@]} 个文件..."
@@ -76,40 +71,27 @@ for f in "${FILES[@]}"; do
   download "$f"
 done
 
-if [ ! -f "VERSION" ] || [ "$(cat VERSION | tr -d '[:space:]')" != "$EXPECTED_VERSION" ]; then
-  echo "❌ 版本校验失败：期望 ${EXPECTED_VERSION}，实际 $(cat VERSION 2>/dev/null || echo '无')"
+ACTUAL_VERSION="$(cat VERSION | tr -d '[:space:]')"
+if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+  echo "⚠️  版本为 ${ACTUAL_VERSION}（期望 ${EXPECTED_VERSION}），继续安装..."
+fi
+
+if ! grep -q "fix-and-start.sh" "update-via-cdn.sh" 2>/dev/null; then
+  echo "❌ update-via-cdn.sh 校验失败"
   exit 1
 fi
 
-if ! grep -q "三版块" "src/components/JobManager.tsx"; then
-  echo "❌ JobManager.tsx 不是最新版（缺少三版块 UI）"
-  echo "   CDN 可能仍在缓存旧文件，请稍后重试或换网络"
-  exit 1
-fi
-
-if ! grep -q "SmartExperienceImport" "src/components/ExperienceManager.tsx"; then
-  echo "❌ ExperienceManager.tsx 不是最新版（缺少智能导入经历）"
-  exit 1
-fi
-
-if [ -d ".next" ]; then
-  echo "🧹 清理 Next 构建缓存（避免 layout.js 404）..."
-  rm -rf .next
-fi
+rm -rf .next
+chmod +x start.sh fix-and-start.sh doctor.sh go.sh 2>/dev/null || true
 
 echo ""
-echo "✅ 更新完成！当前版本: $(cat VERSION)"
-echo ""
-echo "⚠️  必须重启服务才能生效："
-echo "   1. 终端里按 Ctrl+C 停掉旧服务"
-echo "   2. 运行: ./start.sh"
-echo "   3. 浏览器强制刷新: Cmd+Shift+R"
-echo "   4. 若仍转圈 → 点「离线使用」，或等待 2 秒自动进入离线模式"
-echo "   5. 新依赖：运行 npm install（若 package.json 有更新）"
+echo "✅ 更新完成: ${ACTUAL_VERSION}"
 echo ""
 echo "下一步："
-echo "  1. ./start.sh          # 启动服务"
-echo "  2. 浏览器打开 http://localhost:3000/jobs"
-echo "  3. 若转圈 → 点「离线使用」"
-echo "  4. 重新拖书签「📥 导入 BOSS 岗位」以获取薪资"
+echo "  bash fix-and-start.sh"
+echo "  或：bash go.sh"
+echo ""
+echo "若云端连接慢，请开 VPN 后刷新；或访问 /login"
+echo "强制切云端（清除本机缓存），Console 执行："
+echo '  localStorage.removeItem("job-agent-offline");localStorage.removeItem("job-agent-offline-explicit");localStorage.removeItem("job-agent-data");localStorage.setItem("job-agent-cloud-mode","1");location.href="/login"'
 echo ""

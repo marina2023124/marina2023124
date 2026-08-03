@@ -4,18 +4,69 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { AppData, ChatMessage, JobPosting, Profile } from "./types";
 import { defaultAppData } from "./types";
-import { createClient, isSupabaseConfigured } from "./supabase/client";
-import { loadCloudData, saveCloudData } from "./cloud-storage";
+import { isSupabaseConfigured } from "./supabase/client";
 import {
+  clearLocalAppData,
+  enableCloudMode,
   enableLocalMode,
+  ensureCloudDefault,
+  isGuestMode,
   isLocalModeEnabled,
   loadLocalData,
   saveLocalData,
-  wantsCloudMode,
+  shouldStartOffline,
 } from "./local-storage";
+import { sanitizeWorkExperienceSkills, sanitizeProfileSkills } from "./skill-tags";
+import { profileProjectsNeedRepair } from "./project-match";
+import { sanitizeProfileProjects } from "./utils";
 
-const AUTH_TIMEOUT_MS = 2500;
-const LOAD_TIMEOUT_MS = 6000;
+function normalizeProfile(profile: Profile): Profile {
+  return {
+    ...profile,
+    skills: sanitizeProfileSkills(profile.skills),
+    workExperiences: profile.workExperiences.map((exp) => sanitizeWorkExperienceSkills(exp)),
+    projects: sanitizeProfileProjects(profile.projects, profile.workExperiences),
+  };
+}
+
+const AUTH_TIMEOUT_MS = 8000;
+const LOAD_TIMEOUT_MS = 15000;
+
+interface BootstrapState {
+  localMode: boolean;
+  authReady: boolean;
+  loaded: boolean;
+  data: AppData;
+}
+
+function getBootstrapState(): BootstrapState {
+  if (typeof window === "undefined") {
+    return {
+      localMode: false,
+      authReady: false,
+      loaded: false,
+      data: defaultAppData(),
+    };
+  }
+
+  ensureCloudDefault();
+
+  if (shouldStartOffline()) {
+    return {
+      localMode: true,
+      authReady: true,
+      loaded: true,
+      data: loadLocalData(),
+    };
+  }
+
+  return {
+    localMode: false,
+    authReady: false,
+    loaded: false,
+    data: defaultAppData(),
+  };
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -26,30 +77,70 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   ]);
 }
 
+async function fetchSessionUser(): Promise<User | null> {
+  const res = await fetch("/api/auth/session");
+  if (!res.ok) return null;
+  const body = (await res.json()) as { user?: { id: string; email?: string } | null };
+  if (!body.user) return null;
+  return { id: body.user.id, email: body.user.email } as User;
+}
+
+async function fetchCloudData(): Promise<AppData> {
+  const res = await fetch("/api/cloud/data");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `加载失败 (${res.status})`);
+  }
+  return (await res.json()) as AppData;
+}
+
+async function persistCloudData(appData: AppData): Promise<void> {
+  const res = await fetch("/api/cloud/data", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(appData),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `保存失败 (${res.status})`);
+  }
+}
+
 export function useAppData() {
-  const [data, setData] = useState<AppData>(defaultAppData);
-  const [loaded, setLoaded] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const bootstrapRef = useRef<BootstrapState | null>(null);
+  if (!bootstrapRef.current) {
+    bootstrapRef.current = getBootstrapState();
+  }
+  const bootstrap = bootstrapRef.current;
+  const startedOffline = bootstrap.localMode;
+
+  const [data, setData] = useState<AppData>(bootstrap.data);
+  const [loaded, setLoaded] = useState(bootstrap.loaded);
+  const [authReady, setAuthReady] = useState(bootstrap.authReady);
   const [user, setUser] = useState<User | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [localMode, setLocalMode] = useState(false);
+  const [localMode, setLocalMode] = useState(bootstrap.localMode);
+  const [guestMode, setGuestMode] = useState(
+    () => typeof window !== "undefined" && isGuestMode()
+  );
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSaveRef = useRef(true);
 
   useEffect(() => {
-    if (isLocalModeEnabled()) {
-      setLocalMode(true);
-      setData(loadLocalData());
-      setAuthReady(true);
-      setLoaded(true);
-      return;
+    if (startedOffline) return;
+
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path === "/try" || isGuestMode()) {
+        setAuthReady(true);
+        setLoaded(true);
+        return;
+      }
     }
 
-    // 国内默认离线，避免一直等待 Supabase
-    if (!wantsCloudMode()) {
-      enableLocalMode();
+    if (isLocalModeEnabled()) {
       setLocalMode(true);
       setData(loadLocalData());
       setAuthReady(true);
@@ -63,59 +154,28 @@ export function useAppData() {
       return;
     }
 
-    let done = false;
-    let subscription: { unsubscribe: () => void } | null = null;
+    let cancelled = false;
 
-    const finishAuth = (errorMessage?: string) => {
-      if (!done) {
-        done = true;
-        if (errorMessage) setSyncError(errorMessage);
-        setAuthReady(true);
-      }
-    };
-
-    const authTimer = setTimeout(() => {
-      if (done) return;
-      enableLocalMode();
-      setLocalMode(true);
-      setUser(null);
-      setData(loadLocalData());
-      skipSaveRef.current = true;
-      finishAuth("云端连接超时，已自动切换离线模式");
-    }, AUTH_TIMEOUT_MS);
-
-    try {
-      const supabase = createClient();
-
-      supabase.auth
-        .getSession()
-        .then(({ data: { session } }) => {
-          setUser(session?.user ?? null);
-        })
-        .catch(() => {
-          setUser(null);
-        })
-        .finally(() => finishAuth());
-
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user ?? null);
-        finishAuth();
+    withTimeout(fetchSessionUser(), AUTH_TIMEOUT_MS, "云端连接超时，请检查 VPN 或网络后刷新重试")
+      .then((sessionUser) => {
+        if (!cancelled) setUser(sessionUser);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setSyncError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setAuthReady(true);
       });
-      subscription = data.subscription;
-    } catch (err) {
-      finishAuth(err instanceof Error ? err.message : "Supabase 配置错误");
-    }
 
     return () => {
-      clearTimeout(authTimer);
-      subscription?.unsubscribe();
+      cancelled = true;
     };
-  }, []);
+  }, [startedOffline]);
 
   useEffect(() => {
     if (!authReady) return;
 
-    if (localMode) {
+    if (localMode || isGuestMode()) {
       setData(loadLocalData());
       setLoaded(true);
       skipSaveRef.current = true;
@@ -138,24 +198,27 @@ export function useAppData() {
     setLoaded(false);
     setSyncError(null);
 
-    const supabase = createClient();
-    withTimeout(
-      loadCloudData(supabase, user.id),
-      LOAD_TIMEOUT_MS,
-      "云端加载超时，请检查网络能否访问 supabase.co"
-    )
+    withTimeout(fetchCloudData(), LOAD_TIMEOUT_MS, "云端加载超时，请检查本机服务能否连接 Supabase")
       .then((cloudData) => {
         if (!cancelled) {
-          setData(cloudData);
+          clearLocalAppData();
+          const normalizedProfile = normalizeProfile(cloudData.profile);
+          const needsRepair = profileProjectsNeedRepair(
+            cloudData.profile.projects,
+            normalizedProfile.projects
+          );
+          setData({
+            ...cloudData,
+            profile: normalizedProfile,
+          });
           setLastSyncedAt(new Date().toISOString());
-          skipSaveRef.current = true;
+          skipSaveRef.current = !needsRepair;
         }
       })
       .catch((err: Error) => {
         if (!cancelled) setSyncError(err.message);
       })
       .finally(() => {
-        // 即使组件重渲染也必须结束 loading，避免永远转圈
         setLoaded(true);
       });
 
@@ -165,8 +228,8 @@ export function useAppData() {
   }, [authReady, user, localMode]);
 
   useEffect(() => {
-    if (!loaded || localMode) {
-      if (localMode && loaded) {
+    if (!loaded || localMode || guestMode) {
+      if ((localMode || guestMode) && loaded) {
         saveLocalData(data);
       }
       return;
@@ -185,8 +248,7 @@ export function useAppData() {
       setSyncing(true);
       setSyncError(null);
       try {
-        const supabase = createClient();
-        await saveCloudData(supabase, user.id, data);
+        await persistCloudData(data);
         setLastSyncedAt(new Date().toISOString());
       } catch (err) {
         setSyncError(err instanceof Error ? err.message : "同步失败");
@@ -198,7 +260,7 @@ export function useAppData() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [data, loaded, user, localMode]);
+  }, [data, loaded, user, localMode, guestMode]);
 
   const updateProfile = useCallback((profile: Partial<Profile>) => {
     setData((prev) => ({
@@ -208,7 +270,7 @@ export function useAppData() {
   }, []);
 
   const setProfile = useCallback((profile: Profile) => {
-    setData((prev) => ({ ...prev, profile }));
+    setData((prev) => ({ ...prev, profile: normalizeProfile(profile) }));
   }, []);
 
   const addJob = useCallback((job: JobPosting) => {
@@ -234,6 +296,10 @@ export function useAppData() {
       ...prev,
       chatHistory: [...prev.chatHistory, message],
     }));
+  }, []);
+
+  const replaceChatHistory = useCallback((chatHistory: ChatMessage[]) => {
+    setData((prev) => ({ ...prev, chatHistory }));
   }, []);
 
   const clearChat = useCallback(() => {
@@ -263,10 +329,9 @@ export function useAppData() {
           };
           setData(imported);
 
-          if (user && isSupabaseConfigured()) {
+          if (user && isSupabaseConfigured() && !isGuestMode()) {
             setSyncing(true);
-            const supabase = createClient();
-            await saveCloudData(supabase, user.id, imported);
+            await persistCloudData(imported);
             setLastSyncedAt(new Date().toISOString());
             setSyncing(false);
           }
@@ -281,8 +346,8 @@ export function useAppData() {
 
   const signOut = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
+    clearLocalAppData();
     setUser(null);
     setData(defaultAppData());
   }, []);
@@ -290,6 +355,21 @@ export function useAppData() {
   const forceReady = useCallback(() => {
     setAuthReady(true);
     setLoaded(true);
+  }, []);
+
+  const enterCloudMode = useCallback(() => {
+    enableCloudMode();
+    clearLocalAppData();
+    setLocalMode(false);
+    setGuestMode(false);
+    setUser(null);
+    setAuthReady(true);
+    setLoaded(true);
+    setSyncError(null);
+    skipSaveRef.current = true;
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
   }, []);
 
   const enterLocalMode = useCallback(() => {
@@ -313,17 +393,20 @@ export function useAppData() {
     lastSyncedAt,
     isConfigured: isSupabaseConfigured(),
     localMode,
+    guestMode,
     updateProfile,
     setProfile,
     addJob,
     updateJob,
     deleteJob,
     addChatMessage,
+    replaceChatHistory,
     clearChat,
     exportData,
     importData,
     signOut,
     forceReady,
     enterLocalMode,
+    enterCloudMode,
   };
 }

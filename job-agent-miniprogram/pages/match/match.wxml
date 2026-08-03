@@ -1,0 +1,31 @@
+<view class="page">
+  <view class="card hero-card">
+    <view class="card-title">智能匹配结果</view>
+    <view class="muted">基于你的技能与经历，分析各岗位匹配度</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">正在计算匹配度...</view>
+
+  <view wx:elif="{{matches.length === 0}}" class="empty card">
+    请先在「岗位」页添加 JD，并在「经历」页完善资料
+  </view>
+
+  <view wx:for="{{matches}}" wx:key="jobId" class="card match-card">
+    <view class="match-head">
+      <view class="score-circle">{{item.score}}</view>
+      <view>
+        <view class="job-title">{{item.title}}</view>
+        <view class="company">{{item.company}}</view>
+      </view>
+    </view>
+    <view class="match-section" wx:if="{{item.matchedPreview}}">
+      <text class="section-label">匹配技能</text>
+      <text>{{item.matchedPreview}}</text>
+    </view>
+    <view class="match-section" wx:if="{{item.missingPreview}}">
+      <text class="section-label warn">待补充</text>
+      <text>{{item.missingPreview}}</text>
+    </view>
+    <view class="recommend">{{item.recommendation}}</view>
+  </view>
+</view>

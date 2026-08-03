@@ -1,5 +1,7 @@
 import type { Education, Project, Skill, SkillLevel, WorkExperience } from "./types";
-import { generateId, parseSkillsFromText } from "./utils";
+import { generateId, sanitizeWorkYear, parseSkillsFromText } from "./utils";
+import { extractSkillTagsFromText, extractProfileSkillsFromSection, filterSkillTags } from "./skill-tags";
+import { hasProjectTableFormat, parseProjectsFromMarkdownTables } from "./project-table-parser";
 
 export interface ParsedProfileDraft {
   name?: string;
@@ -26,24 +28,23 @@ const SECTION_MARKERS: { key: string; re: RegExp }[] = [
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 const PHONE_RE = /(?:\+?86[-\s]?)?1[3-9]\d{9}|(?:\+?86[-\s]?)?\d{3,4}[-\s]?\d{7,8}/;
 const DATE_RANGE_RE =
-  /(\d{4})[./年-]?(\d{1,2})?[./月-]?\s*(?:[-–—~至到\s]+)\s*(至今|现在|present|\d{4}[./年-]?\d{0,2}[./月]?)?/i;
-
-const KNOWN_SKILLS = [
-  "JavaScript", "TypeScript", "Python", "Java", "React", "Vue", "Node.js", "SQL",
-  "Excel", "PPT", "PowerPoint", "数据分析", "机器学习", "深度学习", "TensorFlow",
-  "PyTorch", "Spark", "Hadoop", "Tableau", "Power BI", "Figma", "AWS", "Docker",
-  "Kubernetes", "Go", "Rust", "C++", "MySQL", "PostgreSQL", "MongoDB", "Redis",
-  "Next.js", "Angular", "Spring", "Git", "Linux", "HTML", "CSS", "Sass",
-];
+  /(\d{2,4})[./年-]?(\d{1,2})?[./月-]?\s*(?:[-–—~至到\s]+)\s*(至今|现在|present|\d{2,4}[./年-]?\d{0,2}[./月]?)?/i;
 
 function normalizeDate(raw?: string): string | undefined {
   if (!raw) return undefined;
   const t = raw.trim();
   if (/至今|现在|present/i.test(t)) return undefined;
-  const m = t.match(/(\d{4})[./年-]?(\d{1,2})?/);
+  const m = t.match(/(\d{2,4})[./年-]?(\d{1,2})?/);
   if (!m) return undefined;
+
+  let year = Number(m[1]);
+  if (m[1].length === 2) {
+    year = year >= 50 ? 1900 + year : 2000 + year;
+  }
+  year = sanitizeWorkYear(year);
+
   const month = m[2] ? m[2].padStart(2, "0") : "01";
-  return `${m[1]}-${month}`;
+  return `${year}-${month}`;
 }
 
 function parseListLines(block: string): string[] {
@@ -136,7 +137,9 @@ function parseWorkBlock(block: string): WorkExperience[] {
       endDate,
       description: description.trim(),
       achievements,
-      skills: extractSkillsFromText(chunk),
+      skills: extractSkillTagsFromText(
+        [description.trim(), ...achievements].filter(Boolean).join("\n")
+      ),
     });
   }
 
@@ -205,7 +208,7 @@ function parseProjectBlock(block: string): Project[] {
       id: generateId(),
       name,
       description,
-      technologies: extractSkillsFromText(chunk),
+      technologies: extractSkillTagsFromText(chunk),
       highlights: highlights.length ? highlights : description ? [description] : [],
     });
   }
@@ -213,21 +216,8 @@ function parseProjectBlock(block: string): Project[] {
   return results;
 }
 
-function extractSkillsFromText(text: string): string[] {
-  const found = new Set<string>();
-  for (const skill of KNOWN_SKILLS) {
-    if (new RegExp(skill.replace(/[.+?^${}()|[\]\\]/g, "\\$&"), "i").test(text)) {
-      found.add(skill);
-    }
-  }
-  parseSkillsFromText(text).forEach((s) => {
-    if (s.length <= 20 && !/\d{4}/.test(s)) found.add(s);
-  });
-  return Array.from(found).slice(0, 30);
-}
-
 function parseSkillsBlock(block: string): Skill[] {
-  const names = extractSkillsFromText(block);
+  const names = extractProfileSkillsFromSection(block);
   return names.map((name) => ({
     id: generateId(),
     name,
@@ -262,17 +252,26 @@ export function parseProjectsFromExcelRows(rows: Record<string, string>[]): Proj
   const findCol = (...candidates: string[]) =>
     headers.find((h) => candidates.some((c) => h.toLowerCase().includes(c.toLowerCase())));
 
-  const nameCol = findCol("项目", "name", "名称", "title");
-  const descCol = findCol("描述", "description", "简介", "说明", "内容");
-  const techCol = findCol("技术", "tech", "栈", "工具");
-  const highlightCol = findCol("亮点", "成果", "highlight", "achievement", "职责");
+  const nameCol = findCol("项目名", "项目", "name", "名称", "title");
+  const descCol = findCol("描述", "description", "简介", "说明", "内容", "任务");
+  const techCol = findCol("技术", "tech", "栈", "工具", "方法", "定性");
+  const highlightCol = findCol("亮点", "成果", "highlight", "achievement", "职责", "任务");
+  const industryCol = findCol("行业");
+  const categoryCol = findCol("品类");
 
   return rows
     .map((row) => {
       const name = (nameCol ? row[nameCol] : Object.values(row)[0])?.trim();
       if (!name) return null;
 
-      const description = descCol ? row[descCol]?.trim() || "" : "";
+      const description = [
+        industryCol ? row[industryCol] : "",
+        categoryCol ? row[categoryCol] : "",
+        descCol ? row[descCol] : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+        .trim();
       const techText = techCol ? row[techCol] : "";
       const highlightText = highlightCol ? row[highlightCol] : "";
 
@@ -280,11 +279,35 @@ export function parseProjectsFromExcelRows(rows: Record<string, string>[]): Proj
         id: generateId(),
         name,
         description,
-        technologies: parseSkillsFromText(techText),
+        technologies: filterSkillTags(parseSkillsFromText(techText)),
         highlights: highlightText ? parseListLines(highlightText) : [],
       } satisfies Project;
     })
     .filter((p): p is Project => p !== null);
+}
+
+export function aggregateSkillsFromProjects(projects: Project[]): Skill[] {
+  const names = filterSkillTags(projects.flatMap((p) => p.technologies ?? [])).slice(0, 16);
+  return names.map((name) => ({
+    id: generateId(),
+    name,
+    level: "intermediate" as SkillLevel,
+  }));
+}
+
+function extractIntroText(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      if (!t) return false;
+      if (t.includes("|") || t.includes("\t")) return false;
+      if (/\b\d{6,7}\b/.test(t)) return false;
+      if (/^[-|:\s]+$/.test(t)) return false;
+      return true;
+    })
+    .join("\n")
+    .slice(0, 600);
 }
 
 export function parseResumeText(text: string): ParsedProfileDraft {
@@ -304,10 +327,38 @@ export function parseResumeText(text: string): ParsedProfileDraft {
   if (sections.work) draft.workExperiences = parseWorkBlock(sections.work);
   if (sections.education) draft.educations = parseEducationBlock(sections.education);
   if (sections.project) draft.projects = parseProjectBlock(sections.project);
-  if (sections.skill) draft.skills = parseSkillsBlock(sections.skill);
 
-  if (!draft.skills.length) {
-    draft.skills = parseSkillsBlock(text).slice(0, 20);
+  if (hasProjectTableFormat(text)) {
+    const fromTable = parseProjectsFromMarkdownTables(text);
+    if (!draft.projects.length) {
+      draft.projects = fromTable;
+    } else {
+      const seen = new Set(draft.projects.map((p) => p.name));
+      for (const p of fromTable) {
+        if (!seen.has(p.name)) {
+          draft.projects.push(p);
+          seen.add(p.name);
+        }
+      }
+    }
+  }
+  const isProjectTableImport = hasProjectTableFormat(text) && draft.projects.length > 0;
+
+  if (isProjectTableImport) {
+    // 项目任务表：仅从各项目方法/品类聚合技能，不扫描表内任务文案
+    draft.skills = aggregateSkillsFromProjects(draft.projects);
+  } else {
+    if (sections.skill) draft.skills = parseSkillsBlock(sections.skill);
+
+    if (!draft.skills.length) {
+      const intro = extractIntroText(text);
+      const names = extractSkillTagsFromText(intro || text.slice(0, 600));
+      draft.skills = names.map((name) => ({
+        id: generateId(),
+        name,
+        level: "intermediate" as SkillLevel,
+      }));
+    }
   }
 
   if (!draft.workExperiences.length) {
