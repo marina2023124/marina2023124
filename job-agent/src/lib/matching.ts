@@ -7,6 +7,7 @@ import {
   type JobCriterion,
 } from "./job-criteria";
 import { findMatchedProjectsDetailed } from "./project-job-match";
+import { matchJdRequirements } from "./jd-requirement-match";
 import { contextHasSkillKey as sharedContextHasSkillKey } from "./matching-shared";
 
 const SKILL_ALIASES: Record<string, string[]> = {
@@ -338,6 +339,7 @@ export function matchJob(profile: Profile, job: JobPosting): MatchResult {
   ].slice(0, 8);
 
   const matchedProjects = findMatchedProjectsDetailed(profile, job, criteria);
+  const requirementMatches = matchJdRequirements(profile, job);
 
   return {
     jobId: job.id,
@@ -347,6 +349,7 @@ export function matchJob(profile: Profile, job: JobPosting): MatchResult {
     matchedSkills: evaluation.matched,
     missingSkills: displayMissing,
     matchedProjects,
+    requirementMatches,
     strengths,
     gaps,
     recommendation: generateRecommendation(score, evaluation.matched, evaluation.missing, job),

@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      { temperature: 0.35, maxTokens: 4500 }
+      { temperature: 0.35, maxTokens: 6000 }
     );
 
     const parsed = parseJsonFromLlm<LlmMatchAnalysis>(raw);
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       ok: true,
       analysis,
       matchedProjects: analysis.normalizedMatchedProjects,
+      requirementMappings: analysis.normalizedRequirementMappings,
       ruleScore: ruleMatch.score,
     });
   } catch (err) {

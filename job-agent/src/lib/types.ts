@@ -110,6 +110,8 @@ export interface MatchResult {
   missingSkills: string[];
   /** 与岗位相关的项目经历及匹配原因 */
   matchedProjects: MatchedProject[];
+  /** 逐条 JD 职责/要求 ↔ 项目经历映射 */
+  requirementMatches: JdRequirementMatch[];
   strengths: string[];
   gaps: string[];
   recommendation: string;
@@ -125,6 +127,21 @@ export interface MatchedProject {
   /** 所属工作经历，如「数说故事 · 商业分析师」 */
   workExperienceLabel: string;
   workExperienceId?: string;
+}
+
+/** 单条 JD 职责/要求 ↔ 项目经历映射 */
+export interface JdRequirementMatch {
+  id: string;
+  /** JD 原文条目 */
+  text: string;
+  category: "responsibility" | "requirement";
+  /** direct=直接匹配 partial=相近经历 missing=暂无匹配 */
+  status: "direct" | "partial" | "missing";
+  projectName?: string;
+  workExperienceLabel?: string;
+  /** 对应的项目工作项或成果描述 */
+  experienceText?: string;
+  note?: string;
 }
 
 export interface ChatMessage {
