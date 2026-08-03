@@ -2,6 +2,7 @@ import { randomInt } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { AppData } from "./types";
 import { mergeAppDataForLink } from "./app-data-merge";
+import { hasDemoContent, stripDemoAppData } from "./demo-data";
 import { loadCloudData, saveCloudData } from "./cloud-storage";
 import { loadWechatData, saveWechatData } from "./wechat-storage";
 
@@ -151,9 +152,9 @@ export async function bindWechatAccount(
     return { userId, merged: false };
   }
 
-  const webData = await loadCloudDataForUser(userId);
-  const wechatData = await loadWechatData(openid);
-  const mergedData = mergeAppDataForLink(webData, wechatData);
+  const webData = stripDemoAppData(await loadCloudDataForUser(userId));
+  const wechatData = stripDemoAppData(await loadWechatData(openid));
+  const mergedData = stripDemoAppData(mergeAppDataForLink(webData, wechatData));
 
   await saveCloudDataForUser(userId, mergedData);
   await saveWechatData(openid, mergedData);
@@ -195,7 +196,12 @@ export async function loadLinkedAppData(openid: string): Promise<{
     return { data: await loadWechatData(openid), linked: false };
   }
 
-  const data = await loadCloudDataForUser(userId);
+  const raw = await loadCloudDataForUser(userId);
+  const data = stripDemoAppData(raw);
+  if (hasDemoContent(raw)) {
+    await saveCloudDataForUser(userId, data);
+    await saveWechatData(openid, data);
+  }
   return { data, linked: true, userId };
 }
 
