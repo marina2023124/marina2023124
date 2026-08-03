@@ -15,7 +15,10 @@
 ### 1. 创建 Supabase 项目
 
 1. 前往 [supabase.com](https://supabase.com) 注册并创建免费项目
-2. 在 **SQL Editor** 中执行 [`supabase/schema.sql`](supabase/schema.sql) 创建数据表
+2. 在 **SQL Editor** 中依次执行：
+   - [`supabase/schema.sql`](supabase/schema.sql) — 网页用户数据
+   - [`supabase/wechat-schema.sql`](supabase/wechat-schema.sql) — 小程序数据（未绑定时）
+   - [`supabase/wechat-link-schema.sql`](supabase/wechat-link-schema.sql) — 网页↔微信账号绑定
 3. 在 **Project Settings → API** 复制 `Project URL` 和 `anon public` key
 
 ### 2. 配置环境变量

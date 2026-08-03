@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createDemoAppData } from "@/lib/demo-data";
 import { exchangeWechatCode, signWechatToken } from "@/lib/wechat-auth";
-import { loadWechatData, saveWechatData } from "@/lib/wechat-storage";
+import { loadLinkedAppData, saveLinkedAppData } from "@/lib/wechat-link";
 
 export async function POST(request: Request) {
   try {
@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     }
 
     const session = await exchangeWechatCode(code);
-    let data = await loadWechatData(session.openid);
+    const loaded = await loadLinkedAppData(session.openid);
+    let data = loaded.data;
 
     const isNew =
       data.jobs.length === 0 &&
@@ -24,11 +25,16 @@ export async function POST(request: Request) {
 
     if (isNew && useDemo) {
       data = createDemoAppData();
-      await saveWechatData(session.openid, data);
+      await saveLinkedAppData(session.openid, data);
     }
 
     const token = signWechatToken(session.openid);
-    return NextResponse.json({ token, data, isNew });
+    return NextResponse.json({
+      token,
+      data,
+      isNew,
+      linked: loaded.linked,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "微信登录失败";
     return NextResponse.json({ error: message }, { status: 500 });

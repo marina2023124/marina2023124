@@ -8,6 +8,7 @@ Page({
     skillCount: 0,
     jobCount: 0,
     topMatch: null,
+    linked: false,
   },
 
   onShow() {
@@ -29,6 +30,7 @@ Page({
       workCount: profile.workExperiences.length,
       skillCount: profile.skills.length,
       jobCount: jobs.length,
+      linked: Boolean(app.globalData && app.globalData.linked),
     });
 
     if (jobs.length > 0 && profile.skills.length + profile.workExperiences.length > 0) {
@@ -58,5 +60,9 @@ Page({
 
   goMatch() {
     wx.switchTab({ url: "/pages/match/match" });
+  },
+
+  goBind() {
+    wx.navigateTo({ url: "/pages/bind/bind" });
   },
 });

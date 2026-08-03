@@ -3,6 +3,7 @@
 import { Cloud, Download, LogOut, Upload } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { CloudSyncStatus } from "@/components/AuthGuard";
+import { WechatLinkPanel } from "@/components/WechatLinkPanel";
 
 export function AppAccountMenu({ onNavigate }: { onNavigate?: () => void }) {
   const { exportData, importData, signOut, user, localMode, guestMode, enterCloudMode } =
@@ -28,6 +29,8 @@ export function AppAccountMenu({ onNavigate }: { onNavigate?: () => void }) {
       {user && !guestMode && (
         <p className="truncate px-1 text-xs text-slate-400">{user.email}</p>
       )}
+
+      {user && !guestMode && !localMode && <WechatLinkPanel />}
 
       <button
         onClick={exportData}

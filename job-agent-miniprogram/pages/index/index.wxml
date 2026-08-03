@@ -36,6 +36,13 @@
   </view>
 
   <view class="card">
+    <view class="card-title">账号同步</view>
+    <view class="muted" wx:if="{{linked}}">已与网页账号打通，数据实时同步</view>
+    <view class="muted" wx:else>绑定网页账号后，小程序与网页共用同一份数据</view>
+    <button class="btn-secondary quick-btn" bindtap="goBind">{{linked ? '查看绑定状态' : '绑定网页账号'}}</button>
+  </view>
+
+  <view class="card">
     <view class="card-title">快速开始</view>
     <button class="btn-secondary quick-btn" bindtap="goExperience">完善我的经历</button>
     <button class="btn-secondary quick-btn" bindtap="goJobs">添加岗位 JD</button>

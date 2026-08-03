@@ -4,7 +4,8 @@
     "pages/experience/experience",
     "pages/jobs/jobs",
     "pages/match/match",
-    "pages/job-add/job-add"
+    "pages/job-add/job-add",
+    "pages/bind/bind"
   ],
   "window": {
     "navigationBarTitleText": "JobAgent",

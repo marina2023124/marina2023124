@@ -61,6 +61,17 @@ function saveData(data) {
   return request("/api/wechat/data", { method: "PUT", data });
 }
 
+function getLinkStatus() {
+  return request("/api/auth/wechat/bind");
+}
+
+function bindAccount(bindCode) {
+  return request("/api/auth/wechat/bind", {
+    method: "POST",
+    data: { bindCode },
+  });
+}
+
 function parseJobText(text) {
   return request("/api/jobs/parse-text", { method: "POST", data: { text } });
 }
@@ -75,6 +86,8 @@ module.exports = {
   login,
   loadData,
   saveData,
+  getLinkStatus,
+  bindAccount,
   parseJobText,
   matchJobs,
 };
