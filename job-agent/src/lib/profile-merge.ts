@@ -30,7 +30,7 @@ function mergeArray<T>(existing: T[], incoming: T[], isDup: (a: T, b: T) => bool
   return result;
 }
 
-function mergeProjects(
+export function mergeProjects(
   existing: Project[],
   incoming: Project[],
   workExperiences: WorkExperience[] = []

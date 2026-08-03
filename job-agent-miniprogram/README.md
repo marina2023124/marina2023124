@@ -133,8 +133,9 @@ job-agent-miniprogram/
 | | Web 版 | 小程序 |
 |--|--------|--------|
 | 登录 | 邮箱 + Supabase | 微信 openid |
-| 数据存储 | `user_app_data` | `wechat_user_data` |
+| 数据存储 | `user_app_data` | 绑定前 `wechat_user_data`，绑定后统一 `user_app_data` |
+| 账号绑定 | 侧边栏 → 生成 6 位绑定码 | 首页 → 绑定网页账号 |
 | 匹配引擎 | 同一套 `matching.ts` | 通过 `/api/match` 调用 |
 | 访客模式 | `/try` | 首次启动可选示例数据 |
 
-Web 版与小程序数据**不互通**（不同账号体系），后续可做绑定功能。
+绑定后 Web 与小程序**数据实时同步**。首次绑定会自动合并两边的经历与岗位。

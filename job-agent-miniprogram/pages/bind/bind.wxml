@@ -1,0 +1,33 @@
+<view class="page">
+  <view class="card">
+    <view class="title">绑定网页账号</view>
+    <view class="desc">
+      在网页端登录 JobAgent 后，侧边栏点击「生成绑定码」，将 6 位数字输入下方即可完成账号打通。
+    </view>
+
+    <view wx:if="{{linked}}" class="status-linked">
+      已与网页账号打通，经历、岗位等数据实时同步。
+    </view>
+
+    <block wx:else>
+      <input
+        class="input"
+        type="number"
+        maxlength="6"
+        placeholder="000000"
+        value="{{bindCode}}"
+        bindinput="onInput"
+      />
+      <button class="btn-primary" loading="{{submitting}}" bindtap="submitBind">确认绑定</button>
+      <view wx:if="{{error}}" class="error">{{error}}</view>
+    </block>
+
+    <view class="tips">
+      1. 打开 https://marina2023124.vercel.app 并登录邮箱账号
+      2. 左侧菜单 → 绑定微信小程序 → 生成绑定码
+      3. 回到本页输入绑定码
+    </view>
+
+    <button class="btn-secondary" bindtap="refreshStatus">刷新绑定状态</button>
+  </view>
+</view>

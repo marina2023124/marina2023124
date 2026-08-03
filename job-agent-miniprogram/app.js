@@ -1,11 +1,12 @@
-const api = require("../../utils/api");
-const storage = require("../../utils/storage");
+const api = require("./utils/api");
+const storage = require("./utils/storage");
 
 App({
   globalData: {
     appData: storage.defaultAppData(),
     ready: false,
     syncing: false,
+    linked: false,
   },
 
   onLaunch() {
@@ -21,6 +22,7 @@ App({
         storage.setAppData(res.data);
         this.globalData.appData = res.data;
         this.globalData.ready = true;
+        this.globalData.linked = Boolean(res.linked);
         if (res.isNew && !useDemo) {
           wx.showModal({
             title: "欢迎使用 JobAgent",
