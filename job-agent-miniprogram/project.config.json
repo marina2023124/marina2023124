@@ -13,7 +13,12 @@
   "compileType": "miniprogram",
   "libVersion": "3.3.4",
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "file", "value": "package.json" },
+      { "type": "file", "value": "package-lock.json" },
+      { "type": "file", "value": "README.md" },
+      { "type": "file", "value": "setup-mac.sh" }
+    ],
     "include": []
   },
   "condition": {}

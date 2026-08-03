@@ -49,7 +49,10 @@ jobs:
       - name: 生成预览二维码
         env:
           WECHAT_UPLOAD_KEY: ${{ secrets.WECHAT_UPLOAD_KEY }}
-        run: npm run ci:preview --prefix job-agent-miniprogram
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node .github/scripts/miniprogram/ci-preview.js
 
       - name: 上传二维码（下载后微信扫码）
         uses: actions/upload-artifact@v4
@@ -90,7 +93,7 @@ jobs:
           WECHAT_UPLOAD_KEY: ${{ secrets.WECHAT_UPLOAD_KEY }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_EVENT_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: npm run ci:upload --prefix job-agent-miniprogram
+        run: node .github/scripts/miniprogram/ci-upload.js
 
       - name: 体验版说明
         run: |

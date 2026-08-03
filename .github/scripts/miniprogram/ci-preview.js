@@ -8,8 +8,8 @@ async function main() {
     throw new Error("缺少 WECHAT_UPLOAD_KEY 环境变量");
   }
 
-  const miniprogramRoot = path.join(__dirname, "..");
-  const repoRoot = path.join(miniprogramRoot, "..");
+  const repoRoot = path.join(__dirname, "../../..");
+  const miniprogramRoot = path.join(repoRoot, "job-agent-miniprogram");
   const keyPath = path.join(repoRoot, "private.key");
   fs.writeFileSync(keyPath, privateKey, { mode: 0o600 });
 
@@ -23,14 +23,21 @@ async function main() {
     type: "miniProgram",
     projectPath: miniprogramRoot,
     privateKeyPath: keyPath,
-    ignores: ["node_modules/**/*"],
+    ignores: [
+      "node_modules/**/*",
+      "package.json",
+      "package-lock.json",
+      "README.md",
+      "setup-mac.sh",
+    ],
   });
 
   const version =
     process.env.GITHUB_RUN_NUMBER && process.env.GITHUB_RUN_ATTEMPT
       ? `${process.env.GITHUB_RUN_NUMBER}.${process.env.GITHUB_RUN_ATTEMPT}`
       : "1.0.0";
-  const desc = process.env.GITHUB_SHA?.slice(0, 7) || "CI preview";
+  const sha = process.env.GITHUB_SHA || "";
+  const desc = sha ? sha.slice(0, 7) : "CI preview";
   const qrcodePath = path.join(repoRoot, "preview-qrcode.png");
 
   await ci.preview({
