@@ -1,4 +1,4 @@
-import type { AppData, JobPosting, MatchResult, MatchedProject, Profile, Project } from "@/lib/types";
+import type { AppData, JobPosting, JdRequirementMatch, MatchResult, MatchedProject, Profile, Project } from "@/lib/types";
 import { getWorkExperienceLabel, groupProjectsByWorkExperience } from "@/lib/project-work-link";
 import { isContentPlatformProject } from "@/lib/project-job-match";
 import { getProjectWorkItems, getProjectWorkSummary } from "@/lib/utils";
@@ -12,6 +12,8 @@ export interface LlmMatchedProjectItem {
 
 export interface LlmMatchAnalysis {
   overall: string;
+  /** 逐条 JD 职责/要求 ↔ 项目经历（优先展示） */
+  requirementMappings?: JdRequirementMatch[];
   /** AI 精准匹配的项目列表（对应页面「匹配项目经历」） */
   matchedProjects: LlmMatchedProjectItem[];
   recommendedProjects: {
@@ -78,6 +80,38 @@ function formatRuleMatchedByWork(ruleMatch: MatchResult): string {
       return `【${label}】规则初筛命中 ${projects.length} 个\n${lines.join("\n")}`;
     })
     .join("\n\n");
+}
+
+export function normalizeLlmRequirementMappings(
+  profile: Profile,
+  items: JdRequirementMatch[] | undefined,
+  ruleFallback: JdRequirementMatch[]
+): JdRequirementMatch[] {
+  if (!items?.length) return ruleFallback;
+
+  const byName = new Map(profile.projects.map((project) => [project.name, project]));
+
+  return items.map((item, index) => {
+    const project = item.projectName ? byName.get(item.projectName) : undefined;
+    const linkedLabel = project?.workExperienceId
+      ? getWorkExperienceLabel(project.workExperienceId, profile.workExperiences)
+      : undefined;
+
+    return {
+      id: item.id || `llm-req-${index}`,
+      text: item.text?.trim() || ruleFallback[index]?.text || "",
+      category: (item.category === "requirement" ? "requirement" : "responsibility") as JdRequirementMatch["category"],
+      status: (
+        item.status === "direct" || item.status === "partial" || item.status === "missing"
+          ? item.status
+          : "partial"
+      ) as JdRequirementMatch["status"],
+      projectName: item.projectName,
+      workExperienceLabel: item.workExperienceLabel || linkedLabel,
+      experienceText: item.experienceText?.trim(),
+      note: item.note?.trim(),
+    } satisfies JdRequirementMatch;
+  }).filter((item) => item.text.length >= 4);
 }
 
 export function normalizeLlmMatchedProjects(
@@ -270,7 +304,13 @@ export function ensureCrossWorkExperienceCoverage(
   profile: Profile,
   ruleMatch: MatchResult,
   job: JobPosting
-): LlmMatchAnalysis & { normalizedMatchedProjects: MatchedProject[] } {
+): LlmMatchAnalysis & { normalizedMatchedProjects: MatchedProject[]; normalizedRequirementMappings: JdRequirementMatch[] } {
+  const normalizedRequirementMappings = normalizeLlmRequirementMappings(
+    profile,
+    analysis.requirementMappings,
+    ruleMatch.requirementMatches
+  );
+
   const normalizedMatchedProjects = injectContentPlatformProjects(
     mergeMatchedProjectsWithRuleEngine(
       normalizeLlmMatchedProjects(profile, analysis.matchedProjects),
@@ -285,9 +325,11 @@ export function ensureCrossWorkExperienceCoverage(
   if (!ruleMatch.matchedProjects.length) {
     return {
       ...analysis,
+      requirementMappings: normalizedRequirementMappings,
       gaps: filterContradictoryGaps(analysis.gaps ?? [], profile),
       matchedProjects: analysis.matchedProjects ?? [],
       normalizedMatchedProjects,
+      normalizedRequirementMappings,
     };
   }
 
@@ -324,10 +366,12 @@ export function ensureCrossWorkExperienceCoverage(
 
   return {
     ...analysis,
+    requirementMappings: normalizedRequirementMappings,
     matchedProjects: analysis.matchedProjects ?? [],
     recommendedProjects: recommended,
     gaps: filterContradictoryGaps(analysis.gaps ?? [], profile),
     normalizedMatchedProjects,
+    normalizedRequirementMappings,
   };
 }
 
@@ -391,13 +435,18 @@ export function buildMatchAnalysisPrompt(
 
 硬性要求：
 1. 必须审视用户全部 ${workExpCount} 段工作经历及其下所有项目，不可只分析最近一份工作的项目
-2. matchedProjects：列出与 JD 真正相关的全部核心项目（最多 12 个）。规则初筛按工作分组的结果务必重点参考——若某段工作（如瑞拓普）下有多项相关项目，须尽量全部列入，不可只写最近一份工作（如猿辅导）的项目
-3. 投递快手/字节等内容平台岗位时，咨询项目中服务「小红书/抖音/B站」等同类平台的经历是核心亮点，必须优先列入 matchedProjects 与 recommendedProjects
-4. 当多段工作都有相关项目时，matchedProjects 每段至少 2 个（该段不足 2 个则全写），recommendedProjects 每段至少 1 个
-4. 每条 reason 必须引用 JD 中的具体要求 + 项目中的具体交付/客户/行业/工具，禁止空泛理由（如仅写「用户研究能力」「商业化业务研究」）
-5. recommendedProjects：从 matchedProjects 中精选最值得写进简历的项目（最多 6 个），附 2 条 resume bullet
-6. projectName 必须与上面项目列表中的名称完全一致
-7. 仅返回 JSON，不要 markdown 包裹`;
+2. requirementMappings（最重要）：逐条覆盖 JD 中每一条「岗位职责」和「任职要求」，不可遗漏、不可合并。每条必须给出：
+   - text：JD 原文（与输入完全一致或高度一致）
+   - category：responsibility 或 requirement
+   - status：direct（有直接对应的项目工作项）/ partial（只有相近经历）/ missing（暂无，但仍给最相近参考）
+   - projectName、workExperience、experienceText：对应的项目与工作项（status=missing 时也尽量给最相近的参考）
+   - note：为何匹配/为何只是相近/缺什么（禁止空泛，必须引用具体交付）
+3. 禁止用同一个泛化理由（如仅「AI工具应用」）匹配多条 JD；每条 requirementMappings 必须对应 JD 该条的独特要求
+4. matchedProjects：列出与 JD 真正相关的核心项目（最多 12 个），作为 requirementMappings 的补充汇总
+5. 投递快手/字节等内容平台岗位时，服务「小红书/抖音/B站」等同类平台的经历是核心亮点
+6. recommendedProjects：从 matchedProjects 中精选最值得写进简历的项目（最多 6 个），附 2 条 resume bullet
+7. projectName 必须与上面项目列表中的名称完全一致
+8. 仅返回 JSON，不要 markdown 包裹`;
 
   const user = `${jdText}
 
@@ -414,6 +463,17 @@ ${ruleHint}
 请输出 JSON：
 {
   "overall": "100字以内整体评价，需提及多段工作中的匹配亮点（若有）",
+  "requirementMappings": [
+    {
+      "text": "JD 原文条目（与输入一致）",
+      "category": "responsibility 或 requirement",
+      "status": "direct 或 partial 或 missing",
+      "projectName": "项目名（必须与上面项目列表一致，missing 时也尽量给最相近参考）",
+      "workExperienceLabel": "公司 · 职位",
+      "experienceText": "对应的具体工作项或成果（一句话）",
+      "note": "匹配说明：为何 direct/partial/missing"
+    }
+  ],
   "matchedProjects": [
     {
       "projectName": "项目名（必须与上面项目列表一致）",

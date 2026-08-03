@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
-import type { JobPosting, MatchedProject, MatchResult, Profile } from "@/lib/types";
+import type { JobPosting, MatchedProject, MatchResult, Profile, JdRequirementMatch } from "@/lib/types";
 import type { LlmMatchAnalysis } from "@/lib/llm/prompts";
 import { Button } from "./ui";
+import { JdRequirementMatchList } from "./JdRequirementMatchList";
 
 function groupMatchedProjectsByWork(projects: MatchedProject[]): { label: string; projects: MatchedProject[] }[] {
   const order: string[] = [];
@@ -128,8 +129,16 @@ export function LlmMatchPanel({
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<LlmMatchAnalysis | null>(null);
   const [llmMatchedProjects, setLlmMatchedProjects] = useState<MatchedProject[] | null>(null);
+  const [llmRequirementMappings, setLlmRequirementMappings] = useState<JdRequirementMatch[] | null>(null);
   const [llmReady, setLlmReady] = useState<boolean | null>(null);
   const autoStartedRef = useRef(false);
+
+  const hasLlmRequirements = Boolean(llmRequirementMappings?.length);
+  const displayRequirements = hasLlmRequirements
+    ? llmRequirementMappings!
+    : ruleMatch.requirementMatches;
+  const requirementSource = hasLlmRequirements ? "ai" : "rule";
+  const showRequirementsLoading = autoPending && loading && !hasLlmRequirements;
 
   const hasLlmProjects = Boolean(llmMatchedProjects?.length);
   const displayProjects = hasLlmProjects
@@ -207,6 +216,7 @@ export function LlmMatchPanel({
         error?: string;
         analysis?: LlmMatchAnalysis;
         matchedProjects?: MatchedProject[];
+        requirementMappings?: JdRequirementMatch[];
       };
 
       if (!res.ok || !body.ok || !body.analysis) {
@@ -214,6 +224,11 @@ export function LlmMatchPanel({
       }
 
       setAnalysis(body.analysis);
+      if (body.requirementMappings?.length) {
+        setLlmRequirementMappings(body.requirementMappings);
+      } else {
+        setLlmRequirementMappings(null);
+      }
       if (body.matchedProjects?.length) {
         setLlmMatchedProjects(body.matchedProjects);
       } else {
@@ -234,6 +249,7 @@ export function LlmMatchPanel({
     autoStartedRef.current = false;
     setAutoPending(true);
     setLlmMatchedProjects(null);
+    setLlmRequirementMappings(null);
     setAnalysis(null);
     setError(null);
   }, [job.id]);
@@ -246,6 +262,20 @@ export function LlmMatchPanel({
 
   return (
     <>
+      {showRequirementsLoading ? (
+        <MatchedProjectsLoading />
+      ) : (
+        <JdRequirementMatchList items={displayRequirements} source={requirementSource} />
+      )}
+
+      {!hasLlmRequirements && !autoPending && !loading && ruleMatch.requirementMatches.length > 0 && (
+        <p className="mt-2 text-xs text-slate-500">
+          {error
+            ? "AI 逐条匹配不可用，已展示规则匹配结果"
+            : "规则逐条匹配已生成，配置 DeepSeek 后将自动 AI 优化"}
+        </p>
+      )}
+
       {showProjectsLoading ? (
         <MatchedProjectsLoading />
       ) : (

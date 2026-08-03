@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Edit2, Trash2, X, Check } from "lucide-react";
+import { Edit2, Trash2, X, Check } from "lucide-react";
 import type { JobPosting, JobStatus } from "@/lib/types";
 import { CommuteInfo } from "@/components/CommuteInfo";
+import { JobApplyLink } from "@/components/JobApplyLink";
 import { JobDetailSections } from "@/components/JobDetailSections";
 import { JobExperienceSummary } from "@/components/JobExperienceSummary";
 import { JobInterestRating } from "@/components/JobInterestRating";
@@ -254,17 +255,9 @@ export function JobCard({
             </div>
           )}
         </div>
-        <div className="flex gap-1">
-          {job.url && (
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          )}
+        <div className="flex flex-col items-end gap-2">
+          <JobApplyLink job={job} />
+          <div className="flex gap-1">
           <button
             type="button"
             onClick={handleStartEdit}
@@ -281,6 +274,7 @@ export function JobCard({
           >
             <Trash2 className="h-4 w-4" />
           </button>
+          </div>
         </div>
       </div>
     </Card>

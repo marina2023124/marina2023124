@@ -7,6 +7,7 @@ import { Target } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui";
 import { LlmMatchPanel } from "./LlmMatchPanel";
+import { JobApplyLink } from "./JobApplyLink";
 
 export function MatchView() {
   const { data } = useApp();
@@ -76,9 +77,12 @@ export function MatchView() {
                   </p>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                    <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
-                    <span className="text-sm text-indigo-600">{job.company}</span>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                      <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
+                      <span className="text-sm text-indigo-600">{job.company}</span>
+                    </div>
+                    <JobApplyLink job={job} variant="compact" />
                   </div>
                   <div className="mt-1 flex gap-3 text-xs text-slate-500">
                     {job.location && <span>{job.location}</span>}
