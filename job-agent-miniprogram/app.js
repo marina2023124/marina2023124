@@ -52,11 +52,12 @@ App({
         this.globalData.loginError = message;
         this.globalData.ready = true;
         this.globalData.appData = storage.getAppData();
+        const hint = message.includes("permission denied")
+          ? "\n\n请在 Supabase SQL Editor 执行 job-agent/supabase/wechat-schema-fix.sql"
+          : "\n\n已使用本地缓存。若报 404，请在 Vercel 将最新 main 部署 Promote 到 Production。";
         wx.showModal({
           title: "云端登录失败",
-          content:
-            message +
-            "\n\n已使用本地缓存。若报 404，请在 Vercel 将最新 main 部署 Promote 到 Production。",
+          content: message + hint,
           showCancel: false,
         });
       })

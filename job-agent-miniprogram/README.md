@@ -98,6 +98,7 @@ https://marina2023124.vercel.app
 
 ```sql
 -- 见 ../job-agent/supabase/wechat-schema.sql
+-- 若报 permission denied for table wechat_user_data，再执行 wechat-schema-fix.sql
 ```
 
 ### 3. 本地开发（可选）
