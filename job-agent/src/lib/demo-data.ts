@@ -1,6 +1,50 @@
 import type { AppData } from "./types";
 import { defaultAppData } from "./types";
 
+const DEMO_ID_PREFIX = "demo-";
+
+function isDemoId(id: string | undefined): boolean {
+  return Boolean(id && id.startsWith(DEMO_ID_PREFIX));
+}
+
+/** 是否仍含访客示例数据（demo-* id） */
+export function hasDemoContent(data: AppData): boolean {
+  const { profile, jobs } = data;
+  return (
+    profile.name === "体验用户" ||
+    profile.email === "demo@example.com" ||
+    profile.workExperiences.some((w) => isDemoId(w.id)) ||
+    profile.skills.some((s) => isDemoId(s.id)) ||
+    profile.projects.some((p) => isDemoId(p.id)) ||
+    profile.educations.some((e) => isDemoId(e.id)) ||
+    jobs.some((j) => isDemoId(j.id))
+  );
+}
+
+/** 移除访客示例数据（绑定账号后不应再展示） */
+export function stripDemoAppData(data: AppData): AppData {
+  const workExperiences = data.profile.workExperiences.filter((w) => !isDemoId(w.id));
+  const validWorkIds = new Set(workExperiences.map((w) => w.id));
+
+  const profile = {
+    ...data.profile,
+    name: data.profile.name === "体验用户" ? "" : data.profile.name,
+    email: data.profile.email === "demo@example.com" ? "" : data.profile.email,
+    workExperiences,
+    skills: data.profile.skills.filter((s) => !isDemoId(s.id)),
+    projects: data.profile.projects.filter(
+      (p) => !isDemoId(p.id) && (!p.workExperienceId || validWorkIds.has(p.workExperienceId))
+    ),
+    educations: data.profile.educations.filter((e) => !isDemoId(e.id)),
+  };
+
+  return {
+    ...data,
+    profile,
+    jobs: data.jobs.filter((j) => !isDemoId(j.id)),
+  };
+}
+
 /** 访客体验用的示例数据（仅写入本机浏览器，不上传云端） */
 export function createDemoAppData(): AppData {
   const base = defaultAppData();
