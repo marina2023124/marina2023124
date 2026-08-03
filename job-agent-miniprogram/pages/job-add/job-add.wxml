@@ -1,25 +1,34 @@
 <view class="page">
   <view wx:if="{{!preview}}">
     <view class="tabs card">
-      <view class="tab {{mode === 'wechat' ? 'active' : ''}}" data-mode="wechat" bindtap="setMode">微信导入</view>
+      <view class="tab {{mode === 'wechat' ? 'active' : ''}}" data-mode="wechat" bindtap="setMode">BOSS 卡片</view>
       <view class="tab {{mode === 'text' ? 'active' : ''}}" data-mode="text" bindtap="setMode">粘贴文字</view>
       <view class="tab {{mode === 'url' ? 'active' : ''}}" data-mode="url" bindtap="setMode">链接导入</view>
     </view>
 
     <view wx:if="{{mode === 'wechat'}}" class="card">
-      <view class="card-title">从 BOSS / 微信收藏岗位</view>
-      <view class="guide-step">1. 在 BOSS 直聘小程序打开岗位详情</view>
-      <view class="guide-step">2. 点右上角「···」→ 转发给「文件传输助手」或自己</view>
-      <view class="guide-step">3. 回到微信聊天，<text class="highlight">长按链接 → 复制</text>（或复制整段 JD 文字）</view>
-      <view class="guide-step">4. 回到本页，点下方按钮自动导入</view>
-      <view class="muted tip">说明：微信不允许 BOSS 直接跳转到其他小程序，需先复制链接/文字。薪资若缺失可在预览页手动补充。</view>
+      <view class="card-title">BOSS 转发到微信是「小程序卡片」</view>
+      <view class="muted">没有可复制链接，只能点开 BOSS 卡片进入详情页操作</view>
+
+      <view class="method-title">方法一：复制 JD 文字（推荐）</view>
+      <view class="guide-step">1. 在微信里<text class="highlight">点击 BOSS 卡片</text>，进入岗位详情</view>
+      <view class="guide-step">2. 在 BOSS 详情页长按 JD → 全选 → 复制</view>
+      <view class="guide-step">3. 回到本页，点「检测剪贴板并导入」</view>
+
+      <view class="method-title">方法二：截图识别</view>
+      <view class="guide-step">1. 对 BOSS 详情页或微信里的卡片截图</view>
+      <view class="guide-step">2. 点击下方按钮，从相册选择截图</view>
+
+      <view class="muted tip">微信不允许把 BOSS 卡片直接转进 JobAgent，也无法读取聊天记录里的卡片内容。</view>
       <button class="btn-primary detect-btn" bindtap="detectClipboard">检测剪贴板并导入</button>
-      <button class="btn-secondary detect-btn" bindtap="pasteFromClipboard">读取剪贴板内容</button>
+      <button class="btn-secondary detect-btn" bindtap="chooseScreenshot" loading="{{parsing}}" disabled="{{parsing}}">
+        从相册选截图识别
+      </button>
     </view>
 
     <view wx:if="{{mode === 'text'}}" class="card">
       <view class="card-title">粘贴岗位 JD</view>
-      <view class="muted">支持 BOSS、猎聘、小红书等招聘页复制的文字</view>
+      <view class="muted">从 BOSS 详情页复制的文字，或猎聘/小红书 JD</view>
       <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴</button>
       <textarea
         class="jd-textarea"
@@ -35,11 +44,11 @@
 
     <view wx:if="{{mode === 'url'}}" class="card">
       <view class="card-title">链接导入</view>
-      <view class="muted">支持 BOSS、猎聘、小红书链接（从微信复制链接后粘贴）</view>
+      <view class="muted">适用于猎聘、小红书等网页链接（BOSS 微信卡片无链接）</view>
       <button class="btn-secondary paste-btn" bindtap="pasteFromClipboard">从剪贴板粘贴链接</button>
       <input
         class="url-input"
-        placeholder="https://www.zhipin.com/job_detail/..."
+        placeholder="https://..."
         value="{{importUrl}}"
         bindinput="onUrlInput"
       />
