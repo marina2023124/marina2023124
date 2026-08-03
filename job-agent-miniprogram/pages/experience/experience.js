@@ -50,11 +50,14 @@ Page({
       .split(/[,，、\s]+/)
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((name, i) => ({
-        id: data.profile.skills[i]?.id || storage.uid("s"),
-        name,
-        level: data.profile.skills[i]?.level || "intermediate",
-      }));
+      .map((name, i) => {
+        const existing = data.profile.skills[i];
+        return {
+          id: (existing && existing.id) || storage.uid("s"),
+          name,
+          level: (existing && existing.level) || "intermediate",
+        };
+      });
 
     data.profile.name = this.data.name.trim();
     data.profile.summary = this.data.summary.trim();

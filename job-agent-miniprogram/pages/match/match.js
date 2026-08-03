@@ -43,7 +43,7 @@ Page({
       .catch((err) => {
         wx.showToast({ title: err.message || "匹配失败", icon: "none" });
       })
-      .finally(() => {
+      .then(() => {
         this.setData({ loading: false });
       });
   },
