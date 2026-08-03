@@ -28,6 +28,14 @@
   margin: 24rpx 0;
 }
 
+.method-title {
+  margin-top: 24rpx;
+  margin-bottom: 12rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #334155;
+}
+
 .guide-step {
   margin-bottom: 16rpx;
   font-size: 28rpx;

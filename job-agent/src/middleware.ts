@@ -19,6 +19,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/wechat/") ||
     pathname === "/api/match" ||
     pathname === "/api/jobs/parse-text" ||
+    pathname === "/api/jobs/ocr-image" ||
+    pathname === "/api/jobs/import-url" ||
     request.cookies.get("job-agent-offline")?.value === "1" ||
     request.cookies.get("job-agent-guest-mode")?.value === "1"
   ) {

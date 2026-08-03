@@ -144,6 +144,34 @@ function llmMatch(profile, job) {
   });
 }
 
+function ocrJobImage(filePath) {
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${API_BASE}/api/jobs/ocr-image`,
+      filePath,
+      name: "file",
+      timeout: 120000,
+      success(res) {
+        let body = {};
+        try {
+          body = JSON.parse(res.data || "{}");
+        } catch {
+          reject(new Error("识别结果解析失败"));
+          return;
+        }
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+        } else {
+          reject(new Error(parseErrorBody(body, res.statusCode)));
+        }
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || "上传截图失败"));
+      },
+    });
+  });
+}
+
 function matchJobs(profile, jobs) {
   return request("/api/match", { method: "POST", data: { profile, jobs } });
 }
@@ -159,6 +187,7 @@ module.exports = {
   bindAccount,
   parseJobText,
   importJobUrl,
+  ocrJobImage,
   getLlmStatus,
   llmChat,
   llmMatch,

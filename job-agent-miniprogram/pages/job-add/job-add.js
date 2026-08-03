@@ -114,7 +114,7 @@ Page({
           title: `检测到${detected.label}`,
           content: force
             ? "是否立即导入？"
-            : "是否导入刚复制的内容？（BOSS 分享链接到微信后，长按复制链接即可）",
+          : "是否导入刚复制的内容？（BOSS 卡片无链接，请先在 BOSS 详情页复制 JD 文字）",
           confirmText: "导入",
           success: (res) => {
             if (!res.confirm) return;
@@ -149,6 +149,29 @@ Page({
     }
     this.setData({ mode: "text", text: detected.value });
     this.parseText();
+  },
+
+  chooseScreenshot() {
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ["image"],
+      sourceType: ["album"],
+      sizeType: ["compressed"],
+      success: (res) => {
+        const file = res.tempFiles && res.tempFiles[0];
+        if (!file) return;
+        this.setData({ parsing: true });
+        api
+          .ocrJobImage(file.tempFilePath)
+          .then((body) => {
+            const text = body.text || "";
+            const draft = body.draft || {};
+            this.showPreview(draftToJob(draft, text));
+          })
+          .catch((err) => wx.showToast({ title: err.message || "识别失败", icon: "none" }))
+          .then(() => this.setData({ parsing: false }));
+      },
+    });
   },
 
   parseText() {
