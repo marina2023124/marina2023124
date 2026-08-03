@@ -47,7 +47,8 @@ jobs:
         working-directory: job-agent-miniprogram
         run: |
           npm install
-          npm install less@3.13.1 --prefix node_modules/miniprogram-ci --no-save
+          mkdir -p node_modules/miniprogram-ci/node_modules
+          ln -sf ../../less node_modules/miniprogram-ci/node_modules/less
 
       - name: 生成预览二维码
         env:
@@ -91,7 +92,8 @@ jobs:
         working-directory: job-agent-miniprogram
         run: |
           npm install
-          npm install less@3.13.1 --prefix node_modules/miniprogram-ci --no-save
+          mkdir -p node_modules/miniprogram-ci/node_modules
+          ln -sf ../../less node_modules/miniprogram-ci/node_modules/less
 
       - name: 上传到微信后台（体验版）
         env:
