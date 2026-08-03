@@ -104,6 +104,10 @@
   box-sizing: border-box;
 }
 
+.req-textarea.short {
+  min-height: 160rpx;
+}
+
 .btn-row {
   display: flex;
   gap: 16rpx;

@@ -21,11 +21,24 @@ function fingerprint(text) {
   return String(text || "").slice(0, 120);
 }
 
+function parseBossCardLine(line) {
+  const trimmed = (line || "").trim();
+  if (!trimmed) return { company: "", title: "" };
+  const parts = trimmed.split(/[·•]/).map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return { company: parts[0], title: parts.slice(1).join(" · ") };
+  }
+  return { company: "", title: trimmed };
+}
+
 Page({
   data: {
     mode: "wechat",
     text: "",
     importUrl: "",
+    quickLine: "",
+    quickSalary: "",
+    quickNotes: "",
     parsing: false,
     preview: null,
     requirementsText: "",
@@ -53,7 +66,9 @@ Page({
   },
 
   onShow() {
-    this.tryClipboardImport(false);
+    if (this.data.mode !== "wechat") {
+      this.tryClipboardImport(false);
+    }
   },
 
   setMode(e) {
@@ -76,6 +91,37 @@ Page({
 
   onRequirementsInput(e) {
     this.setData({ requirementsText: e.detail.value });
+  },
+
+  onQuickLineInput(e) {
+    this.setData({ quickLine: e.detail.value });
+  },
+
+  onQuickSalaryInput(e) {
+    this.setData({ quickSalary: e.detail.value });
+  },
+
+  onQuickNotesInput(e) {
+    this.setData({ quickNotes: e.detail.value });
+  },
+
+  saveQuick() {
+    const { company, title } = parseBossCardLine(this.data.quickLine);
+    if (!title) {
+      wx.showToast({ title: "请填写公司 · 岗位", icon: "none" });
+      return;
+    }
+    this.showPreview({
+      title,
+      company: company || "未知公司",
+      salary: this.data.quickSalary.trim(),
+      description: this.data.quickNotes.trim(),
+      requirements: [],
+      preferredSkills: [],
+      responsibilities: [],
+      source: "boss",
+      url: "",
+    });
   },
 
   pasteFromClipboard() {
@@ -166,7 +212,9 @@ Page({
           .then((body) => {
             const text = body.text || "";
             const draft = body.draft || {};
+            const method = body.method === "vision" ? "DeepSeek 识图" : "OCR";
             this.showPreview(draftToJob(draft, text));
+            wx.showToast({ title: `${method}完成`, icon: "success" });
           })
           .catch((err) => wx.showToast({ title: err.message || "识别失败", icon: "none" }))
           .then(() => this.setData({ parsing: false }));
