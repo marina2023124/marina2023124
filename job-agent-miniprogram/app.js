@@ -7,6 +7,7 @@ App({
     ready: false,
     syncing: false,
     linked: false,
+    loginError: null,
   },
 
   onLaunch() {
@@ -14,7 +15,7 @@ App({
   },
 
   bootstrap(useDemo) {
-    wx.showLoading({ title: "登录中..." });
+    wx.showLoading({ title: "登录中...", mask: true });
     return api
       .login(useDemo)
       .then((res) => {
@@ -23,6 +24,7 @@ App({
         this.globalData.appData = res.data;
         this.globalData.ready = true;
         this.globalData.linked = Boolean(res.linked);
+        this.globalData.loginError = null;
         if (res.isNew && !useDemo) {
           wx.showModal({
             title: "欢迎使用 JobAgent",
@@ -40,7 +42,17 @@ App({
         }
       })
       .catch((err) => {
-        wx.showToast({ title: err.message || "登录失败", icon: "none" });
+        const message = err.message || "登录失败";
+        this.globalData.loginError = message;
+        this.globalData.ready = true;
+        this.globalData.appData = storage.getAppData();
+        wx.showModal({
+          title: "云端登录失败",
+          content:
+            message +
+            "\n\n已使用本地缓存。若报 404，请在 Vercel 将最新 main 部署 Promote 到 Production。",
+          showCancel: false,
+        });
       })
       .finally(() => {
         wx.hideLoading();
@@ -72,7 +84,7 @@ App({
     return api
       .saveData(this.getData())
       .catch((err) => {
-        wx.showToast({ title: err.message || "同步失败", icon: "none" });
+        wx.showToast({ title: err.message || "同步失败", icon: "none", duration: 3000 });
       })
       .finally(() => {
         this.globalData.syncing = false;
