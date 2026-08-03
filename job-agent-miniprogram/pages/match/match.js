@@ -11,7 +11,10 @@ Page({
     if (typeof this.getTabBar === "function" && this.getTabBar()) {
       this.getTabBar().setData({ selected: 3 });
     }
-    this.runMatch();
+    const app = getApp();
+    app.whenReady().then(() => {
+      this.runMatch();
+    });
   },
 
   runMatch() {
@@ -21,6 +24,12 @@ Page({
 
     if (jobs.length === 0) {
       this.setData({ matches: [] });
+      return;
+    }
+
+    if (!wx.getStorageSync("token")) {
+      const msg = app.globalData.loginError || "请先完成登录";
+      wx.showToast({ title: msg, icon: "none" });
       return;
     }
 

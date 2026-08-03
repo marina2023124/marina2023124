@@ -9,10 +9,17 @@ Page({
   },
 
   onShow() {
-    this.refreshStatus();
+    const app = getApp();
+    app.whenReady().then(() => {
+      this.refreshStatus();
+    });
   },
 
   refreshStatus() {
+    if (!wx.getStorageSync("token")) {
+      this.setData({ error: getApp().globalData.loginError || "请先完成登录" });
+      return;
+    }
     api
       .getLinkStatus()
       .then((res) => {

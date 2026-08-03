@@ -13,13 +13,15 @@ function parseErrorBody(data, statusCode) {
 }
 
 function request(path, options = {}) {
-  const token = wx.getStorageSync("token");
   const header = {
     "Content-Type": "application/json",
     ...(options.header || {}),
   };
-  if (token) {
-    header.Authorization = `Bearer ${token}`;
+  if (!options.skipAuth) {
+    const token = wx.getStorageSync("token");
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -33,6 +35,9 @@ function request(path, options = {}) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data);
         } else {
+          if (res.statusCode === 401 && !options.skipAuth) {
+            wx.removeStorageSync("token");
+          }
           reject(new Error(parseErrorBody(res.data, res.statusCode)));
         }
       },
@@ -75,6 +80,7 @@ function login(useDemo) {
         request("/api/auth/wechat", {
           method: "POST",
           data: { code: loginRes.code, useDemo },
+          skipAuth: true,
         })
           .then(resolve)
           .catch(reject);

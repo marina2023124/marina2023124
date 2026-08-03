@@ -11,10 +11,16 @@ App({
   },
 
   onLaunch() {
-    this.bootstrap(false);
+    this._readyPromise = this.bootstrap(false);
+  },
+
+  whenReady() {
+    return this._readyPromise || Promise.resolve();
   },
 
   bootstrap(useDemo) {
+    wx.removeStorageSync("token");
+    this.globalData.ready = false;
     wx.showLoading({ title: "登录中...", mask: true });
     return api
       .login(useDemo)

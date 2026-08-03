@@ -34,17 +34,20 @@ Page({
     });
 
     if (jobs.length > 0 && profile.skills.length + profile.workExperiences.length > 0) {
-      const api = require("../../utils/api");
-      api.matchJobs(profile, jobs).then((res) => {
-        const top = res.matches && res.matches[0];
-        if (!top) return;
-        const job = jobs.find((j) => j.id === top.jobId);
-        this.setData({
-          topMatch: job
-            ? { score: top.score, title: job.title, company: job.company }
-            : null,
-        });
-      }).catch(() => {});
+      app.whenReady().then(() => {
+        if (!wx.getStorageSync("token")) return;
+        const api = require("../../utils/api");
+        api.matchJobs(profile, jobs).then((res) => {
+          const top = res.matches && res.matches[0];
+          if (!top) return;
+          const job = jobs.find((j) => j.id === top.jobId);
+          this.setData({
+            topMatch: job
+              ? { score: top.score, title: job.title, company: job.company }
+              : null,
+          });
+        }).catch(() => {});
+      });
     } else {
       this.setData({ topMatch: null });
     }
