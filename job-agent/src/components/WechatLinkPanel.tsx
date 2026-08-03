@@ -65,6 +65,8 @@ export function WechatLinkPanel() {
     );
   }
 
+  const needsSchemaFix = error?.includes("permission denied") || error?.includes("does not exist");
+
   return (
     <div className="space-y-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-3">
       <div className="flex items-center gap-2 text-sm font-medium text-indigo-900">
@@ -74,6 +76,16 @@ export function WechatLinkPanel() {
       <p className="text-xs leading-relaxed text-indigo-800/90">
         生成 6 位绑定码，在小程序「首页 → 绑定网页账号」输入，即可与网页共用同一份数据。
       </p>
+
+      {needsSchemaFix && (
+        <p className="rounded-lg bg-amber-50 px-2 py-2 text-xs leading-relaxed text-amber-800">
+          数据库尚未配置绑定表权限。请在 Supabase SQL Editor 执行
+          {" "}
+          <code className="text-[10px]">supabase/wechat-link-schema-fix.sql</code>
+          {" "}
+          后刷新本页。
+        </p>
+      )}
 
       {code ? (
         <div className="rounded-lg bg-white px-3 py-3 text-center">

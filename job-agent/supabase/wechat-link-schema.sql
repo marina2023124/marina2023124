@@ -9,6 +9,7 @@ create index if not exists idx_user_wechat_links_openid on public.user_wechat_li
 
 alter table public.user_wechat_links enable row level security;
 
+drop policy if exists "Users can read own wechat link" on public.user_wechat_links;
 create policy "Users can read own wechat link"
   on public.user_wechat_links for select
   using (auth.uid() = user_id);
@@ -25,6 +26,8 @@ create index if not exists idx_wechat_bind_codes_user on public.wechat_bind_code
 
 alter table public.wechat_bind_codes enable row level security;
 
--- 仅服务端 Service Role 读写绑定码与写入链接
-revoke all on public.user_wechat_links from anon, authenticated;
+-- 网页登录用户可读自己的绑定状态；写入仅 Service Role（API 路由）
+grant select on public.user_wechat_links to authenticated;
+grant all on public.user_wechat_links to service_role;
+grant all on public.wechat_bind_codes to service_role;
 revoke all on public.wechat_bind_codes from anon, authenticated;

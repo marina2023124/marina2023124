@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createBindCode, getLinkedOpenid } from "@/lib/wechat-link";
+import { createBindCode } from "@/lib/wechat-link";
+
+async function getLinkedOpenidForUser(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  userId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("user_wechat_links")
+    .select("openid")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`查询绑定关系失败：${error.message}`);
+  }
+
+  return data?.openid ?? null;
+}
 
 export async function GET() {
   try {
@@ -14,7 +31,7 @@ export async function GET() {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    const openid = await getLinkedOpenid(user.id);
+    const openid = await getLinkedOpenidForUser(supabase, user.id);
     return NextResponse.json({
       linked: Boolean(openid),
       openid: openid ? `${openid.slice(0, 6)}…` : undefined,
@@ -37,7 +54,7 @@ export async function POST() {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    const existing = await getLinkedOpenid(user.id);
+    const existing = await getLinkedOpenidForUser(supabase, user.id);
     if (existing) {
       return NextResponse.json({ error: "已绑定微信小程序，无需重复绑定" }, { status: 400 });
     }
