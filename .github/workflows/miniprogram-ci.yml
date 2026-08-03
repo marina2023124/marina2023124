@@ -8,6 +8,7 @@ on:
     paths:
       - "job-agent-miniprogram/**"
       - ".github/workflows/miniprogram-ci.yml"
+      - ".github/scripts/miniprogram/**"
   pull_request:
     paths:
       - "job-agent-miniprogram/**"
@@ -44,12 +45,15 @@ jobs:
 
       - name: 安装 miniprogram-ci
         working-directory: job-agent-miniprogram
-        run: npm install
+        run: npm ci
 
       - name: 生成预览二维码
         env:
           WECHAT_UPLOAD_KEY: ${{ secrets.WECHAT_UPLOAD_KEY }}
-        run: npm run ci:preview --prefix job-agent-miniprogram
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node .github/scripts/miniprogram/ci-preview.js
 
       - name: 上传二维码（下载后微信扫码）
         uses: actions/upload-artifact@v4
@@ -59,10 +63,15 @@ jobs:
           retention-days: 7
 
       - name: 预览说明
+        if: always()
         run: |
           echo "## 如何扫码体验" >> "$GITHUB_STEP_SUMMARY"
           echo "1. 下载 Artifacts 里的 \`miniprogram-preview-qrcode\`" >> "$GITHUB_STEP_SUMMARY"
           echo "2. 微信扫描 png 二维码" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 若 CI 报 invalid ip (-10008)" >> "$GITHUB_STEP_SUMMARY"
+          echo "微信公众平台 → 开发管理 → 开发设置 → 小程序代码上传 → **关闭 IP 白名单**" >> "$GITHUB_STEP_SUMMARY"
+          echo "（GitHub Actions 出口 IP 不固定，无法逐条加入白名单）" >> "$GITHUB_STEP_SUMMARY"
 
   upload:
     name: 上传体验版
@@ -83,14 +92,14 @@ jobs:
 
       - name: 安装 miniprogram-ci
         working-directory: job-agent-miniprogram
-        run: npm install
+        run: npm ci
 
       - name: 上传到微信后台（体验版）
         env:
           WECHAT_UPLOAD_KEY: ${{ secrets.WECHAT_UPLOAD_KEY }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_EVENT_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: npm run ci:upload --prefix job-agent-miniprogram
+        run: node .github/scripts/miniprogram/ci-upload.js
 
       - name: 体验版说明
         run: |

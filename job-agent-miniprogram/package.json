@@ -1,12 +1,15 @@
 {
   "name": "job-agent-miniprogram",
   "private": true,
-  "description": "JobAgent WeChat mini program",
-  "scripts": {
-    "ci:preview": "node scripts/ci-preview.js",
-    "ci:upload": "node scripts/ci-upload.js"
-  },
+  "description": "JobAgent WeChat mini program (runtime only)",
   "devDependencies": {
+    "less": "4.5.1",
     "miniprogram-ci": "1.9.17"
+  },
+  "overrides": {
+    "miniprogram-ci": {
+      "less": "4.5.1"
+    },
+    "less": "4.5.1"
   }
 }

@@ -24,7 +24,14 @@
 2. **开发 → 开发管理 → 开发设置 → 小程序代码上传**
 3. 点击 **生成** 或 **重置**，下载 `.key` 文件（只显示一次，妥善保存）
 
-#### 3. 配置 GitHub Secrets
+#### 3. 关闭 IP 白名单（GitHub Actions 必做）
+
+仍在 **开发设置 → 小程序代码上传** 页面：
+
+- 若已开启 **IP 白名单**，请**关闭**（GitHub Actions 出口 IP 每次不同，无法固定加入白名单）
+- 私钥 `WECHAT_UPLOAD_KEY` 仍是主要凭证，请妥善保管
+
+#### 4. 配置 GitHub Secrets
 
 打开 GitHub 仓库 → **Settings → Secrets and variables → Actions → New repository secret**：
 
@@ -32,7 +39,7 @@
 |-------------|------|
 | `WECHAT_UPLOAD_KEY` | 打开 `.key` 文件，**全文复制**（含 `-----BEGIN RSA PRIVATE KEY-----` 行） |
 
-#### 4. 配置服务器域名（正式发布前）
+#### 5. 配置服务器域名（正式发布前）
 
 小程序后台 → **开发设置 → 服务器域名 → request 合法域名**：
 

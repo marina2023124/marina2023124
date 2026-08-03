@@ -6,12 +6,13 @@ async function main() {
   const privateKey = process.env.WECHAT_UPLOAD_KEY;
   if (!privateKey) throw new Error("缺少 WECHAT_UPLOAD_KEY");
 
-  const miniprogramRoot = path.join(__dirname, "..");
-  const repoRoot = path.join(miniprogramRoot, "..");
+  const repoRoot = path.join(__dirname, "../../..");
+  const miniprogramRoot = path.join(repoRoot, "job-agent-miniprogram");
   const keyPath = path.join(repoRoot, "private.key");
   fs.writeFileSync(keyPath, privateKey, { mode: 0o600 });
 
-  const ci = require("miniprogram-ci");
+  const ciRoot = path.join(miniprogramRoot, "node_modules", "miniprogram-ci");
+  const ci = require(ciRoot);
   const config = JSON.parse(
     fs.readFileSync(path.join(miniprogramRoot, "project.config.json"), "utf8")
   );
@@ -21,7 +22,13 @@ async function main() {
     type: "miniProgram",
     projectPath: miniprogramRoot,
     privateKeyPath: keyPath,
-    ignores: ["node_modules/**/*"],
+    ignores: [
+      "node_modules/**/*",
+      "package.json",
+      "package-lock.json",
+      "README.md",
+      "setup-mac.sh",
+    ],
   });
 
   const version = `1.0.${process.env.GITHUB_RUN_NUMBER || "0"}`;
