@@ -63,10 +63,15 @@ jobs:
           retention-days: 7
 
       - name: 预览说明
+        if: always()
         run: |
           echo "## 如何扫码体验" >> "$GITHUB_STEP_SUMMARY"
           echo "1. 下载 Artifacts 里的 \`miniprogram-preview-qrcode\`" >> "$GITHUB_STEP_SUMMARY"
           echo "2. 微信扫描 png 二维码" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 若 CI 报 invalid ip (-10008)" >> "$GITHUB_STEP_SUMMARY"
+          echo "微信公众平台 → 开发管理 → 开发设置 → 小程序代码上传 → **关闭 IP 白名单**" >> "$GITHUB_STEP_SUMMARY"
+          echo "（GitHub Actions 出口 IP 不固定，无法逐条加入白名单）" >> "$GITHUB_STEP_SUMMARY"
 
   upload:
     name: 上传体验版
