@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.76-job-sort-filter-rating"
+EXPECTED_VERSION="0.2.78-offboard-scan"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -21,7 +21,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
-chmod +x start.sh fix-and-start.sh doctor.sh go.sh 2>/dev/null || true
+chmod +x start.sh fix-and-start.sh doctor.sh go.sh scan-leave.sh 2>/dev/null || true
 
 [ -f ".env.local" ] && cp .env.local .env.local.bak && echo "✓ 已备份 .env.local"
 
@@ -38,7 +38,7 @@ download() {
 }
 
 FILES=(
-  "VERSION" "start.sh" "fix-and-start.sh" "doctor.sh" "go.sh" "update-via-cdn.sh"
+  "VERSION" "start.sh" "fix-and-start.sh" "doctor.sh" "go.sh" "update-via-cdn.sh" "scan-leave.sh"
   "package.json" "package-lock.json" "next.config.mjs" "tsconfig.json"
   "tailwind.config.ts" "postcss.config.mjs"
   "src/lib/types.ts" "src/lib/utils.ts" "src/lib/matching.ts" "src/lib/job-criteria.ts"
@@ -46,7 +46,7 @@ FILES=(
   "src/lib/weekly-report-parser.ts" "src/lib/project-workbook-parser.ts"
   "src/lib/project-work-summary.ts" "src/lib/project-table-parser.ts"
   "src/lib/resume-parser.ts" "src/lib/document-extract.ts" "src/lib/local-storage.ts"
-  "src/lib/storage.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts" "src/lib/job-list.ts"
+  "src/lib/storage.ts" "src/lib/offboard.ts" "src/lib/nav-items.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts" "src/lib/job-list.ts"
   "src/lib/job-merge.ts" "src/lib/job-sections.ts" "src/lib/commute.ts"
   "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
   "src/lib/cloud-storage.ts" "src/lib/boss-bookmarklet.ts"
@@ -56,11 +56,12 @@ FILES=(
   "src/components/AuthGuard.tsx" "src/components/JobManager.tsx" "src/components/JobInterestRating.tsx"
   "src/components/JobDetailSections.tsx" "src/components/BossImportGuide.tsx"
   "src/components/MatchView.tsx" "src/components/CommuteInfo.tsx"
-  "src/components/AgentChat.tsx" "src/components/Sidebar.tsx"
+  "src/components/AgentChat.tsx" "src/components/Sidebar.tsx" "src/components/AppAccountMenu.tsx"
   "src/components/SetupWizard.tsx" "src/components/ClientProviders.tsx"
   "src/components/ui.tsx"
   "src/app/layout.tsx" "src/app/page.tsx" "src/app/experience/page.tsx"
   "src/app/jobs/page.tsx" "src/app/match/page.tsx" "src/app/agent/page.tsx"
+  "src/app/offboard/page.tsx"
   "src/app/login/page.tsx" "src/app/api/health/route.ts"
   "src/app/api/commute/route.ts" "src/app/api/setup/configure/route.ts"
   "src/app/api/setup/test/route.ts"
@@ -82,7 +83,7 @@ if ! grep -q "fix-and-start.sh" "update-via-cdn.sh" 2>/dev/null; then
 fi
 
 rm -rf .next
-chmod +x start.sh fix-and-start.sh doctor.sh go.sh 2>/dev/null || true
+chmod +x start.sh fix-and-start.sh doctor.sh go.sh scan-leave.sh 2>/dev/null || true
 
 echo ""
 echo "✅ 更新完成: ${ACTUAL_VERSION}"

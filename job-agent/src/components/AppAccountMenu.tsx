@@ -1,6 +1,7 @@
 "use client";
 
-import { Cloud, Download, LogOut, Upload } from "lucide-react";
+import Link from "next/link";
+import { Cloud, Download, ListChecks, LogOut, Upload } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { CloudSyncStatus } from "@/components/AuthGuard";
 import { WechatLinkPanel } from "@/components/WechatLinkPanel";
@@ -32,6 +33,14 @@ export function AppAccountMenu({ onNavigate }: { onNavigate?: () => void }) {
 
       {user && !guestMode && !localMode && <WechatLinkPanel />}
 
+      <Link
+        href="/offboard"
+        onClick={() => onNavigate?.()}
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+      >
+        <ListChecks className="h-4 w-4" />
+        离职备份与清理
+      </Link>
       <button
         onClick={exportData}
         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"

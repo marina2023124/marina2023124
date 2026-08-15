@@ -24,6 +24,7 @@ export const navItems: NavItem[] = [
 
 export function getNavTitle(pathname: string): string {
   if (pathname === "/") return "仪表盘";
+  if (pathname === "/offboard") return "离职清理";
   const item = navItems.find((n) => n.href === pathname);
   return item?.label ?? "JobAgent";
 }
