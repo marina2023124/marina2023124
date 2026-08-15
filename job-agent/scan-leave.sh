@@ -20,20 +20,57 @@ info() { printf '  [信息] %s\n' "$1"; }
 
 file_size() {
   local path="$1"
-  if command -v stat >/dev/null 2>&1; then
-    stat -f '%z' "$path" 2>/dev/null || stat -c '%s' "$path" 2>/dev/null || echo "?"
+  # GNU stat uses -c; BSD/macOS uses -f. Never call BSD-style first on Linux:
+  # GNU `stat -f` means --file-system and dumps the whole volume.
+  if stat -c '%s' "$path" >/dev/null 2>&1; then
+    stat -c '%s' "$path"
+  elif stat -f '%z' "$path" >/dev/null 2>&1; then
+    stat -f '%z' "$path"
   else
     echo "?"
   fi
 }
 
+abs_path() {
+  local path="$1"
+  local dir base
+  dir="$(cd "$(dirname "$path")" 2>/dev/null && pwd)" || return 1
+  base="$(basename "$path")"
+  echo "${dir}/${base}"
+}
+
+contains() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+is_source_file() {
+  echo "$1" | grep -Eiq '\.(ts|tsx|js|jsx|mjs|cjs|sh|json|md|css|wxss|wxml)$'
+}
+
+is_user_document() {
+  local name="$1"
+  echo "$name" | grep -Eiq '\.(pdf|docx?|xlsx?|pptx?|txt|png|jpe?g|webp|csv)$' && return 0
+  echo "$name" | grep -Eq '周报|复盘|简历' && ! is_source_file "$name"
+}
+
 HUMAN_HOME="${HOME:-}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SEARCH_ROOTS=()
 
 add_root() {
   local dir="$1"
   [ -n "$dir" ] || return 0
   [ -d "$dir" ] || return 0
+  dir="$(cd "$dir" && pwd)"
+  if contains "$dir" "${SEARCH_ROOTS[@]+"${SEARCH_ROOTS[@]}"}"; then
+    return 0
+  fi
   SEARCH_ROOTS+=("$dir")
 }
 
@@ -42,26 +79,7 @@ add_root "$HUMAN_HOME/marina2023124"
 add_root "$HUMAN_HOME/Downloads"
 add_root "$HUMAN_HOME/Desktop"
 add_root "$HUMAN_HOME/Documents"
-add_root "$PWD"
-add_root "$(cd "$(dirname "$0")" && pwd)"
-add_root "/workspace"
-add_root "/workspace/job-agent"
-
-# 去重
-UNIQUE_ROOTS=()
-for dir in "${SEARCH_ROOTS[@]}"; do
-  skip=0
-  for existing in "${UNIQUE_ROOTS[@]+"${UNIQUE_ROOTS[@]}"}"; do
-    if [ "$existing" = "$dir" ]; then
-      skip=1
-      break
-    fi
-  done
-  if [ "$skip" -eq 0 ]; then
-    UNIQUE_ROOTS+=("$dir")
-  fi
-done
-SEARCH_ROOTS=("${UNIQUE_ROOTS[@]}")
+add_root "$SCRIPT_DIR"
 
 echo "=== JobAgent 离职扫描（只读）==="
 echo "时间: $(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)"
@@ -87,24 +105,37 @@ scan_dir() {
     case "$path" in
       */node_modules/*|*/.git/*|*/.next/*|*/.cache/*) continue ;;
     esac
+    local resolved
+    resolved="$(abs_path "$path")" || continue
+    path="$resolved"
     local base
     base="$(basename "$path")"
     case "$base" in
       .env.local|.env.local.bak|.env)
-        FOUND_ENV+=("$path")
+        if ! contains "$path" "${FOUND_ENV[@]+"${FOUND_ENV[@]}"}"; then
+          FOUND_ENV+=("$path")
+        fi
         ;;
       job-agent-backup-*.json|job-agent-personal-backup-*.json)
-        FOUND_BACKUP_JSON+=("$path")
+        if ! contains "$path" "${FOUND_BACKUP_JSON[@]+"${FOUND_BACKUP_JSON[@]}"}"; then
+          FOUND_BACKUP_JSON+=("$path")
+        fi
         ;;
     esac
-    if echo "$base" | grep -Eq '周报|复盘|Weekly|WK[0-9]'; then
-      FOUND_WEEKLY+=("$path")
+    if is_user_document "$base" && echo "$base" | grep -Eq '周报|复盘|Weekly|WK[0-9]|weekly'; then
+      if ! contains "$path" "${FOUND_WEEKLY[@]+"${FOUND_WEEKLY[@]}"}"; then
+        FOUND_WEEKLY+=("$path")
+      fi
     fi
-    if echo "$base" | grep -Eqi '简历|resume|curriculum|cv[-_. ]'; then
-      FOUND_RESUME+=("$path")
+    if is_user_document "$base" && echo "$base" | grep -Eqi '简历|resume|curriculum|^cv[-_. ]|[-_. ]cv[-_.]'; then
+      if ! contains "$path" "${FOUND_RESUME[@]+"${FOUND_RESUME[@]}"}"; then
+        FOUND_RESUME+=("$path")
+      fi
     fi
-    if [ "$base" = "job-agent" ] && [ -d "$path" ]; then
-      FOUND_JOB_AGENT_DIR+=("$path")
+    if [ "$base" = "job-agent" ] && [ -d "$path" ] && [ -f "$path/VERSION" ]; then
+      if ! contains "$path" "${FOUND_JOB_AGENT_DIR[@]+"${FOUND_JOB_AGENT_DIR[@]}"}"; then
+        FOUND_JOB_AGENT_DIR+=("$path")
+      fi
     fi
   done < <(find "$root" -maxdepth "$maxdepth" \( \
       -name '.env.local' -o -name '.env.local.bak' -o -name '.env' -o \
@@ -118,6 +149,12 @@ scan_dir() {
 for dir in "${SEARCH_ROOTS[@]}"; do
   scan_dir "$dir" 5
 done
+
+if [ -f "$SCRIPT_DIR/VERSION" ] && [ -f "$SCRIPT_DIR/package.json" ]; then
+  if ! contains "$SCRIPT_DIR" "${FOUND_JOB_AGENT_DIR[@]+"${FOUND_JOB_AGENT_DIR[@]}"}"; then
+    FOUND_JOB_AGENT_DIR+=("$SCRIPT_DIR")
+  fi
+fi
 
 echo "--- 个人求职材料（先备份到手机/网盘）---"
 if [ "${#FOUND_RESUME[@]}" -eq 0 ] && [ "${#FOUND_BACKUP_JSON[@]}" -eq 0 ]; then

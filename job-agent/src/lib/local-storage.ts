@@ -75,16 +75,14 @@ export function listBrowserResidue(): BrowserResidueItem[] {
     });
   };
 
-  for (const key of new Set([
-    ...BROWSER_STORAGE_KEYS,
-    ...collectPrefixedKeys(localStorage, "job-agent-"),
-  ])) {
+  for (const key of Array.from(
+    new Set([...BROWSER_STORAGE_KEYS, ...collectPrefixedKeys(localStorage, "job-agent-")])
+  )) {
     add(key, "localStorage", localStorage.getItem(key));
   }
-  for (const key of new Set([
-    ...BROWSER_STORAGE_KEYS,
-    ...collectPrefixedKeys(sessionStorage, "job-agent-"),
-  ])) {
+  for (const key of Array.from(
+    new Set([...BROWSER_STORAGE_KEYS, ...collectPrefixedKeys(sessionStorage, "job-agent-")])
+  )) {
     add(key, "sessionStorage", sessionStorage.getItem(key));
   }
 
@@ -103,11 +101,13 @@ export function listBrowserResidue(): BrowserResidueItem[] {
 /** 清除本机浏览器全部 JobAgent 痕迹（云端账号数据不受影响） */
 export function wipeAllBrowserResidue(): void {
   if (typeof window === "undefined") return;
-  for (const key of new Set([
-    ...BROWSER_STORAGE_KEYS,
-    ...collectPrefixedKeys(localStorage, "job-agent-"),
-    ...collectPrefixedKeys(sessionStorage, "job-agent-"),
-  ])) {
+  for (const key of Array.from(
+    new Set([
+      ...BROWSER_STORAGE_KEYS,
+      ...collectPrefixedKeys(localStorage, "job-agent-"),
+      ...collectPrefixedKeys(sessionStorage, "job-agent-"),
+    ])
+  )) {
     removeStorage(key);
   }
   if (typeof document !== "undefined") {
