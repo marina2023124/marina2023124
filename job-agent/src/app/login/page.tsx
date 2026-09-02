@@ -145,7 +145,7 @@ export default function LoginPage() {
         window.location.href = "/";
       }
     } catch (err) {
-      setError(formatAuthError(err));
+      setError(formatAuthError(err, { serverReachable: serverReachable ?? undefined }));
     } finally {
       setLoading(false);
     }
@@ -162,6 +162,14 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-slate-500">
             数据保存在云端，离开工作电脑不留本地记录
           </p>
+          <a
+            href="https://marina2023124.vercel.app/login"
+            className="mt-3 inline-block text-sm font-medium text-indigo-600 underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            本机登录有问题？直接用线上版 →
+          </a>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -241,7 +249,16 @@ export default function LoginPage() {
                 ))}
                 {serverReachable && pingLines.some((l) => !l.ok) && (
                   <p className="text-xs text-emerald-700">
-                    浏览器直连失败不影响登录，本机服务可转发请求，请直接点「登录」重试。
+                    浏览器直连失败不影响登录。若点「登录」仍报错，优先尝试
+                    <a
+                      href="https://marina2023124.vercel.app/login"
+                      className="mx-1 underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      线上版
+                    </a>
+                    ，或检查邮箱/密码是否正确。
                   </p>
                 )}
                 {proxyHint && (
