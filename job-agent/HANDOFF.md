@@ -150,6 +150,12 @@ location.href="/login"
    - 云端模式下完全隐藏「临时离线」入口（若用户坚持零本地）
    - 合并后让 `update-via-cdn.sh` 的 `GIT_REF` 指向 `main`
 
+### v0.2.78 — 离职备份与清理
+
+- 新增 `/offboard`：扫描云端个人求职资产、浏览器残留，区分「带走备份 / 工作电脑清干净 / 不要带走」
+- 个人备份默认排除顾问对话（常含周报粘贴）
+- `scan-leave.sh`：在工作电脑只读扫描 `.env.local`、备份 JSON、周报/简历文件名；`--clean-job-agent` 仅删密钥文件
+
 ---
 
 ## 5. 踩过的坑 — 绝对不要再踩
@@ -241,19 +247,22 @@ job-agent/
 ├── fix-and-start.sh                 # 清缓存 + build + start（用户主入口）
 ├── go.sh                            # 调用 fix-and-start.sh
 ├── doctor.sh                        # 环境诊断
+├── scan-leave.sh                    # 离职只读扫描工作电脑残留
 ├── update-via-cdn.sh                # 无 GitHub 时的更新通道（FILES 列表很关键）
 ├── start.sh                         # 常规启动
 ├── .env.local                       # Supabase 配置（用户本地，不入库）
 │
 ├── src/
+│   ├── app/offboard/page.tsx        # 离职备份与清理
 │   ├── app/layout.tsx               # 首屏 cloud/offline cookie 预设脚本
 │   ├── app/login/page.tsx           # 登录/注册；mount 时 enableCloudMode()
 │   ├── components/AuthGuard.tsx     # 登录门禁、加载屏、CloudSyncStatus
 │   ├── components/Sidebar.tsx       # 离线时显示「切换到云端登录」
 │   ├── components/ExperienceManager.tsx
 │   ├── components/SmartExperienceImport.tsx
-│   ├── lib/storage.ts               # 核心：bootstrap、auth、cloud sync、模式切换
 │   ├── lib/local-storage.ts         # offline/cloud localStorage + explicit 标记
+│   ├── lib/offboard.ts              # 离职备份/清理清单
+│   ├── lib/storage.ts               # 核心：bootstrap、auth、cloud sync、模式切换
 │   ├── lib/matching.ts              # 匹配主逻辑
 │   ├── lib/job-criteria.ts          # JD 条件解析
 │   ├── lib/project-work-link.ts     # 项目→工作关联

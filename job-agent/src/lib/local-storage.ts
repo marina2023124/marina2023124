@@ -9,7 +9,10 @@ export const CLOUD_MODE_KEY = "job-agent-cloud-mode";
 export const OFFLINE_EXPLICIT_KEY = "job-agent-offline-explicit";
 export const GUEST_MODE_KEY = "job-agent-guest-mode";
 export const GUEST_MODE_COOKIE = "job-agent-guest-mode";
-const DATA_KEY = "job-agent-data";
+export const LOCAL_DATA_KEY = "job-agent-data";
+export const GUEST_DATA_KEY = "job-agent-guest-data";
+export const LEGACY_SESSION_DATA_KEY = "job-agent-session-data";
+const DATA_KEY = LOCAL_DATA_KEY;
 
 function setGuestModeCookie(enabled: boolean): void {
   if (typeof document === "undefined") return;
@@ -24,8 +27,95 @@ export function primeTryPageOffline(): void {
   if (typeof document === "undefined") return;
   document.cookie = "job-agent-offline=1; path=/; max-age=31536000; SameSite=Lax";
 }
-const GUEST_DATA_KEY = "job-agent-guest-data";
-const LEGACY_SESSION_DATA_KEY = "job-agent-session-data";
+
+export const BROWSER_STORAGE_KEYS = [
+  LOCAL_MODE_KEY,
+  CLOUD_MODE_KEY,
+  OFFLINE_EXPLICIT_KEY,
+  GUEST_MODE_KEY,
+  LOCAL_DATA_KEY,
+  GUEST_DATA_KEY,
+  LEGACY_SESSION_DATA_KEY,
+] as const;
+
+export const BROWSER_COOKIE_KEYS = ["job-agent-offline", "job-agent-guest-mode"] as const;
+
+export interface BrowserResidueItem {
+  key: string;
+  location: "localStorage" | "sessionStorage" | "cookie";
+  present: boolean;
+  bytes: number;
+}
+
+function collectPrefixedKeys(storage: Storage, prefix: string): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key && key.startsWith(prefix)) keys.push(key);
+  }
+  return keys;
+}
+
+/** 扫描本机浏览器里 JobAgent 残留（不读取密钥内容） */
+export function listBrowserResidue(): BrowserResidueItem[] {
+  if (typeof window === "undefined") return [];
+
+  const items: BrowserResidueItem[] = [];
+  const seen = new Set<string>();
+
+  const add = (key: string, location: BrowserResidueItem["location"], value: string | null) => {
+    const id = `${location}:${key}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    items.push({
+      key,
+      location,
+      present: value != null && value !== "",
+      bytes: value ? value.length : 0,
+    });
+  };
+
+  for (const key of Array.from(
+    new Set([...BROWSER_STORAGE_KEYS, ...collectPrefixedKeys(localStorage, "job-agent-")])
+  )) {
+    add(key, "localStorage", localStorage.getItem(key));
+  }
+  for (const key of Array.from(
+    new Set([...BROWSER_STORAGE_KEYS, ...collectPrefixedKeys(sessionStorage, "job-agent-")])
+  )) {
+    add(key, "sessionStorage", sessionStorage.getItem(key));
+  }
+
+  const cookieStr = document.cookie || "";
+  for (const name of BROWSER_COOKIE_KEYS) {
+    const match = cookieStr
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`));
+    add(name, "cookie", match ? match.slice(name.length + 1) : null);
+  }
+
+  return items;
+}
+
+/** 清除本机浏览器全部 JobAgent 痕迹（云端账号数据不受影响） */
+export function wipeAllBrowserResidue(): void {
+  if (typeof window === "undefined") return;
+  for (const key of Array.from(
+    new Set([
+      ...BROWSER_STORAGE_KEYS,
+      ...collectPrefixedKeys(localStorage, "job-agent-"),
+      ...collectPrefixedKeys(sessionStorage, "job-agent-"),
+    ])
+  )) {
+    removeStorage(key);
+  }
+  if (typeof document !== "undefined") {
+    for (const name of BROWSER_COOKIE_KEYS) {
+      document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+    }
+  }
+}
 
 function readStorage(key: string): string | null {
   if (typeof window === "undefined") return null;

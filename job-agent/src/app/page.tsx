@@ -8,6 +8,7 @@ import {
   MessageSquare,
   ArrowRight,
   TrendingUp,
+  ListChecks,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { matchAllJobs, getScoreLabel } from "@/lib/matching";
@@ -129,6 +130,19 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      <Link href="/offboard" className="mb-8 block">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 transition-colors hover:border-amber-300">
+          <ListChecks className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-700" />
+          <div>
+            <h3 className="font-semibold text-amber-950">离职了？先备份个人档案，再清工作电脑</h3>
+            <p className="mt-1 text-sm text-amber-800">
+              扫描云端求职材料、浏览器残留，并给出 Mac 终端清理命令。周报和公司文件不要带走。
+            </p>
+          </div>
+          <ArrowRight className="ml-auto mt-1 h-4 w-4 flex-shrink-0 text-amber-600" />
+        </div>
+      </Link>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card title="快速开始">

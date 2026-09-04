@@ -62,4 +62,5 @@ echo "3. Cmd+Shift+R 强制刷新"
 echo "4. 若一直转圈：打开开发者工具 Console，看是否有红色报错"
 echo "5. 强制云端登录（清除本机缓存）: 浏览器 Console 执行:"
 echo '   localStorage.removeItem("job-agent-offline");localStorage.removeItem("job-agent-offline-explicit");localStorage.removeItem("job-agent-data");localStorage.setItem("job-agent-cloud-mode","1");location.href="/login"'
+echo "6. 离职备份与清理: 打开 /offboard ，或运行 bash scan-leave.sh"
 echo ""
