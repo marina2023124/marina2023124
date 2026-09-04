@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { pingSupabaseProject } from "@/lib/supabase/ping";
 import { getServerProxyStatus, serverFetch } from "@/lib/supabase/server-fetch";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
