@@ -6,7 +6,7 @@ export function formatAuthError(err: unknown, opts?: { serverReachable?: boolean
   if (/Email not confirmed/i.test(message)) {
     return "邮箱尚未验证，请先到邮箱点击验证链接";
   }
-  if (/fetch failed|Failed to fetch|NetworkError/i.test(message)) {
+  if (/fetch failed|Failed to fetch|NetworkError|网络失败/i.test(message)) {
     if (opts?.serverReachable) {
       return "登录请求失败，请重试；若仍失败，请改用线上版登录（见下方链接）";
     }
