@@ -64,3 +64,49 @@ export function maskSupabaseUrl(url: string): string {
     return "your-project.supabase.co";
   }
 }
+
+/** Server-side: verify Auth token POST path (same as login). */
+export async function probeAuthTokenPost(
+  url: string,
+  anonKey: string,
+  customFetch: typeof fetch
+): Promise<PingResult> {
+  const base = url.replace(/\/$/, "");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
+
+  try {
+    const res = await customFetch(`${base}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        "Content-Type": "application/json;charset=UTF-8",
+        "X-Supabase-Api-Version": "2024-01-01",
+      },
+      body: JSON.stringify({
+        email: "probe-invalid@jobagent.invalid",
+        password: "invalid-probe-password",
+        gotrue_meta_security: {},
+      }),
+      signal: controller.signal,
+    });
+
+    if (res.status === 400 || res.status === 401 || res.status === 422) {
+      return { ok: true, message: "Auth 登录接口可达（POST /token 正常）" };
+    }
+
+    return {
+      ok: false,
+      message: `Auth 登录接口异常 HTTP ${res.status}`,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/abort|timeout/i.test(message)) {
+      return { ok: false, message: "Auth 登录接口超时" };
+    }
+    return { ok: false, message: `Auth 登录接口不可达：${message}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}

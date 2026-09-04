@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pingSupabaseProject } from "@/lib/supabase/ping";
+import { pingSupabaseProject, probeAuthTokenPost } from "@/lib/supabase/ping";
 import { getServerProxyStatus, serverFetch } from "@/lib/supabase/server-fetch";
 
 export const dynamic = "force-dynamic";
@@ -18,5 +18,13 @@ export async function GET() {
   }
 
   const result = await pingSupabaseProject(url, anonKey, serverFetch);
-  return NextResponse.json({ ...result, proxy });
+  const authPost = await probeAuthTokenPost(url, anonKey, serverFetch);
+
+  return NextResponse.json({
+    ...result,
+    ok: result.ok && authPost.ok,
+    message: authPost.ok ? result.message : authPost.message,
+    authPost,
+    proxy,
+  });
 }
