@@ -28,6 +28,12 @@ export async function pingSupabaseProject(
     });
 
     if (!res.ok) {
+      if (res.status === 502) {
+        return {
+          ok: false,
+          message: "Supabase 项目刚恢复，数据库仍在启动，请等待 2–5 分钟后刷新重试",
+        };
+      }
       return { ok: false, message: `项目 API 返回 ${res.status}，请检查 .env.local 中的 URL` };
     }
 
@@ -94,6 +100,10 @@ export async function probeAuthTokenPost(
 
     if (res.status === 400 || res.status === 401 || res.status === 422) {
       return { ok: true, message: "Auth 登录接口可达（POST /token 正常）" };
+    }
+
+    if (res.status === 502) {
+      return { ok: false, message: "Auth 接口返回 502，项目可能仍在启动中，请稍后再试" };
     }
 
     return {

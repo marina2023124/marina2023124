@@ -26,7 +26,9 @@ export async function GET() {
   const ok = health.ok && authPost.ok;
 
   let issue: string | undefined;
-  if (!health.ok && /ENOTFOUND|无法解析|NXDOMAIN|fetch failed/i.test(health.message + authPost.message)) {
+  if (!health.ok && /502|启动/i.test(health.message + authPost.message)) {
+    issue = "warming_up";
+  } else if (!health.ok && /ENOTFOUND|无法解析|NXDOMAIN|fetch failed/i.test(health.message + authPost.message)) {
     issue = "invalid_supabase_url";
   } else if (!ok) {
     issue = "connection_failed";

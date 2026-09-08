@@ -1,4 +1,5 @@
 import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
+import { getProxyUrl } from "./proxy-env";
 import { serverFetch } from "./server-fetch";
 
 function getSupabaseAuthConfig() {
@@ -87,7 +88,7 @@ function wrapFetchError(err: unknown, action: string): Error {
     }
     if (/fetch failed|Failed to fetch|NetworkError/i.test(err.message)) {
       const cause = causeMsg ? `: ${causeMsg}` : "";
-      const proxyHint = !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY
+      const proxyHint = !getProxyUrl()
         ? "（未检测到 HTTPS_PROXY，请在 .env.local 配置 Clash 代理后重启）"
         : "";
       return new Error(`${action}网络失败${cause}${proxyHint}`);
@@ -116,9 +117,12 @@ export async function passwordSignIn(email: string, password: string): Promise<S
     throw wrapFetchError(err, "登录");
   }
 
-  const body = (await res.json()) as TokenResponse;
+  const body = (await res.json().catch(() => ({}))) as TokenResponse;
 
   if (!res.ok || !body.access_token || !body.refresh_token) {
+    if (res.status === 400 && !body.error && !body.msg) {
+      throw new Error("邮箱或密码错误，请检查后重试");
+    }
     throw new Error(formatAuthApiError(body, res.status));
   }
 

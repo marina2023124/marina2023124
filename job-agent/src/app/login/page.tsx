@@ -222,6 +222,13 @@ export default function LoginPage() {
           )}
         </div>
 
+        {online && cloudIssue === "warming_up" && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <p className="font-medium">Supabase 刚恢复，数据库正在启动</p>
+            <p className="mt-2">请等待 2–5 分钟后刷新本页，再尝试登录。</p>
+          </div>
+        )}
+
         {online && cloudIssue === "invalid_supabase_url" && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <p className="font-medium">账号登录暂不可用（云端数据库地址无效）</p>
