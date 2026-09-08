@@ -48,7 +48,7 @@ FILES=(
   "src/lib/project-work-summary.ts" "src/lib/project-table-parser.ts"
   "src/lib/resume-parser.ts" "src/lib/document-extract.ts"   "src/lib/local-storage.ts" "src/lib/deployment.ts"
   "src/lib/storage.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts" "src/lib/job-list.ts"
-  "src/lib/job-merge.ts" "src/lib/job-sections.ts" "src/lib/commute.ts"
+  "src/lib/job-merge.ts" "src/lib/job-status.ts" "src/lib/job-sections.ts" "src/lib/commute.ts"
   "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
   "src/lib/cloud-storage.ts" "src/lib/boss-bookmarklet.ts"
   "src/lib/supabase/client.ts" "src/lib/supabase/middleware.ts" "src/lib/supabase/server.ts"
