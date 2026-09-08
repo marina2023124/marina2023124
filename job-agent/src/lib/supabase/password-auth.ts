@@ -74,8 +74,19 @@ function authHeaders(anonKey: string): Record<string, string> {
 
 function wrapFetchError(err: unknown, action: string): Error {
   if (err instanceof Error) {
-    const cause = err.cause instanceof Error ? `: ${err.cause.message}` : "";
+    const causeMsg =
+      err.cause instanceof Error
+        ? err.cause.message
+        : err.cause != null
+          ? String(err.cause)
+          : "";
+    if (/ENOTFOUND|NXDOMAIN|getaddrinfo/i.test(`${err.message} ${causeMsg}`)) {
+      return new Error(
+        `${action}失败：Supabase 项目地址无法解析，请打开 Supabase 控制台确认项目仍存在，并检查 URL 是否正确`
+      );
+    }
     if (/fetch failed|Failed to fetch|NetworkError/i.test(err.message)) {
+      const cause = causeMsg ? `: ${causeMsg}` : "";
       return new Error(`${action}网络失败${cause}`);
     }
     return err;

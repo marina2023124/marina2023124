@@ -7,6 +7,9 @@ export function formatAuthError(err: unknown, opts?: { serverReachable?: boolean
     return "邮箱尚未验证，请先到邮箱点击验证链接";
   }
   if (/fetch failed|Failed to fetch|NetworkError|网络失败/i.test(message)) {
+    if (/ENOTFOUND|无法解析|NXDOMAIN/i.test(message)) {
+      return "Supabase 项目地址无效或项目已删除，请登录 supabase.com 核对 URL 后更新 .env.local（本机）或 Vercel 环境变量（线上）";
+    }
     if (opts?.serverReachable) {
       return "登录请求失败，请重试；若仍失败，请改用线上版登录（见下方链接）";
     }
