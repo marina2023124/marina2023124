@@ -92,12 +92,14 @@ export default function LoginPage() {
         ok: boolean;
         message: string;
         proxy?: { configured: boolean; url?: string };
+        health?: { ok: boolean; message: string };
         authPost?: { ok: boolean; message: string };
       };
+      const health = serverResult.health ?? { ok: serverResult.ok, message: serverResult.message };
       lines.push({
         label: "本机服务 → 项目 API",
-        ok: serverResult.ok,
-        message: serverResult.message,
+        ok: health.ok,
+        message: health.message,
       });
       if (serverResult.authPost) {
         lines.push({
@@ -106,13 +108,13 @@ export default function LoginPage() {
           message: serverResult.authPost.message,
         });
       }
-      setServerReachable(serverResult.ok && (serverResult.authPost?.ok ?? true));
+      setServerReachable(health.ok && (serverResult.authPost?.ok ?? true));
 
       if (serverResult.proxy?.configured) {
         setProxyHint(`本机服务已启用代理：${serverResult.proxy.url}`);
-      } else if (!serverResult.ok) {
+      } else if (!health.ok || !serverResult.authPost?.ok) {
         setProxyHint(
-          "Clash 用户：在 .env.local 添加 HTTPS_PROXY=http://127.0.0.1:7890，然后重新运行 bash fix-and-start.sh"
+          "① 确认 Clash 已开启；② 在 .env.local 添加 HTTPS_PROXY=http://127.0.0.1:7890（端口以 Clash 设置为准）；③ 打开 supabase.com/dashboard 核对 Project URL 是否正确；④ 运行 bash fix-and-start.sh 重启"
         );
       }
     } catch {
