@@ -45,6 +45,12 @@ fi
 echo ""
 export ALLOW_SETUP_CONFIGURE=1
 
+# shellcheck source=scripts/proxy-detect.sh
+source "$SCRIPT_DIR/scripts/proxy-detect.sh"
+echo "▶  检测代理..."
+detect_local_proxy || true
+echo ""
+
 free_port() {
   if command -v fuser &>/dev/null; then
     fuser -k 3000/tcp 2>/dev/null || true

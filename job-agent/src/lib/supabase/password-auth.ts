@@ -87,7 +87,10 @@ function wrapFetchError(err: unknown, action: string): Error {
     }
     if (/fetch failed|Failed to fetch|NetworkError/i.test(err.message)) {
       const cause = causeMsg ? `: ${causeMsg}` : "";
-      return new Error(`${action}网络失败${cause}`);
+      const proxyHint = !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY
+        ? "（未检测到 HTTPS_PROXY，请在 .env.local 配置 Clash 代理后重启）"
+        : "";
+      return new Error(`${action}网络失败${cause}${proxyHint}`);
     }
     return err;
   }

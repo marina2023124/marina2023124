@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.79-proxy-fix"
+EXPECTED_VERSION="0.2.80-proxy-env"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -39,6 +39,7 @@ download() {
 
 FILES=(
   "VERSION" "start.sh" "fix-and-start.sh" "doctor.sh" "go.sh" "update-via-cdn.sh"
+  "scripts/proxy-detect.sh"
   "package.json" "package-lock.json" "next.config.mjs" "tsconfig.json"
   "tailwind.config.ts" "postcss.config.mjs"
   "src/lib/types.ts" "src/lib/utils.ts" "src/lib/matching.ts" "src/lib/job-criteria.ts"
@@ -51,8 +52,8 @@ FILES=(
   "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
   "src/lib/cloud-storage.ts" "src/lib/boss-bookmarklet.ts"
   "src/lib/supabase/client.ts" "src/lib/supabase/middleware.ts" "src/lib/supabase/server.ts"
-  "src/lib/supabase/server-fetch.ts" "src/lib/supabase/password-auth.ts" "src/lib/supabase/ping.ts"
-  "src/lib/supabase/auth-errors.ts"
+  "src/lib/supabase/server-fetch.ts" "src/lib/supabase/proxy-env.ts" "src/lib/supabase/password-auth.ts"
+  "src/lib/supabase/ping.ts" "src/lib/supabase/auth-errors.ts"
   "src/context/AppContext.tsx" "src/middleware.ts"
   "src/components/ExperienceManager.tsx" "src/components/SmartExperienceImport.tsx"
   "src/components/AuthGuard.tsx" "src/components/JobManager.tsx" "src/components/JobInterestRating.tsx"
