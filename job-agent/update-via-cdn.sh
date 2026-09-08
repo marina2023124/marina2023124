@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.76-job-sort-filter-rating"
+EXPECTED_VERSION="0.2.78-login-fix"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -51,6 +51,8 @@ FILES=(
   "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
   "src/lib/cloud-storage.ts" "src/lib/boss-bookmarklet.ts"
   "src/lib/supabase/client.ts" "src/lib/supabase/middleware.ts" "src/lib/supabase/server.ts"
+  "src/lib/supabase/server-fetch.ts" "src/lib/supabase/password-auth.ts" "src/lib/supabase/ping.ts"
+  "src/lib/supabase/auth-errors.ts"
   "src/context/AppContext.tsx" "src/middleware.ts"
   "src/components/ExperienceManager.tsx" "src/components/SmartExperienceImport.tsx"
   "src/components/AuthGuard.tsx" "src/components/JobManager.tsx" "src/components/JobInterestRating.tsx"
@@ -61,9 +63,10 @@ FILES=(
   "src/components/ui.tsx"
   "src/app/layout.tsx" "src/app/page.tsx" "src/app/experience/page.tsx"
   "src/app/jobs/page.tsx" "src/app/match/page.tsx" "src/app/agent/page.tsx"
-  "src/app/login/page.tsx" "src/app/api/health/route.ts"
+  "src/app/login/page.tsx"   "src/app/api/health/route.ts"
+  "src/app/api/auth/login/route.ts" "src/app/api/auth/signup/route.ts"
   "src/app/api/commute/route.ts" "src/app/api/setup/configure/route.ts"
-  "src/app/api/setup/test/route.ts"
+  "src/app/api/setup/test/route.ts" "src/app/api/setup/ping/route.ts"
 )
 
 echo "开始下载 ${#FILES[@]} 个文件..."

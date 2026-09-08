@@ -49,6 +49,12 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
+    void handlePing();
+    // 仅 mount 时自动检测一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (authReady && user) {
       router.replace("/");
     }
@@ -86,13 +92,21 @@ export default function LoginPage() {
         ok: boolean;
         message: string;
         proxy?: { configured: boolean; url?: string };
+        authPost?: { ok: boolean; message: string };
       };
       lines.push({
         label: "本机服务 → 项目 API",
         ok: serverResult.ok,
         message: serverResult.message,
       });
-      setServerReachable(serverResult.ok);
+      if (serverResult.authPost) {
+        lines.push({
+          label: "本机服务 → 登录接口",
+          ok: serverResult.authPost.ok,
+          message: serverResult.authPost.message,
+        });
+      }
+      setServerReachable(serverResult.ok && (serverResult.authPost?.ok ?? true));
 
       if (serverResult.proxy?.configured) {
         setProxyHint(`本机服务已启用代理：${serverResult.proxy.url}`);
