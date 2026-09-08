@@ -125,7 +125,7 @@ export function Select({ label, options, className, ...props }: SelectProps) {
 
 interface BadgeProps {
   children: React.ReactNode;
-  color?: "indigo" | "green" | "amber" | "red" | "slate";
+  color?: "indigo" | "green" | "amber" | "orange" | "red" | "slate";
 }
 
 export function Badge({ children, color = "slate" }: BadgeProps) {
@@ -133,6 +133,7 @@ export function Badge({ children, color = "slate" }: BadgeProps) {
     indigo: "bg-indigo-50 text-indigo-700",
     green: "bg-emerald-50 text-emerald-700",
     amber: "bg-amber-50 text-amber-700",
+    orange: "bg-orange-50 text-orange-700",
     red: "bg-red-50 text-red-700",
     slate: "bg-slate-100 text-slate-700",
   };

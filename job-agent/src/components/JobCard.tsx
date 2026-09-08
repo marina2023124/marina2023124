@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { Edit2, Trash2, X, Check } from "lucide-react";
 import type { JobPosting, JobStatus } from "@/lib/types";
+import {
+  JOB_STATUS_COLOR,
+  JOB_STATUS_OPTIONS,
+  getJobStatusLabel,
+} from "@/lib/job-status";
 import { CommuteInfo } from "@/components/CommuteInfo";
 import { JobApplyLink } from "@/components/JobApplyLink";
 import { JobDetailSections } from "@/components/JobDetailSections";
@@ -14,21 +19,8 @@ import { getJobIndustry } from "@/lib/job-list";
 import { JOB_SOURCE_LABELS, resolveJobSource, type JobSource } from "@/lib/job-source";
 import { Badge, Button, Card, Input, Select, Textarea } from "./ui";
 
-const statusOptions: { value: JobStatus; label: string }[] = [
-  { value: "saved", label: "已收藏" },
-  { value: "applied", label: "已投递" },
-  { value: "interview", label: "面试中" },
-  { value: "rejected", label: "已拒绝" },
-  { value: "offer", label: "已获 Offer" },
-];
-
-const statusColor: Record<JobStatus, "slate" | "indigo" | "amber" | "red" | "green"> = {
-  saved: "slate",
-  applied: "indigo",
-  interview: "amber",
-  rejected: "red",
-  offer: "green",
-};
+const statusOptions = JOB_STATUS_OPTIONS;
+const statusColor = JOB_STATUS_COLOR;
 
 function cloneJob(job: JobPosting): JobPosting {
   return {
@@ -173,7 +165,7 @@ export function JobCard({
 }) {
   const [draft, setDraft] = useState(() => cloneJob(job));
 
-  const statusLabel = statusOptions.find((s) => s.value === job.status)?.label || job.status;
+  const statusLabel = getJobStatusLabel(job.status);
   const industry = getJobIndustry(job);
 
   const handleStartEdit = () => {

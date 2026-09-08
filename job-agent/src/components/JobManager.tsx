@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { JobPosting, JobStatus } from "@/lib/types";
+import { JOB_STATUS_OPTIONS } from "@/lib/job-status";
 import { generateId } from "@/lib/utils";
 import { parseJobDescription } from "@/lib/jd-parser";
 import { jobToEditableText, mergeParsedJob } from "@/lib/job-merge";
@@ -156,13 +157,7 @@ function JobListToolbar({
   );
 }
 
-const statusOptions: { value: JobStatus; label: string }[] = [
-  { value: "saved", label: "已收藏" },
-  { value: "applied", label: "已投递" },
-  { value: "interview", label: "面试中" },
-  { value: "rejected", label: "已拒绝" },
-  { value: "offer", label: "已获 Offer" },
-];
+const statusOptions = JOB_STATUS_OPTIONS;
 
 function SmartJobInput({
   initial,
