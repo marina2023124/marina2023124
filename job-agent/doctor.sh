@@ -51,7 +51,23 @@ if curl -fsS "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
   echo ""
 else
   fail "http://localhost:3000 无响应"
-  echo "    尝试: ./fix-and-start.sh"
+  echo "    尝试: bash fix-and-start.sh"
+fi
+
+if curl -fsS "http://127.0.0.1:3000/api/setup/ping" >/dev/null 2>&1; then
+  echo ""
+  echo "--- Supabase 连通性 ---"
+  PING=$(curl -s "http://127.0.0.1:3000/api/setup/ping")
+  echo "$PING" | python3 -m json.tool 2>/dev/null || echo "$PING"
+else
+  echo ""
+  fail "无法访问 /api/setup/ping（服务未启动或未配置 Supabase）"
+fi
+
+if [ -f ".env.local" ]; then
+  echo ""
+  echo "--- .env.local ---"
+  grep -E '^(NEXT_PUBLIC_SUPABASE_URL|HTTPS_PROXY|HTTP_PROXY)=' .env.local 2>/dev/null | sed 's/\(anon\|key\)=.*/\1=***/' || echo "（无 Supabase/代理配置）"
 fi
 
 echo ""

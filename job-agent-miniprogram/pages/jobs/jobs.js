@@ -1,3 +1,5 @@
+const { getJobStatusLabel } = require("../../utils/job-status");
+
 Page({
   data: {
     jobs: [],
@@ -12,7 +14,11 @@ Page({
 
   refresh() {
     const { jobs } = getApp().getData();
-    this.setData({ jobs });
+    const labeled = jobs.map((j) => ({
+      ...j,
+      statusLabel: getJobStatusLabel(j.status),
+    }));
+    this.setData({ jobs: labeled });
   },
 
   addJob() {

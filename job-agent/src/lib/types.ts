@@ -68,7 +68,7 @@ export interface Profile {
   skills: Skill[];
 }
 
-export type JobStatus = "saved" | "applied" | "interview" | "rejected" | "offer";
+export type JobStatus = "saved" | "applied" | "interview" | "closed" | "declined" | "rejected" | "offer";
 
 import type { JobSource } from "./job-source";
 export type { JobSource } from "./job-source";

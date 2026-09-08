@@ -1,4 +1,5 @@
 import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
+import { getProxyUrl } from "./proxy-env";
 import { serverFetch } from "./server-fetch";
 
 function getSupabaseAuthConfig() {
@@ -74,9 +75,23 @@ function authHeaders(anonKey: string): Record<string, string> {
 
 function wrapFetchError(err: unknown, action: string): Error {
   if (err instanceof Error) {
-    const cause = err.cause instanceof Error ? `: ${err.cause.message}` : "";
+    const causeMsg =
+      err.cause instanceof Error
+        ? err.cause.message
+        : err.cause != null
+          ? String(err.cause)
+          : "";
+    if (/ENOTFOUND|NXDOMAIN|getaddrinfo/i.test(`${err.message} ${causeMsg}`)) {
+      return new Error(
+        `${action}失败：Supabase 项目地址无法解析，请打开 Supabase 控制台确认项目仍存在，并检查 URL 是否正确`
+      );
+    }
     if (/fetch failed|Failed to fetch|NetworkError/i.test(err.message)) {
-      return new Error(`${action}网络失败${cause}`);
+      const cause = causeMsg ? `: ${causeMsg}` : "";
+      const proxyHint = !getProxyUrl()
+        ? "（未检测到 HTTPS_PROXY，请在 .env.local 配置 Clash 代理后重启）"
+        : "";
+      return new Error(`${action}网络失败${cause}${proxyHint}`);
     }
     return err;
   }
@@ -102,9 +117,12 @@ export async function passwordSignIn(email: string, password: string): Promise<S
     throw wrapFetchError(err, "登录");
   }
 
-  const body = (await res.json()) as TokenResponse;
+  const body = (await res.json().catch(() => ({}))) as TokenResponse;
 
   if (!res.ok || !body.access_token || !body.refresh_token) {
+    if (res.status === 400 && !body.error && !body.msg) {
+      throw new Error("邮箱或密码错误，请检查后重试");
+    }
     throw new Error(formatAuthApiError(body, res.status));
   }
 

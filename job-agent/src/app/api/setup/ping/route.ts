@@ -21,9 +21,9 @@ export async function GET() {
   const authPost = await probeAuthTokenPost(url, anonKey, serverFetch);
 
   return NextResponse.json({
-    ...result,
     ok: result.ok && authPost.ok,
-    message: authPost.ok ? result.message : authPost.message,
+    message: result.ok && authPost.ok ? result.message : !result.ok ? result.message : authPost.message,
+    health: result,
     authPost,
     proxy,
   });

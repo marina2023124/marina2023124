@@ -1,22 +1,21 @@
+import { ensureProxyEnv, getProxyUrl } from "./proxy-env";
+
 type FetchFn = typeof fetch;
 
-function getProxyUrl(): string | undefined {
-  return process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY;
-}
-
 let proxyAgent: import("undici").ProxyAgent | undefined;
+let cachedProxyForAgent: string | undefined;
 
 async function getUndici() {
   return import("undici");
 }
 
-async function getProxyAgent(): Promise<import("undici").ProxyAgent | undefined> {
-  const proxy = getProxyUrl();
-  if (!proxy) return undefined;
-  if (!proxyAgent) {
-    const { ProxyAgent } = await getUndici();
-    proxyAgent = new ProxyAgent(proxy);
+async function getProxyAgent(proxy: string): Promise<import("undici").ProxyAgent> {
+  if (proxyAgent && cachedProxyForAgent === proxy) {
+    return proxyAgent;
   }
+  const { ProxyAgent } = await getUndici();
+  proxyAgent = new ProxyAgent(proxy);
+  cachedProxyForAgent = proxy;
   return proxyAgent;
 }
 
@@ -26,13 +25,45 @@ export function getServerProxyStatus(): { configured: boolean; url?: string } {
   return { configured: true, url };
 }
 
-/** Server-side fetch via undici (proxy-aware). Avoids Node fetch POST issues on Vercel. */
-export const serverFetch: FetchFn = (async (input, init) => {
+async function fetchViaUndici(
+  input: Parameters<typeof fetch>[0],
+  init: Parameters<typeof fetch>[1],
+  proxy?: string
+): Promise<Response> {
   const { fetch: undiciFetch } = await getUndici();
-  const agent = await getProxyAgent();
+  const options = { ...(init as Record<string, unknown>) };
+  if (proxy) {
+    options.dispatcher = await getProxyAgent(proxy);
+  }
+  return undiciFetch(input as Parameters<typeof undiciFetch>[0], options) as unknown as Response;
+}
 
-  return undiciFetch(input as Parameters<typeof undiciFetch>[0], {
-    ...(init as Record<string, unknown>),
-    ...(agent ? { dispatcher: agent } : {}),
-  }) as unknown as Response;
+/** Server-side fetch: 有代理走 undici ProxyAgent，失败时回退 Node fetch；无代理 Vercel 走 undici。 */
+export const serverFetch: FetchFn = (async (input, init) => {
+  ensureProxyEnv();
+  const proxy = getProxyUrl();
+
+  if (proxy) {
+    try {
+      return await fetchViaUndici(input, init, proxy);
+    } catch (err) {
+      process.env.HTTP_PROXY = proxy;
+      process.env.HTTPS_PROXY = proxy;
+      try {
+        return await fetch(input, init);
+      } catch {
+        throw err;
+      }
+    }
+  }
+
+  try {
+    return await fetchViaUndici(input, init);
+  } catch (err) {
+    try {
+      return await fetch(input, init);
+    } catch {
+      throw err;
+    }
+  }
 }) as FetchFn;

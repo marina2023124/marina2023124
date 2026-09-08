@@ -13,7 +13,7 @@
         <view class="job-title">{{item.title}}</view>
         <view class="company">{{item.company}}</view>
       </view>
-      <view class="badge">{{item.status || 'saved'}}</view>
+      <view class="badge">{{item.statusLabel || '已收藏'}}</view>
     </view>
     <view class="muted job-meta">
       <text wx:if="{{item.location}}">{{item.location}}</text>
