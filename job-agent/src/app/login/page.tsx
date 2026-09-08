@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Loader2, WifiOff } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
@@ -10,6 +10,11 @@ import { SetupWizard } from "@/components/SetupWizard";
 import { Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { enableCloudMode } from "@/lib/local-storage";
+import {
+  isOnlineDeployment,
+  ONLINE_TRY_URL,
+  VERCEL_ENV_SETTINGS,
+} from "@/lib/deployment";
 
 const AUTH_REQUEST_TIMEOUT_MS = 20000;
 
@@ -41,18 +46,105 @@ export default function LoginPage() {
   const [pingLines, setPingLines] = useState<PingLine[]>([]);
   const [serverReachable, setServerReachable] = useState<boolean | null>(null);
   const [proxyHint, setProxyHint] = useState<string | null>(null);
+  const [online] = useState(() => isOnlineDeployment());
+  const [cloudIssue, setCloudIssue] = useState<string | null>(null);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const configured = isSupabaseConfigured();
+
+  const handlePing = useCallback(async () => {
+    setPinging(true);
+    setPingLines([]);
+    setServerReachable(null);
+    setProxyHint(null);
+    setCloudIssue(null);
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+    const lines: PingLine[] = [];
+
+    if (!online) {
+      const browserResult = await pingSupabaseProject(url, key);
+      lines.push({
+        label: "浏览器 → 项目 API",
+        ok: browserResult.ok,
+        message: browserResult.message,
+      });
+    }
+
+    try {
+      const endpoint = online ? "/api/setup/status" : "/api/setup/ping";
+      const res = await fetch(endpoint);
+      const serverResult = (await res.json()) as {
+        ok: boolean;
+        message: string;
+        issue?: string;
+        proxy?: { configured: boolean; url?: string };
+        health?: { ok: boolean; message: string };
+        authPost?: { ok: boolean; message: string };
+      };
+
+      if (online) {
+        setCloudIssue(serverResult.issue ?? null);
+        if (serverResult.issue === "invalid_supabase_url") {
+          lines.push({
+            label: "线上 → 云端数据库",
+            ok: false,
+            message: "Supabase 项目地址无效或已删除，账号登录暂不可用",
+          });
+        } else {
+          lines.push({
+            label: "线上 → 云端数据库",
+            ok: serverResult.ok,
+            message: serverResult.message,
+          });
+        }
+        setServerReachable(serverResult.ok);
+      } else {
+        const health = serverResult.health ?? { ok: serverResult.ok, message: serverResult.message };
+        lines.push({
+          label: "本机服务 → 项目 API",
+          ok: health.ok,
+          message: health.message,
+        });
+        if (serverResult.authPost) {
+          lines.push({
+            label: "本机服务 → 登录接口",
+            ok: serverResult.authPost.ok,
+            message: serverResult.authPost.message,
+          });
+        }
+        setServerReachable(health.ok && (serverResult.authPost?.ok ?? true));
+
+        if (serverResult.proxy?.configured) {
+          setProxyHint(`本机服务已启用代理：${serverResult.proxy.url}`);
+        } else if (!health.ok || !serverResult.authPost?.ok) {
+          setProxyHint(
+            "① 确认 Clash 已开启；② 在 .env.local 添加 HTTPS_PROXY=http://127.0.0.1:7890；③ 运行 bash fix-and-start.sh 重启"
+          );
+        }
+      }
+    } catch {
+      lines.push({
+        label: online ? "线上 → 云端数据库" : "本机服务 → 项目 API",
+        ok: false,
+        message: online ? "无法访问线上服务" : "无法访问本机 API，请确认 dev 服务已启动",
+      });
+      setServerReachable(false);
+    }
+
+    setPingLines(lines);
+    setPinging(false);
+  }, [online]);
 
   useEffect(() => {
     enableCloudMode();
   }, []);
 
   useEffect(() => {
+    if (!configured) return;
     void handlePing();
-    // 仅 mount 时自动检测一次
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [configured, handlePing]);
 
   useEffect(() => {
     if (authReady && user) {
@@ -60,75 +152,13 @@ export default function LoginPage() {
     }
   }, [authReady, user, router]);
 
-  if (!isSupabaseConfigured()) {
+  if (!configured) {
     return (
       <div className="min-h-screen bg-slate-50 py-10 px-6">
         <SetupWizard />
       </div>
     );
   }
-
-  const handlePing = async () => {
-    setPinging(true);
-    setPingLines([]);
-    setServerReachable(null);
-    setProxyHint(null);
-
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-    const browserResult = await pingSupabaseProject(url, key);
-    const lines: PingLine[] = [
-      {
-        label: "浏览器 → 项目 API",
-        ok: browserResult.ok,
-        message: browserResult.message,
-      },
-    ];
-
-    try {
-      const res = await fetch("/api/setup/ping");
-      const serverResult = (await res.json()) as {
-        ok: boolean;
-        message: string;
-        proxy?: { configured: boolean; url?: string };
-        health?: { ok: boolean; message: string };
-        authPost?: { ok: boolean; message: string };
-      };
-      const health = serverResult.health ?? { ok: serverResult.ok, message: serverResult.message };
-      lines.push({
-        label: "本机服务 → 项目 API",
-        ok: health.ok,
-        message: health.message,
-      });
-      if (serverResult.authPost) {
-        lines.push({
-          label: "本机服务 → 登录接口",
-          ok: serverResult.authPost.ok,
-          message: serverResult.authPost.message,
-        });
-      }
-      setServerReachable(health.ok && (serverResult.authPost?.ok ?? true));
-
-      if (serverResult.proxy?.configured) {
-        setProxyHint(`本机服务已启用代理：${serverResult.proxy.url}`);
-      } else if (!health.ok || !serverResult.authPost?.ok) {
-        setProxyHint(
-          "① 确认 Clash 已开启；② 在 .env.local 添加 HTTPS_PROXY=http://127.0.0.1:7890（端口以 Clash 设置为准）；③ 打开 supabase.com/dashboard 核对 Project URL 是否正确；④ 运行 bash fix-and-start.sh 重启"
-        );
-      }
-    } catch {
-      lines.push({
-        label: "本机服务 → 项目 API",
-        ok: false,
-        message: "无法访问本机 API，请确认 dev 服务已启动",
-      });
-      setServerReachable(false);
-    }
-
-    setPingLines(lines);
-    setPinging(false);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,17 +206,52 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900">JobAgent</h1>
           <p className="mt-2 text-sm text-slate-500">
-            数据保存在云端，离开工作电脑不留本地记录
+            {online
+              ? "线上版：浏览器打开即可，无需本机 Mac 配置"
+              : "数据保存在云端，离开工作电脑不留本地记录"}
           </p>
-          <a
-            href="https://marina2023124.vercel.app/login"
-            className="mt-3 inline-block text-sm font-medium text-indigo-600 underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            本机登录有问题？直接用线上版 →
-          </a>
+          {!online && (
+            <a
+              href="https://marina2023124.vercel.app/login"
+              className="mt-3 inline-block text-sm font-medium text-indigo-600 underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              本机登录有问题？直接用线上版 →
+            </a>
+          )}
         </div>
+
+        {online && cloudIssue === "invalid_supabase_url" && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-medium">账号登录暂不可用（云端数据库地址无效）</p>
+            <p className="mt-2 text-amber-800">
+              你无需在本机 Mac 做任何操作。可先使用下方「访客体验」，或等管理员在 Vercel 更新 Supabase 配置。
+            </p>
+            <a
+              href={VERCEL_ENV_SETTINGS}
+              className="mt-2 inline-block text-xs text-amber-700 underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Vercel 环境变量设置（浏览器打开）
+            </a>
+          </div>
+        )}
+
+        {online && (
+          <div className="mb-4">
+            <Button
+              type="button"
+              className="w-full"
+              onClick={() => {
+                window.location.href = ONLINE_TRY_URL;
+              }}
+            >
+              直接进入访客体验（推荐 · 无需登录）
+            </Button>
+          </div>
+        )}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex rounded-lg bg-slate-100 p-1">
@@ -232,26 +297,37 @@ export default function LoginPage() {
             {error && (
               <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
                 <p>{error}</p>
-                <p className="text-xs text-red-500">
-                  能打开 supabase.com 不代表项目 API 可达。登录经本机服务转发，实际访问的是{" "}
-                  <span className="font-mono">{maskSupabaseUrl(supabaseUrl)}</span>
-                </p>
-                {serverReachable === false && (
-                  <div className="space-y-1 text-xs text-red-500">
-                    <p>
-                      本机服务也无法连接 Supabase。可尝试：① Clash 开「系统代理」或「TUN 模式」；② 在
-                      .env.local 加 <span className="font-mono">HTTPS_PROXY=http://127.0.0.1:7890</span>{" "}
-                      后重启；③ 改用{" "}
-                      <a
-                        href="https://marina2023124.vercel.app/login"
-                        className="underline"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        线上版
-                      </a>
+                {!online && (
+                  <>
+                    <p className="text-xs text-red-500">
+                      能打开 supabase.com 不代表项目 API 可达。登录经本机服务转发，实际访问的是{" "}
+                      <span className="font-mono">{maskSupabaseUrl(supabaseUrl)}</span>
                     </p>
-                  </div>
+                    {serverReachable === false && (
+                      <div className="space-y-1 text-xs text-red-500">
+                        <p>
+                          本机服务也无法连接 Supabase。可改用{" "}
+                          <a
+                            href="https://marina2023124.vercel.app/try"
+                            className="underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            线上访客体验
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+                {online && (
+                  <p className="text-xs text-red-500">
+                    建议先用{" "}
+                    <a href="/try" className="underline">
+                      访客体验
+                    </a>
+                    ，无需本机配置。
+                  </p>
                 )}
               </div>
             )}
@@ -263,7 +339,7 @@ export default function LoginPage() {
                     {line.message}
                   </div>
                 ))}
-                {serverReachable && pingLines.some((l) => !l.ok) && (
+                {serverReachable && !online && pingLines.some((l) => !l.ok) && (
                   <p className="text-xs text-emerald-700">
                     浏览器直连失败不影响登录。若点「登录」仍报错，优先尝试
                     <a
@@ -299,51 +375,57 @@ export default function LoginPage() {
               )}
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full text-sm"
-              disabled={pinging}
-              onClick={handlePing}
-            >
-              {pinging ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  正在测试连接…
-                </>
-              ) : (
-                "测试云端连接（浏览器 + 本机服务）"
-              )}
-            </Button>
+            {!online && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-sm"
+                disabled={pinging}
+                onClick={handlePing}
+              >
+                {pinging ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    正在测试连接…
+                  </>
+                ) : (
+                  "测试云端连接（浏览器 + 本机服务）"
+                )}
+              </Button>
+            )}
           </form>
 
           <p className="mt-6 text-center text-xs text-slate-400">
-            登录与同步经本机 Next.js 服务转发，浏览器无需直连 *.supabase.co
+            {online
+              ? "访客模式数据保存在你的浏览器；账号登录需云端数据库正常"
+              : "登录与同步经本机 Next.js 服务转发，浏览器无需直连 *.supabase.co"}
           </p>
 
           <p className="mt-3 text-center text-sm">
             <a href="/try" className="text-indigo-600 hover:underline">
-              访客体验（无需注册，适合分享给朋友/面试官）
+              {online ? "访客体验（无需注册 · 推荐）" : "访客体验（无需注册，适合分享给朋友/面试官）"}
             </a>
           </p>
 
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <p className="mb-2 text-center text-xs text-slate-400">
-              仅在 VPN 不可用、又急需编辑时的备用入口
-            </p>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={() => {
-                enterLocalMode();
-                router.replace("/");
-              }}
-            >
-              <WifiOff className="h-4 w-4" />
-              临时离线（资料会写入本机，不推荐工作电脑使用）
-            </Button>
-          </div>
+          {!online && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <p className="mb-2 text-center text-xs text-slate-400">
+                仅在 VPN 不可用、又急需编辑时的备用入口
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  enterLocalMode();
+                  router.replace("/");
+                }}
+              >
+                <WifiOff className="h-4 w-4" />
+                临时离线（资料会写入本机，不推荐工作电脑使用）
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

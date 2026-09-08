@@ -6,7 +6,7 @@ set -e
 
 # 使用分支名，避免 commit SHA 过期或写错（如 REPLACE_SHA）
 GIT_REF="cursor/job-finding-agent-5260"
-EXPECTED_VERSION="0.2.80-proxy-env"
+EXPECTED_VERSION="0.2.81-online-guest"
 BASE="https://cdn.jsdelivr.net/gh/marina2023124/marina2023124@${GIT_REF}/job-agent"
 
 echo "📥 通过 CDN 更新 JobAgent"
@@ -46,7 +46,7 @@ FILES=(
   "src/lib/skill-tags.ts" "src/lib/profile-merge.ts" "src/lib/project-work-link.ts"
   "src/lib/weekly-report-parser.ts" "src/lib/project-workbook-parser.ts"
   "src/lib/project-work-summary.ts" "src/lib/project-table-parser.ts"
-  "src/lib/resume-parser.ts" "src/lib/document-extract.ts" "src/lib/local-storage.ts"
+  "src/lib/resume-parser.ts" "src/lib/document-extract.ts"   "src/lib/local-storage.ts" "src/lib/deployment.ts"
   "src/lib/storage.ts" "src/lib/jd-parser.ts" "src/lib/jd-sections.ts" "src/lib/job-list.ts"
   "src/lib/job-merge.ts" "src/lib/job-sections.ts" "src/lib/commute.ts"
   "src/lib/agent.ts" "src/lib/context-manager.ts" "src/lib/ocr.ts"
@@ -68,6 +68,7 @@ FILES=(
   "src/app/api/auth/login/route.ts" "src/app/api/auth/signup/route.ts"
   "src/app/api/commute/route.ts" "src/app/api/setup/configure/route.ts"
   "src/app/api/setup/test/route.ts" "src/app/api/setup/ping/route.ts"
+  "src/app/api/setup/status/route.ts"
 )
 
 echo "开始下载 ${#FILES[@]} 个文件..."
